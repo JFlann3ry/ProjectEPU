@@ -1,5 +1,7 @@
 # ProjectEPU — Event Photo Uploads
 
+[![CI](https://github.com/JFlann3ry/ProjectEPU/actions/workflows/ci.yml/badge.svg)](https://github.com/JFlann3ry/ProjectEPU/actions/workflows/ci.yml)
+
 A FastAPI web app where hosts create events and guests upload photos/videos via a shareable code or link. Hosts manage galleries, customize themes, and (later) pay for plans.
 
 ## Stack
