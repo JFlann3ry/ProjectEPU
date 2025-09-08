@@ -1,0 +1,65 @@
+# ---------- Python & tooling ----------
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.egg-info/
+pip-wheel-metadata/
+dist/
+build/
+
+# ---------- Environments ----------
+venv/
+.venv/
+env/
+.python-version
+
+# ---------- OS/Editor ----------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# ---------- App runtime data (keep out of GitHub) ----------
+# Secrets / config
+.env
+.env.*
+
+# Logs
+logs/
+*.log
+
+# User uploads and generated media
+storage/
+static/uploads/
+
+# Certificates/keys (just in case any end up in repo)
+**/*.pem
+**/*.key
+**/*.crt
+
+# Local database files
+*.sqlite
+*.sqlite3
+*.db
+
+# Node/Web build caches if any
+node_modules/
+.parcel-cache/
+.next/
+out/
+
+# Docker/compose override files with secrets
+docker-compose.override.yml
+
+# Alembic: include migrations (do NOT ignore versions)
+# (No ignore here; keep alembic/ and versions tracked)
