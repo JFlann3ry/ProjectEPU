@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}{{ purchase.plan_name }} – Purchase #{{ purchase.id }} - EPU{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs-container section" style="padding-bottom:0;">
+  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
+    <a href="/profile" class="crumb">Profile</a>
+    <span class="sep" aria-hidden="true">›</span>
+    <a href="/billing/summary" class="crumb">Billing</a>
+    <span class="sep" aria-hidden="true">›</span>
+    <span class="crumb current">Purchase #{{ purchase.id }}</span>
+  </nav>
+  </div>
+{% endblock %}
+{% block content %}
+<div class="container section center">
+  <div class="page-hero center">
+  <h1 class="hero-title">{{ purchase.plan_name }} – Purchase #{{ purchase.id }}</h1>
+    <p class="hero-sub">Order details and receipt options.</p>
+  </div>
+  <div class="card" style="max-width:520px;margin:0 auto;">
+  <style></style>
+    {# Normalize status value to standard variants #}
+    {% set _raw = (purchase.status or '')|lower %}
+    {% if _raw in ['paid','success','s'] %}
+      {% set _norm = 'paid' %}
+    {% elif _raw in ['pending','in_progress','p'] %}
+      {% set _norm = 'pending' %}
+    {% elif _raw in ['refunded','r'] %}
+      {% set _norm = 'refunded' %}
+    {% elif _raw in ['canceled','cancelled','c'] %}
+      {% set _norm = 'canceled' %}
+    {% else %}
+      {% set _norm = _raw %}
+    {% endif %}
+    {% set status_class = 'status-' + (_norm if _norm in ['paid','pending','refunded','canceled'] else 'other') %}
+    <div class="kv" style="margin-bottom:16px;">
+      <div class="kv-row">
+  <div class="kv-label">Date</div>
+  <div class="kv-value">{{ purchase.created.strftime('%d %B %Y') if purchase.created else '' }}</div>
+      </div>
+      <div class="kv-row">
+        <div class="kv-label">Amount</div>
+        <div class="kv-value">{{ purchase.amount }}</div>
+      </div>
+      <div class="kv-row">
+  <div class="kv-label">Status</div>
+  <div class="kv-value"><span class="chip {{ status_class }}">{{ (_norm or '—')|capitalize }}</span></div>
+      </div>
+      <div class="kv-row">
+        <div class="kv-label">Package</div>
+        <div class="kv-value">{{ purchase.plan_name }}</div>
+      </div>
+      {% if purchase.plan_desc %}
+      <div class="kv-row">
+        <div class="kv-label">Description</div>
+        <div class="kv-value">{{ purchase.plan_desc }}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if sent %}
+      <div class="notice success" style="margin:8px 0 14px;">Receipt email sent.</div>
+    {% endif %}
+
+  <div class="btn-row">
+        {% if _norm == 'pending' and (STRIPE_PUBLISHABLE_KEY or '') %}
+      <button class="btn success block" data-purchase-id="{{ purchase.id }}" data-session="{{ purchase.session }}" onclick="retryCheckout(event)">Pay now</button>
+        {% endif %}
+  <a class="btn block" href="/billing/purchase/{{ purchase.id }}/receipt.pdf">Download PDF receipt</a>
+  <button class="btn block" type="button" data-purchase-id="{{ purchase.id }}" onclick="emailReceipt(event)">Email receipt</button>
+  <a class="btn block" href="/billing/summary">Back to Billing</a>
+    </div>
+  </div>
+</div>
+  <script src="https://js.stripe.com/v3/"></script>
+  <script>
+    async function retryCheckout(ev){
+      const btn = ev.currentTarget;
+      const purchaseId = btn.getAttribute('data-purchase-id');
+      // Always create a fresh session to avoid expired links
+      // eslint-disable-next-line no-undef
+      const stripe = Stripe('{{ STRIPE_PUBLISHABLE_KEY|e }}');
+      async function go(id){
+        const { error } = await stripe.redirectToCheckout({ sessionId: id });
+        if (error) { console.warn('Stripe redirect error', error); throw error; }
+      }
+      try {
+        btn.disabled = true;
+        const res = await fetch(`/billing/purchase/${purchaseId}/restart-checkout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        if (!res.ok) throw new Error('Failed to create checkout session');
+        const data = await res.json();
+        const sessionId = data && data.id;
+        if (!sessionId) throw new Error('No session id');
+        await go(sessionId);
+      } catch (e) {
+        console.error('Unable to start checkout', e);
+        alert('Sorry, we could not start checkout. Please try again.');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    async function emailReceipt(ev){
+      const btn = ev.currentTarget;
+      const purchaseId = btn.getAttribute('data-purchase-id');
+      try {
+        btn.disabled = true;
+        const res = await fetch(`/billing/purchase/${purchaseId}/email-receipt`, { method: 'POST' });
+        if (res.ok) {
+          window.location.href = `/billing/purchase/${purchaseId}?sent=1`;
+        } else {
+          if (res.status === 429) {
+            alert('You can request this receipt once per hour. Please try again later.');
+          } else {
+            alert('Unable to send receipt email.');
+          }
+        }
+      } catch (e) {
+        console.error('Email receipt failed', e);
+        alert('Unable to send receipt email.');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+  </script>
+{% endblock %}

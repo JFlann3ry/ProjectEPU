@@ -1,0 +1,28 @@
+.menu-btn {
+    background-color: #0F0E17;
+    color: #FFFFFE;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-family: 'Covered By Your Grace';
+    font-weight: 400;
+    font-size: 20px;
+    cursor: pointer;
+}
+.menu-btn:hover {
+    background-color: #F25F4C;
+}
+.content-btn {
+    background-color: #F25F4C;
+    color: #FFFFFE;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-family: 'Covered By Your Grace';
+    font-weight: 400;
+    font-size: 20px;
+    cursor: pointer;
+}
+.content-btn:hover {
+    background-color: #E53170;
+}

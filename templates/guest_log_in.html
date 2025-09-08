@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Guest Login - EPU{% endblock %}
+
+{% block content %}
+<div class="container section center">
+    <div class="page-hero center">
+        <h1 class="hero-title">Guest Login</h1>
+        <p class="hero-sub">Enter your event code to upload photos and videos.</p>
+    </div>
+    <div class="card center" style="width:100%; max-width:420px;">
+    <form class="form" method="post" action="/guest/login" style="gap:16px; max-width:380px; margin:0 auto;">
+            <div class="floating-field">
+                <label for="event_code" class="fl-label">Event Code</label>
+        <input class="input-field" type="text" id="event_code" name="event_code" value="{{ prefill_code if prefill_code else '' }}" required maxlength="4" autocapitalize="characters" autocomplete="one-time-code" inputmode="text">
+            </div>
+            <div class="floating-field">
+                <label for="event_password" class="fl-label">Event Password</label>
+        <input class="input-field" type="password" id="event_password" name="event_password" required autocomplete="current-password" {{ 'autofocus' if focus_password else '' }}>
+            </div>
+            {% if error %}
+            <div class="notice error">{{ error }}</div>
+            {% endif %}
+            {% set text = "Guest Log in" %}
+            {% set class = "btn primary block" %}
+            {% set type = "submit" %}
+            {% include "components/button.html" %}
+        </form>
+    </div>
+</div>
+{% endblock %}

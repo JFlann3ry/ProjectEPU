@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Email Preferences - EPU{% endblock %}
+
+{% block content %}
+<div class="container section">
+  <div class="page-hero">
+    <h1 class="hero-title">Email Preferences</h1>
+    <p class="hero-sub">Choose which emails you want to receive.</p>
+  </div>
+  <div class="card center" style="max-width:720px;margin:0 auto;">
+  {% if notice == 'saved' %}
+      <div class="notice success" style="margin:8px 0;">Preferences saved.</div>
+  {% elif notice == 'unsubscribed' %}
+      <div class="notice success" style="margin:8px 0;">You've been unsubscribed from all emails.</div>
+    {% endif %}
+    <form method="post" action="/profile/email-preferences" class="form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}" />
+      <label class="checkbox-row">
+        <input type="checkbox" name="marketing" value="1" {% if prefs.marketing %}checked{% endif %} />
+        <span>Marketing emails (occasional offers and tips)</span>
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" name="product" value="1" {% if prefs.product %}checked{% endif %} />
+        <span>Product updates (new features and improvements)</span>
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" name="reminders" value="1" {% if prefs.reminders %}checked{% endif %} />
+        <span>Event reminders and notifications</span>
+      </label>
+      <div class="btn-row">
+        <button class="btn primary" type="submit">Save Preferences</button>
+        <a class="btn" href="/profile">Back to Profile</a>
+      </div>
+    </form>
+    <form method="post" action="/profile/email-preferences/unsubscribe" style="margin-top:16px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}" />
+      <button class="btn danger" type="submit">Unsubscribe from all emails</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Request Account Deletion - EPU{% endblock %}
+
+{% block content %}
+<div class="container section center">
+    <div class="page-hero center">
+        <h1 class="hero-title">Request Account Deletion</h1>
+        <p class="hero-sub">This action is permanent and cannot be undone.</p>
+    </div>
+    <div class="card" style="max-width:720px;margin:0 auto;">
+        <div class="p-regular" style="margin-bottom:16px;">
+            <p>We're sorry to see you go. Deleting your account is permanent and cannot be undone. All your events, uploads, and personal data will be removed from our system within 30 days, in accordance with our data retention policy.</p>
+            <p>If you are sure you want to proceed, please confirm below:</p>
+        </div>
+        <form id="delete-form" class="form" method="post" action="/account/delete">
+            <label class="checkbox-row">
+                <input type="checkbox" name="confirm" required class="checkbox-field checkbox-lg">
+                <span class="p-bold" style="color:#F25F4C;">I understand this action is permanent and want to delete my account.</span>
+            </label>
+            {% if error %}
+            <div class="notice error">{{ error }}</div>
+            {% endif %}
+            {% if message %}
+            <div class="notice success">{{ message }}</div>
+            {% endif %}
+            <div class="btn-row" style="margin-top:8px;">
+                <a href="/profile" class="btn">No, Go Back</a>
+                <button id="confirm-delete" type="button" class="btn danger">Delete My Account</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    var btn = document.getElementById('confirm-delete');
+    var form = document.getElementById('delete-form');
+    if (btn && form && window.EPU && window.EPU.modal){
+        btn.addEventListener('click', function(){
+            // Ensure checkbox is ticked or show message
+            var check = form.querySelector('input[name="confirm"]');
+            if (!check || !check.checked){
+                window.EPU.modal.show({ title: 'Missing confirmation', body: '<p class="muted">Please tick the confirmation checkbox before proceeding.</p>', actions: [{ label: 'OK', role: 'cancel', onClick: function(h){ h(); } }] });
+                return;
+            }
+            window.EPU.modal.show({
+                title: 'Delete Account?',
+                body: '<p class="muted">This will permanently delete your account and all associated data. This action cannot be undone. Are you sure you want to continue?</p>',
+                actions: [
+                    { label: 'Cancel', role: 'cancel', onClick: function(hide){ hide(); } },
+                    { label: 'Yes, delete', danger: true, onClick: function(){ form.submit(); } }
+                ]
+            });
+        });
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

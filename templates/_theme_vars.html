@@ -1,0 +1,31 @@
+{# Inject CSS variables for theming. Expect a 'tv' dict in context. #}
+<style>
+.theme-root{
+  /* Readable defaults (light text on dark surfaces) */
+  /* Page background (kept separate from card) */
+  --bg: {{ tv.page_bg or '#0b0b10' }};
+  /* Text for themed content outside cards if needed */
+  --text: {{ tv.text or '#e9eef6' }};
+  /* Card surface variables driven by theme controls */
+  --card: {{ tv.bg or '#0f0f12' }};
+  --card-text: {{ tv.text or '#e9eef6' }};
+  --btn1: {{ tv.btn1 or '#4f8cff' }};
+  --btn2: {{ tv.btn2 or '#8338EC' }};
+  --accent: {{ tv.accent or 'rgba(255,255,255,0.22)' }};
+  --font: {{ tv.font or 'Inter, Arial, sans-serif' }};
+  --input-bg: {{ tv.input_bg or '#15161e' }};
+  --dropzone-bg: {{ tv.dropzone_bg or '#121424' }};
+  --bg-image: {% if tv.bg_img %}url('{{ tv.bg_img }}'){% else %}none{% endif %};
+  --bg-size: {% if tv.bg_img %}cover{% else %}auto{% endif %};
+  --bg-position: {% if tv.bg_img %}center{% else %}initial{% endif %};
+  --bg-blur: {% if tv.bg_img %}44px{% else %}0px{% endif %};
+  /* Bridge app.css + form.css variables to theme */
+  --color-text: var(--card-text);
+  --color-border: var(--accent);
+  /* Form vars used by form.css; override defaults inside themed pages */
+  --form-bg: var(--card);
+  --form-border: var(--accent);
+  --form-border-focus: #6ea8fe;
+  --form-label: #a9a9b3;
+}
+</style>

@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}Your Profile - EPU{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs-container section" style="padding-bottom:0;">
+    <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
+    <span class="crumb current" aria-current="page">Profile</span>
+    </nav>
+    </div>
+{% endblock %}
+{% block content %}
+<div class="container section center">
+    <div class="page-hero center" style="margin-bottom: 16px;">
+        <h1 class="hero-title" style="margin-bottom:4px;">Welcome{% if user and user.FirstName %}, {{ user.FirstName }}{% endif %}</h1>
+        <p class="hero-sub">Manage your account, events, and preferences.</p>
+    </div>
+
+    {% set has_recent = recent_events and recent_events|length > 0 %}
+    <style>
+    /* When there's only one column, constrain width and center the grid */
+    .profile-grid.one-col { grid-template-columns: minmax(320px, 760px); justify-content: center; }
+    </style>
+    <div class="grid-2 equal-heights profile-grid {% if not has_recent %}one-col{% endif %}" style="gap:16px; align-items: stretch;">
+        <!-- Left: Overview & Actions -->
+        <div class="card full-height">
+            <div class="card-body">
+                <section class="next-event" style="margin-bottom:12px;">
+                    <h3 class="h4" style="margin:0 0 6px;">Next event</h3>
+                    {% if next_event %}
+                        <div class="next-event-card">
+                            <div class="next-event-main">
+                                <div class="next-event-title">
+                                    <a href="/events/{{ next_event.id }}">{{ next_event.name }}</a>
+                                </div>
+                                <div class="next-event-meta">{{ next_event.when }} • in {{ next_event.days_until }} day{{ 's' if next_event.days_until != 1 }}</div>
+                            </div>
+                            <div class="next-event-actions">
+                                <a class="btn sm" href="/events/{{ next_event.id }}" title="View event">
+                                    <svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/></svg>
+                                    <span>View</span>
+                                </a>
+                                <button type="button" class="btn sm gallery-btn" data-gallery-select data-event-id="{{ next_event.id }}" title="Open gallery">
+                                        <svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 14l3-3 3 3 3-3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/></svg>
+                                        <span>Gallery</span>
+                                </button>
+                                <button class="btn sm share-btn" type="button" data-event-id="{{ next_event.id }}" data-code="{{ next_event.code or '' }}" data-published="{{ 1 if next_event.published else 0 }}" data-title="{{ next_event.name }}" title="Share options">
+                                    <svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 8a3 3 0 1 0-2.83-4H12A3 3 0 0 0 9 7a3 3 0 0 0 .17 1.02l-1.9 1.13A3 3 0 1 0 9 14.98l1.9-1.13A3 3 0 0 0 12 15a3 3 0 1 0 2.83-4.02l-1.9-1.13A3.01 3.01 0 0 0 12 9c0-.35.06-.68.17-1.02l1.9-1.13A3 3 0 0 0 15 8Z" stroke="currentColor" stroke-width="1.5"/></svg>
+                                    <span>Share</span>
+                                </button>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="notice" style="margin:0;">No upcoming event scheduled. <a class="accent-link" href="/events/create">Create one</a>.</div>
+                    {% endif %}
+                </section>
+
+                <div role="separator" aria-hidden="true" style="height:1px; background: rgba(255,255,255,0.14); margin: 12px 0 14px;"></div>
+                <div class="p-regular" style="margin-bottom:12px;">
+                    <p>From here, you can manage your events, update your profile, and adjust your email preferences.</p>
+                <div class="profile-menu" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
+                    <a class="btn" href="/events/create">Create event</a>
+                    <a class="btn" href="/events">My events</a>
+                    <a class="btn" href="/profile/edit">Edit profile</a>
+                    <a class="btn" href="/billing/summary">Billing</a>
+                    <!-- Email preferences moved to Edit profile page -->
+                    <button class="btn danger" type="button" id="btn-logout" style="grid-column: 1 / -1; width:100%; justify-content:center;">Log out</button>
+                    <!-- Delete account moved to Edit profile > Danger zone for safety -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Recent activity -->
+        {% if has_recent %}
+        <div class="card full-height">
+            <div class="card-body">
+                <h3 class="h4" style="margin-top:0;">Recent events</h3>
+                <ul class="list" style="list-style:none; padding:0; margin: 8px 0 0; display:flex; flex-direction:column; gap:8px;">
+                    {% for ev in recent_events %}
+                        <li class="list-item event-row" style="display:flex; align-items:center; justify-content:space-between; gap:8px; border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:10px 12px;">
+                            <div>
+                                <div class="p-bold">{{ ev.Name or ('Event #' ~ ev.EventID) }}</div>
+                                <div class="small muted">Code: {{ ev.Code }}{% if ev.Published %} • Published{% else %} • Draft{% endif %}</div>
+                            </div>
+                            <div class="btn-row" style="display:flex; gap:6px;">
+                                <a class="btn" href="/events/{{ ev.EventID }}" title="View event">
+                                    <svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/></svg>
+                                    <span>View</span>
+                                </a>
+                                    <button type="button" class="btn gallery-btn" data-gallery-select data-event-id="{{ ev.EventID }}" title="Open gallery">
+                                        <svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 14l3-3 3 3 3-3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/></svg>
+                                        <span>Gallery</span>
+                                    </button>
+                                <button class="btn share-btn" type="button" data-event-id="{{ ev.EventID }}" data-code="{{ ev.Code }}" data-published="{{ 1 if ev.Published else 0 }}" data-title="{{ ev.Name }}" title="Share options">
+                                    <svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 8a3 3 0 1 0-2.83-4H12A3 3 0 0 0 9 7a3 3 0 0 0 .17 1.02l-1.9 1.13A3 3 0 1 0 9 14.98l1.9-1.13A3 3 0 0 0 12 15a3 3 0 1 0 2.83-4.02l-1.9-1.13A3.01 3.01 0 0 0 12 9c0-.35.06-.68.17-1.02l1.9-1.13A3 3 0 0 0 15 8Z" stroke="currentColor" stroke-width="1.5"/></svg>
+                                    <span>Share</span>
+                                </button>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% set _m = email_prefs or {} %}
+{% set _csrf = csrf_token or '' %}
+<div id="email-prefs-data" data-marketing="{{ '1' if _m.marketing else '0' }}" data-product="{{ '1' if _m.product else '0' }}" data-reminders="{{ '1' if _m.reminders else '0' }}" data-csrf="{{ _csrf }}" style="display:none;"></div>
+{% block extra_js %}
+<script>
+    (function(){
+        const prefsBtn = document.getElementById('btn-email-prefs');
+        const logoutBtn = document.getElementById('btn-logout');
+        const dataRoot = document.getElementById('email-prefs-data');
+        // Handle Gallery open without form wrappers
+        document.addEventListener('click', async function(e){
+            var gb = e.target.closest('[data-gallery-select]');
+            if (gb){
+                e.preventDefault();
+                var eid = gb.getAttribute('data-event-id');
+                if (!eid) return;
+                try {
+                    var res = await fetch('/gallery/select', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'fetch' },
+                        body: 'event_id=' + encodeURIComponent(eid)
+                    });
+                    if (res.ok) { window.location.href = '/gallery'; }
+                    else { if (window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Failed to open gallery'); }
+                } catch(err){ if (window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Network error'); }
+            }
+        });
+        const defaults = {
+            marketing: dataRoot && dataRoot.dataset.marketing === '1',
+            product: dataRoot && dataRoot.dataset.product === '1',
+            reminders: dataRoot && dataRoot.dataset.reminders === '1',
+        };
+        const csrf = dataRoot ? dataRoot.dataset.csrf : '';
+        function esc(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+        function openShare(code, published, title){
+            var url = window.location.origin + '/e/' + (code || '');
+            var encUrl = encodeURIComponent(url);
+            var encTitle = encodeURIComponent(title || 'My event');
+            var warn = !published ? '<div class="notice" style="margin-bottom:10px;">This event is not published. Shared links may not be viewable by others until you publish.</div>' : '';
+            var body = warn +
+                '<div class="btn-row" style="flex-wrap:wrap; gap:8px;">' +
+                    '<a class="btn" href="https://wa.me/?text=' + encTitle + '%20' + encUrl + '" target="_blank" rel="noopener" title="Share via WhatsApp"><span>WhatsApp</span></a>' +
+                    '<a class="btn" href="fb-messenger://share/?link=' + encUrl + '" target="_blank" rel="noopener" title="Share via Messenger (mobile)"><span>Messenger</span></a>' +
+                    '<a class="btn" href="mailto:?subject=' + encTitle + '&body=' + encTitle + '%0A' + encUrl + '" title="Share via Email"><span>Email</span></a>' +
+                    '<button class="btn share-copy" type="button" data-url="' + esc(url) + '"><span>Copy Link</span></button>' +
+                '</div>' +
+                '<div class="small muted" style="margin-top:6px;">The share page URL is ' + esc(url) + '</div>';
+            if (window.EPU && window.EPU.modal){ window.EPU.modal.show({ title: 'Share Event', body: body, fit: true, actions: [], noDefaultClose: true }); }
+        }
+        document.addEventListener('click', function(e){
+            var shareBtn = e.target.closest('.share-btn');
+            if (shareBtn){
+                e.preventDefault();
+                var code = shareBtn.getAttribute('data-code');
+                var eid = shareBtn.getAttribute('data-event-id');
+                var pub = shareBtn.getAttribute('data-published') === '1';
+                var title = shareBtn.getAttribute('data-title') || 'My event';
+                openShare(code, pub, title);
+                // best-effort mark shared
+                try { fetch('/events/' + eid + '/mark-shared', { method: 'POST', headers: { 'X-Requested-With':'fetch' } }); } catch(_e){}
+            }
+            var copyBtn = e.target.closest('.share-copy');
+            if (copyBtn){
+                var url = copyBtn.getAttribute('data-url') || '';
+                var ta = document.createElement('textarea');
+                ta.value = url; document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); } catch(_err){}
+                document.body.removeChild(ta);
+                if (window.EPU && window.EPU.toast){ window.EPU.toast('Link copied'); }
+            }
+        });
+        if (logoutBtn){
+            logoutBtn.addEventListener('click', function(){
+                const body = '<p class="muted">Are you sure you want to log out?</p>';
+                window.EPU && window.EPU.modal && window.EPU.modal.show({
+                    title: 'Log out',
+                    body,
+                    actions: [
+                        { label: 'Cancel', role: 'cancel' },
+                        { label: 'Log out', danger: true, onClick: function(){ window.location.href = '/logout'; } }
+                    ]
+                });
+            });
+        }
+            if (prefsBtn){
+                prefsBtn.addEventListener('click', function(){
+                    const body = `
+                        <div class="modal-section">\n
+                            <form method="post" action="/profile/email-preferences" class="form">\n
+                                <input type="hidden" name="csrf_token" value="${csrf}" />\n
+                                <div class="kv-label">Choose which emails you want to receive</div>\n
+                                <label class="checkbox-row">\n
+                                    <input class="checkbox-field" type="checkbox" name="marketing" value="1" ${defaults.marketing ? 'checked' : ''} />\n
+                                    <span>Marketing emails (occasional offers and tips)</span>\n
+                                </label>\n
+                                <label class="checkbox-row">\n
+                                    <input class="checkbox-field" type="checkbox" name="product" value="1" ${defaults.product ? 'checked' : ''} />\n
+                                    <span>Product updates (new features and improvements)</span>\n
+                                </label>\n
+                                <label class="checkbox-row">\n
+                                    <input class="checkbox-field" type="checkbox" name="reminders" value="1" ${defaults.reminders ? 'checked' : ''} />\n
+                                    <span>Event reminders and notifications</span>\n
+                                </label>\n
+                                <div class=\"btn-row\">\n
+                                    <button class=\"btn primary\" type=\"submit\">Save Preferences</button>\n
+                                </div>\n
+                            </form>\n
+                        </div>\n
+                        <div class="modal-section" style="margin-top:12px;">\n
+                            <form method="post" action="/profile/email-preferences/unsubscribe">\n
+                                <input type="hidden" name="csrf_token" value="${csrf}" />\n
+                                <button class=\"btn danger block\" style=\"width:100%\" type=\"submit\">Unsubscribe from all emails</button>\n
+                            </form>\n
+                        </div>\n
+                    `;
+                window.EPU && window.EPU.modal && window.EPU.modal.show({ title: 'Email Preferences', body, wide: false, fit: true, actions: [], noDefaultClose: true });
+            });
+        }
+    })();
+</script>
+{% endblock %}
+{% endblock %}

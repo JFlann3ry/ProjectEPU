@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - EPU{% endblock %}
+
+{% block breadcrumbs %}
+<div class="container section" style="padding-bottom:0;">
+  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
+    <span class="crumb current">Admin</span>
+  </nav>
+  </div>
+{% endblock %}
+{% block content %}
+<div class="container section center">
+  <div class="page-hero center">
+    <h1 class="hero-title">Admin Dashboard</h1>
+    <p class="hero-sub">Ops overview, billing, and audit insights.</p>
+  </div>
+
+  <form method="get" class="card" style="display:flex; gap:8px; align-items:center;">
+    <div class="floating-field" style="flex:1;">
+      <label for="admin_q" class="fl-label">Search users or events</label>
+      <input id="admin_q" class="input-field" type="text" name="q" value="{{ q }}">
+    </div>
+    <button class="btn primary" type="submit">Search</button>
+  </form>
+
+  <div class="grid grid-3 section equal-heights">
+    <div class="card full-height">
+      <h3>Stats</h3>
+      <p><span class="badge">Users</span> {{ stats.users }}</p>
+      <p><span class="badge">Events</span> {{ stats.events }}</p>
+      <p><span class="badge">Files</span> {{ stats.files }}</p>
+      <p><span class="badge">Purchases</span> {{ stats.purchases }}</p>
+      <p><span class="badge">Storage</span> {{ (stats.storage_bytes / (1024*1024))|round(1) }} MB</p>
+    </div>
+  <div class="card full-height">
+      <h3>Top Events</h3>
+      <ul>
+        {% for e in top_events %}
+          <li>#{{ e[0] }} — {{ e[1] }}: {{ e[2] }} files</li>
+        {% else %}
+          <li class="muted">No events found.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  <div class="card full-height">
+      <h3>Recent Errors</h3>
+      <pre style="max-height:200px; overflow:auto; white-space:pre-wrap;">{% for line in recent_errors %}{{ line }}
+{% endfor %}</pre>
+    </div>
+  </div>
+
+  <div class="grid grid-2 section equal-heights">
+    <div class="card full-height">
+      <h3>Recent Signups</h3>
+      <ul>
+        {% for u in recent_users %}
+          <li>#{{ u.UserID }} — {{ u.FirstName }} {{ u.LastName }} ({{ u.Email }})</li>
+        {% else %}
+          <li class="muted">No users.</li>
+        {% endfor %}
+      </ul>
+      <div class="btn-row" style="margin-top:8px;">
+        <a class="btn" href="/admin/users">Manage Users</a>
+      </div>
+    </div>
+  <div class="card full-height">
+      <h3>Recent Uploads</h3>
+      <ul>
+        {% for f in recent_uploads %}
+          <li>Event #{{ f.EventID }} — {{ f.FileName }} ({{ (f.FileSize/1024)|round(1) }} KB) — <a href="/admin/event/{{ f.EventID }}">details</a></li>
+        {% else %}
+          <li class="muted">No uploads.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  {% if q %}
+  <div class="card section">
+    <h3>Search Results</h3>
+  <div class="grid grid-2 equal-heights">
+      <div>
+        <h4>Users</h4>
+        <ul>
+          {% for u in search_results.users %}
+            <li>#{{ u.UserID }} — {{ u.FirstName }} {{ u.LastName }} ({{ u.Email }})</li>
+          {% else %}
+            <li class="muted">No users match.</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div>
+        <h4>Events</h4>
+        <ul>
+          {% for ev in search_results.events %}
+            <li>#{{ ev.EventID }} — {{ ev.Name }} ({{ ev.Code }})</li>
+          {% else %}
+            <li class="muted">No events match.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="section">
+    <a class="btn" href="/admin/billing">View Purchases</a>
+    <a class="btn" href="/admin/payment-logs">Payment Logs</a>
+    <a class="btn" href="/admin/audit-logs">Download Audit Logs</a>
+  <a class="btn" href="/admin/audit-logs/export?logger=audit">Filter/Export (audit)</a>
+  </div>
+</div>
+{% endblock %}

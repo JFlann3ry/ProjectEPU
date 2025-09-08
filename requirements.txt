@@ -1,0 +1,24 @@
+fastapi
+uvicorn
+python-multipart
+jinja2
+aiofiles
+sqlalchemy
+pyodbc
+passlib[bcrypt]
+aiosmtplib
+itsdangerous
+stripe
+python-dotenv
+qrcode
+Pillow
+piexif
+hachoir
+pydantic-settings
+sentry-sdk
+alembic
+python-magic; sys_platform != "win32"
+python-magic-bin; sys_platform == "win32"
+httpx
+redis>=5.0
+reportlab

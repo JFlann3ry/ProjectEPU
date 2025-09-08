@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Billing Summary - EPU{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs-container section" style="padding-bottom:0;">
+  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
+    <a href="/profile" class="crumb">Profile</a>
+    <span class="sep" aria-hidden="true">›</span>
+    <span class="crumb current">Billing</span>
+  </nav>
+  </div>
+{% endblock %}
+{% block content %}
+<div class="container section center">
+  <div class="page-hero center">
+    <h1 class="hero-title">Billing Summary</h1>
+    <p class="hero-sub">Recent purchases and payment status.</p>
+  </div>
+  <div class="card" style="max-width:760px;margin:0 auto;">
+    <style>
+  .table { display: grid; grid-template-columns: 1fr; }
+  /* Give columns balanced space: Purchase, Date, Amount, Status */
+  .row { display:grid; grid-template-columns: 2fr 1.2fr 0.9fr auto; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.08); align-items:center; }
+      .row.head { font-weight:600; opacity:0.85; border-bottom-color: rgba(255,255,255,0.18); }
+  .cell { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Do not shorten the purchase summary; allow wrapping */
+  .cell.purchase { white-space: normal; overflow: visible; text-overflow: clip; word-break: break-word; }
+  .cell.amount { text-align: right; font-variant-numeric: tabular-nums; }
+    </style>
+    {% if items and items|length > 0 %}
+      <div class="table" role="table" aria-label="Recent purchases">
+        <div class="row head" role="row">
+          <div class="cell" role="columnheader">Purchase</div>
+          <div class="cell" role="columnheader">Date</div>
+          <div class="cell" role="columnheader">Amount</div>
+          <div class="cell" role="columnheader">Status</div>
+        </div>
+        {% for i in items %}
+        <div class="row" role="row">
+          <div class="cell purchase" role="cell">
+            <a href="/billing/purchase/{{ i.id }}">{{ i.plan_name or 'Plan' }}</a>
+          </div>
+          <div class="cell" role="cell">{{ i.created.strftime('%d %B %Y') if i.created else '' }}</div>
+          <div class="cell amount" role="cell">{{ i.amount }}</div>
+          <div class="cell" role="cell">
+            {# Normalize status codes to human-readable and map to standard variants #}
+            {% set _raw = (i.status or '')|lower %}
+            {% if _raw in ['paid','success','s'] %}
+              {% set _norm = 'paid' %}
+            {% elif _raw in ['pending','in_progress','p'] %}
+              {% set _norm = 'pending' %}
+            {% elif _raw in ['refunded','r'] %}
+              {% set _norm = 'refunded' %}
+            {% elif _raw in ['canceled','cancelled','c'] %}
+              {% set _norm = 'canceled' %}
+            {% else %}
+              {% set _norm = _raw %}
+            {% endif %}
+            {% set status_class = 'status-' + (_norm if _norm in ['paid','pending','refunded','canceled'] else 'other') %}
+            <span class="chip {{ status_class }}">{{ (_norm or '—')|capitalize }}</span>
+            <a href="/billing/purchase/{{ i.id }}/receipt.pdf" class="btn compact" style="margin-left:8px;">PDF</a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="notice" style="margin:12px 0;">No purchases yet.</div>
+    {% endif %}
+    <div class="btn-row" style="margin-top:12px;">
+  <a class="btn" href="/pricing">Choose a package</a>
+      <a class="btn" href="/profile">Back to Profile</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,7 @@
+# Development-only tools
+black
+ruff
+pre-commit
+pytest
+pytest-playwright
+playwright

@@ -33,6 +33,7 @@ Thumbs.db
 # Secrets / config
 .env
 .env.*
+!.env.example
 
 # Logs
 logs/

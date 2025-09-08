@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Event Add-ons{% endblock %}
+
+{% block content %}
+<div class="container">
+  <section class="page-hero center">
+  <h1 class="hero-title">Event Add-ons</h1>
+  <p class="hero-sub">Enhance your event with live gallery links, extra events, QR cards, and more.</p>
+  </section>
+
+  {% set qs = request.query_params %}
+  {% if qs.get('success') == '1' %}
+  <div class="notice success" role="status" style="margin: 12px 0;">Checkout complete. Your add-on will appear shortly.</div>
+  {% elif qs.get('canceled') == '1' %}
+  <div class="notice" role="status" style="margin: 12px 0;">Checkout canceled.</div>
+  {% endif %}
+
+  <section class="section">
+    <div class="grid grid-2">
+      {% for a in addons %}
+      {% set c = (a.currency or 'gbp')|lower %}
+      {% set sym = '£' if c == 'gbp' else ('$' if c == 'usd' else c|upper ~ ' ') %}
+      {% set price = (a.price_cents or 0) / 100 %}
+      <div class="card">
+        <h3 style="margin-top:0;">{{ a.name }}</h3>
+        {% if a.desc %}<p class="muted">{{ a.desc }}</p>{% endif %}
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="font-weight:800; font-size:22px;">{{ sym }}{{ '%.2f'|format(price) }}</div>
+          {% if a.allow_qty %}
+          <label class="muted" for="qty-{{ a.code }}" style="margin-left:6px;">Qty</label>
+          <input id="qty-{{ a.code }}" type="number" min="{{ a.min_qty }}" max="{{ a.max_qty }}" value="{{ a.min_qty }}" style="width:90px;" />
+          {% endif %}
+        </div>
+        <div style="margin-top:12px;">
+          {% if request.cookies.get('session_id') %}
+          <button class="btn primary" data-code="{{ a.code }}" data-allowqty="{{ '1' if a.allow_qty else '0' }}" onclick="buyAddon(this)">Buy</button>
+          {% else %}
+          <a class="btn primary" href="/signup">Sign up to purchase</a>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="btn-row" style="margin-top:16px;">
+      {% set ev_id = request.query_params.get('event_id') %}
+      {% if ev_id %}
+      <a class="btn" href="/events/{{ ev_id }}">Back to Event</a>
+      {% else %}
+      <a class="btn" href="/events">Back to My Events</a>
+      {% endif %}
+    </div>
+  </section>
+</div>
+
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+const stripe = Stripe("{{ STRIPE_PUBLISHABLE_KEY }}");
+function getQueryParam(name){
+  const url = new URL(window.location.href);
+  return url.searchParams.get(name);
+}
+async function buyAddon(btn){
+  const code = btn.dataset.code;
+  const allowQty = btn.dataset.allowqty === '1';
+  const qtyEl = allowQty ? document.getElementById(`qty-${code}`) : null;
+  const quantity = qtyEl ? Math.max(parseInt(qtyEl.value||'1',10)||1, 1) : 1;
+  const event_id = getQueryParam('event_id');
+  try {
+  const res = await fetch('/addons/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, quantity, event_id }) });
+    if (res.status === 401 || res.status === 403) { window.location = '/login'; return; }
+    const data = await res.json();
+    if (!data.id) throw new Error('Invalid response');
+    stripe.redirectToCheckout({ sessionId: data.id });
+  } catch (e) {
+    alert('Unable to start checkout. Please try again.');
+  }
+}
+</script>
+{% endblock %}

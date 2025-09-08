@@ -1,0 +1,115 @@
+/* Theme foundation */
+.theme-root { color: var(--text, inherit); font-family: var(--font, Inter, Arial, sans-serif); background-color: var(--bg, transparent); background-image: var(--bg-image, none); background-size: var(--bg-size, auto); background-position: var(--bg-position, initial); position: relative; }
+.theme-root::before { content: ""; position: absolute; inset: 0; background-image: var(--bg-image, none); background-size: var(--bg-size, auto); background-position: var(--bg-position, initial); filter: blur(var(--bg-blur, 0px)) saturate(1.05) brightness(0.92); transform: scale(1.08); opacity: 0.75; z-index: 0; pointer-events:none; }
+/* Opt-out: when only a section should have frosted bg, disable page-wide ::before */
+.theme-root.section-bg-only::before { display: none; }
+/* Local frosted background wrapper for sections (e.g., upload card) */
+.frost-wrap { position: relative; }
+.frost-wrap::before { content: ""; position: absolute; inset: 0; background-image: var(--bg-image, none); background-size: var(--bg-size, cover); background-position: var(--bg-position, center); filter: blur(var(--bg-blur, 0px)) saturate(1.05) brightness(0.92); transform: scale(1.08); opacity: 0.75; z-index: 0; pointer-events: none; border-radius: inherit; }
+.frost-wrap > * { position: relative; z-index: 1; }
+/* subtle frost tint over the card area to enhance glass feel */
+.theme-card::before { content:""; position:absolute; inset:0; border-radius:inherit; background: rgba(255,255,255,0.02); pointer-events:none; }
+.theme-root > * { position: relative; z-index: 1; }
+.theme-root .muted { opacity: 0.9; }
+/* Inherit anchor color from theme text */
+.theme-root a { color: var(--text, inherit); text-underline-offset: 2px; }
+/* Card content uses card text for readability on dark surface */
+.theme-card, .theme-card * { color: var(--card-text, #e9eef6); }
+.theme-card a { color: var(--card-text, #e9eef6) !important; text-underline-offset: 2px; }
+/* Inputs/labels within themed card should reflect theme vars (form.css reads these) */
+.theme-root .form label, .theme-root label { color: var(--card-text, #e9eef6); }
+.theme-root .input-field, .theme-root input, .theme-root select, .theme-root textarea { background: var(--input-bg, #15161e); color: var(--card-text, #e9eef6); border-color: var(--accent, rgba(255,255,255,0.18)); }
+.theme-root .input-field:focus, .theme-root input:focus, .theme-root select:focus, .theme-root textarea:focus { box-shadow: 0 0 0 3px rgba(110,168,254,0.2); border-color: #6ea8fe; }
+/* Progress bar host container border in theme color */
+.theme-root #progress-bg { border: 1px solid var(--accent, rgba(255,255,255,0.12)); }
+/* Theme card surface uses accent for border for separation */
+.theme-card { background: var(--card, #0f0f12); border-color: var(--accent, rgba(255,255,255,0.18)); }
+
+/* Card */
+.theme-card { background: var(--card, #0f0f12); border: 1px solid var(--accent, rgba(255,255,255,0.12)); padding: 16px; }
+/* Ensure inner form area sits on the same surface, no split */
+.theme-card.guest-card { background: linear-gradient(90deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.0) 0%), var(--card, #0f0f12); }
+/* Compact form spacing on themed guest upload card */
+.theme-card.guest-card { padding: 18px; }
+.theme-card.guest-card .login-title { margin: 4px 0 8px; }
+.theme-card.guest-card p.muted { margin: 0 0 10px; }
+.theme-card.guest-card .form {
+	gap: 10px;
+	padding: 0 !important;
+	background: transparent !important;
+	border-radius: 0 !important;
+	max-width: none !important;
+	width: 100% !important;
+}
+.theme-card.guest-card .btn-row { gap: 10px; }
+/* Floating label chip uses card background in themed context */
+.theme-root .floating-field .fl-label { background: var(--card, #0f0f12); color: var(--card-text, #e9eef6); }
+
+/* Radius */
+.radius-subtle .rounded { border-radius: 6px; }
+.radius-rounded .rounded { border-radius: 12px; }
+.radius-sharp .rounded { border-radius: 0; }
+/* Also support when both classes are on the same element */
+.radius-subtle.rounded { border-radius: 6px; }
+.radius-rounded.rounded { border-radius: 12px; }
+.radius-sharp.rounded { border-radius: 0; }
+
+/* Headings */
+.heading-s .h1, .heading-s .login-title { font-size: 1.4rem; }
+.heading-m .h1, .heading-m .login-title { font-size: 1.8rem; }
+.heading-l .h1, .heading-l .login-title { font-size: 2.2rem; }
+/* Also support size class on the element itself */
+.h1.heading-s, .login-title.heading-s { font-size: 1.4rem; }
+.h1.heading-m, .login-title.heading-m { font-size: 1.8rem; }
+.h1.heading-l, .login-title.heading-l { font-size: 2.2rem; }
+
+/* Primary button driven by variables */
+.btn-primary{ display:inline-flex; align-items:center; justify-content:center; gap:6px; color: var(--btn-text, #fff); padding: 10px 14px; border-radius: 12px; border: 1px solid transparent; text-decoration:none; }
+.is-gradient .btn-primary{ background: linear-gradient(90deg, var(--btn1, #1f2937) 0%, var(--btn2, #374151) 100%); }
+.is-solid .btn-primary{ background: var(--btn1, #1f2937); }
+
+/* Bridge: style existing .btn.primary to use theme colors when inside a themed root */
+.theme-root .btn.primary { color: var(--btn-text, #fff); border: 1px solid transparent; }
+.theme-root.is-gradient .btn.primary { background: linear-gradient(90deg, var(--btn1, #1f2937) 0%, var(--btn2, #374151) 100%); }
+.theme-root.is-solid .btn.primary { background: var(--btn1, #1f2937); }
+.theme-root .btn.primary:hover { filter: brightness(1.05); }
+
+/* Outline button that uses theme accent/text colors */
+.theme-root .btn.outline { background: transparent; border-color: var(--accent, rgba(255,255,255,0.28)); color: var(--card-text, #e9eef6); }
+.theme-root .btn.outline:hover { background: rgba(255,255,255,0.06); }
+/* Keep accessible focus style */
+.theme-root .btn.outline:focus-visible { outline: 2px solid #6ea8fe; outline-offset: 2px; }
+
+/* Disabled primary visual */
+.theme-root .btn.primary:disabled { opacity: 0.6; cursor: not-allowed; filter: none; }
+
+/* Utility: horizontal row of separate buttons */
+.btn-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.btn-row .btn-primary { border-radius: 12px; }
+/* Focus outlines */
+.btn-primary:focus-visible { outline: 2px solid #6ea8fe; outline-offset: 2px; }
+
+/* Themed dropzone/chips inside theme-card */
+.theme-card .dropzone { background: var(--dropzone-bg, #121424); border-color: var(--accent, rgba(255,255,255,0.14)); }
+.theme-card .dropzone.is-drag { border-color: var(--accent, #6ea8fe); box-shadow: 0 0 0 3px rgba(110,168,254,0.18); }
+.theme-card .chip { background: #0f1322; border-color: rgba(255,255,255,0.12); color: var(--card-text, #e9eef6); }
+.theme-card .chip .chip-x { background: rgba(255,255,255,0.12); color: var(--card-text, #e9eef6); }
+
+/* Themed upload progress fill matches primary button style/colors */
+.theme-root .progress-bar { border: 1px solid var(--accent, rgba(255,255,255,0.18)); background: rgba(255,255,255,0.06); }
+.theme-root.is-gradient .progress-bar .progress-fill {
+	background: linear-gradient(90deg, var(--btn1, #1f2937) 0%, var(--btn2, #374151) 100%);
+	box-shadow: none;
+}
+.theme-root.is-solid .progress-bar .progress-fill {
+	background: var(--btn1, #1f2937);
+	box-shadow: 0 0 0 1px var(--btn1, #1f2937) inset;
+}
+
+/* Match upload bar corner radius to selected card/button radius */
+.theme-card.radius-subtle .progress-bar,
+.theme-card.radius-subtle .progress-bar .progress-fill { border-radius: 6px; }
+.theme-card.radius-rounded .progress-bar,
+.theme-card.radius-rounded .progress-bar .progress-fill { border-radius: 12px; }
+.theme-card.radius-sharp .progress-bar,
+.theme-card.radius-sharp .progress-bar .progress-fill { border-radius: 0; }

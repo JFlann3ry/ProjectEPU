@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}FAQ - EPU{% endblock %}
+
+{% block content %}
+<div class="container section center">
+  <div class="page-hero center">
+    <h1 class="hero-title">Frequently Asked Questions</h1>
+    <p class="hero-sub">Quick answers about uploading, privacy, plans, and more.</p>
+  </div>
+  <div class="card center" style="max-width:900px;">
+    <div class="accordion" role="tablist">
+      {% for item in qas %}
+      <div class="accordion-item">
+        <button class="accordion-header" id="acc-h-{{ loop.index }}" aria-expanded="false" aria-controls="acc-p-{{ loop.index }}" role="tab">
+          <span class="q">{{ item.q }}</span>
+          <span class="chev" aria-hidden="true">▾</span>
+        </button>
+        <div class="accordion-panel" id="acc-p-{{ loop.index }}" role="region" aria-labelledby="acc-h-{{ loop.index }}">
+          <div class="a">{{ item.a }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .accordion { width: 100%; }
+  .accordion-item { border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .accordion-header { width: 100%; text-align: left; display:flex; justify-content: space-between; align-items: center; background: transparent; border: none; color: var(--color-text); padding: 14px 0; cursor: pointer; font-size: 1.05rem; }
+  .accordion-header:focus { outline: 2px solid #8aa2ff; outline-offset: 2px; border-radius: 6px; }
+  .accordion-header .chev { transition: transform .18s ease; }
+  .accordion-header[aria-expanded="true"] .chev { transform: rotate(-180deg); }
+  .accordion-panel { max-height: 0; overflow: hidden; transition: max-height .22s ease; }
+  .accordion-panel .a { padding: 0 0 14px 0; color: var(--color-text-muted, #cdd3df); }
+  .accordion-item.open .accordion-panel { /* max-height set inline by JS to content height */ will-change: max-height; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function(){
+    var items = document.querySelectorAll('.accordion-item');
+    function closeAll(){ items.forEach(function(it){ it.classList.remove('open'); var hdr = it.querySelector('.accordion-header'); var pnl = it.querySelector('.accordion-panel'); if (hdr) hdr.setAttribute('aria-expanded','false'); if (pnl){ pnl.style.maxHeight = '0px'; } }); }
+    function onToggle(e){
+      var btn = e.currentTarget;
+      var item = btn.closest('.accordion-item');
+      var panel = item ? item.querySelector('.accordion-panel') : null;
+      var expanded = btn.getAttribute('aria-expanded') === 'true';
+      // Allow multiple open? For now single-open for simplicity
+      if (!expanded){ closeAll(); }
+      var now = !expanded;
+      btn.setAttribute('aria-expanded', now ? 'true' : 'false');
+      if (item) item.classList.toggle('open', now);
+      if (panel){ panel.style.maxHeight = now ? (panel.scrollHeight + 'px') : '0px'; }
+    }
+    items.forEach(function(it){ var btn = it.querySelector('.accordion-header'); if (btn){ btn.addEventListener('click', onToggle); btn.addEventListener('keydown', function(ev){ if (ev.key==='Enter' || ev.key===' ') { ev.preventDefault(); onToggle({ currentTarget: btn }); } }); } });
+  })();
+</script>
+{% endblock %}

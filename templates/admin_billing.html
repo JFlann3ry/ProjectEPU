@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Billing (Admin){% endblock %}
+{% block breadcrumbs %}
+<div class="container section" style="padding-bottom:0;">
+  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
+    <a href="/admin" class="crumb">Admin</a>
+    <span class="sep" aria-hidden="true">›</span>
+    <span class="crumb current">Billing</span>
+  </nav>
+  </div>
+{% endblock %}
+{% block content %}
+<div class="container section center">
+  <div class="page-hero" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+    <h1 class="hero-title">Billing</h1>
+    <a href="/admin/payment-logs" class="btn">View Logs</a>
+  </div>
+  <div class="card" style="padding:16px;">
+    <table style="width:100%; border-collapse: collapse;">
+      <thead>
+        <tr style="text-align:left; border-bottom:1px solid var(--card-border,#444);">
+          <th>Purchase #</th>
+          <th>User</th>
+          <th>Plan</th>
+          <th>Amount</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+        <tr style="border-bottom:1px dashed var(--card-border,#444);">
+          <td>{{ it.purchase_id }}</td>
+          <td>{{ it.user_email }}</td>
+          <td>{{ it.plan|upper }}</td>
+          <td>{{ it.amount }}</td>
+          <td><span class="badge">{{ it.status }}</span></td>
+          <td>
+            <form method="post" action="/admin/refund" style="display:inline-block;">
+              <input type="hidden" name="purchase_id" value="{{ it.purchase_id }}">
+              <button class="btn" {% if it.status != 'paid' %}disabled{% endif %}>Refund</button>
+            </form>
+            <form method="post" action="/admin/cancel" style="display:inline-block; margin-left:6px;">
+              <input type="hidden" name="purchase_id" value="{{ it.purchase_id }}">
+              <button class="btn" {% if it.status not in ['pending','paid'] %}disabled{% endif %}>Cancel</button>
+            </form>
+            {% set is_pending = (it.status or '')|lower == 'pending' %}
+            {% if is_pending %}
+            <a class="btn" style="margin-left:6px;" href="/billing/purchase/{{ it.purchase_id }}/pay" target="_blank" rel="noopener">Pay (as user)</a>
+            <button class="btn" style="margin-left:6px;" type="button" onclick="navigator.clipboard.writeText(window.location.origin + '/billing/purchase/{{ it.purchase_id }}/pay'); this.textContent='Link copied'; setTimeout(()=>this.textContent='Copy pay link', 1500);">Copy pay link</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

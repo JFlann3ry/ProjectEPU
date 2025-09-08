@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}{{ event.Name }} — Share{% endblock %}
+
+{% block content %}
+{% set tv = {
+  'bg': (custom.BackgroundColour if custom and custom.BackgroundColour else (theme.BackgroundColour if theme else None)),
+  'text': (custom.TextColour if custom and custom.TextColour else (theme.TextColour if theme else None)),
+  'btn1': (custom.ButtonColour1 if custom and custom.ButtonColour1 else (theme.ButtonColour1 if theme else None)),
+  'btn2': (custom.ButtonColour2 if custom and custom.ButtonColour2 else (theme.ButtonColour2 if theme else None)),
+  'accent': (custom.AccentColour if custom and custom.AccentColour else (theme.AccentColour if theme else None)),
+  'font': (custom.FontFamily if custom and custom.FontFamily else (theme.FontFamily if theme else None)),
+  'input_bg': (custom.InputBackgroundColour if custom and custom.InputBackgroundColour else (theme.InputBackgroundColour if theme else None)),
+  'dropzone_bg': (custom.DropzoneBackgroundColour if custom and custom.DropzoneBackgroundColour else (theme.DropzoneBackgroundColour if theme else None)),
+  'bg_img': custom.CoverPhotoPath if custom and custom.CoverPhotoPath else None
+} %}
+{% include "_theme_vars.html" %}
+<div class="theme-root {{ 'is-solid' if custom and custom.ButtonStyle=='solid' else 'is-gradient' }}">
+<div class="container center">
+  {% if is_owner_preview %}
+  <div class="notice" style="margin: 8px 0 12px 0; padding:10px; border-radius:10px; border:1px dashed rgba(255,255,255,0.25); background: rgba(255,255,255,0.05);">
+    <span class="p-bold">Owner preview:</span> This share page isn’t published yet. Only you can see this preview.
+  </div>
+  {% endif %}
+  {% set hs = (custom.HeadingSize if custom and custom.HeadingSize else 'm') %}
+  {% set cr = (custom.CornerRadius if custom and custom.CornerRadius else 'rounded') %}
+  <div class="theme-card share-card rounded radius-{{ 'subtle' if cr=='subtle' else ('sharp' if cr=='sharp' else 'rounded') }}" style="margin-bottom:16px;">
+    <h1 class="login-title heading-{{ hs }}" style="margin-bottom:8px;">{{ event.Name }}</h1>
+  {% if event.Date %}<p class="muted" style="margin:0 0 12px 0; color: var(--card-text);">{{ event.Date|datefmt }}</p>{% endif %}
+  {% if custom and custom.CoverPhotoPath and (custom.ShowCover is not false) %}
+      <img src="{{ custom.CoverPhotoPath }}" alt="Cover image" style="width:100%;max-height:420px;object-fit:cover;border-radius:12px; margin-bottom: 12px;"/>
+    {% endif %}
+    {% if custom and custom.WelcomeMessage %}
+  <p style="color: var(--card-text);">{{ custom.WelcomeMessage }}</p>
+    {% endif %}
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <div class="btn-row" aria-label="Share actions">
+        <a class="btn primary" href="/guest/upload/{{ event.Code }}">Open guest upload</a>
+        <button class="btn primary" onclick="copyShare()" type="button">Copy link</button>
+      </div>
+      <img src="/qr?path=e/{{ event.Code }}" alt="QR" style="width:88px;height:88px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);"/>
+    </div>
+  </div>
+</div>
+</div>
+<script>
+function copyShare(){
+  const url = window.location.href;
+  navigator.clipboard.writeText(url).then(()=>{
+    alert('Link copied');
+  });
+}
+// Ensure button text contrast against primary color
+(function(){
+  var root = document.querySelector('.theme-root');
+  if(!root) return;
+  function hex(x){ return (x||'').trim(); }
+  function hexToRgb(h){
+    if (!h) return {r:0,g:0,b:0};
+    h = h.replace('#','');
+    if(h.length===3){ h = h.split('').map(function(c){return c+c;}).join(''); }
+    var r = parseInt(h.substring(0,2),16) || 0;
+    var g = parseInt(h.substring(2,4),16) || 0;
+    var b = parseInt(h.substring(4,6),16) || 0;
+    return {r:r,g:g,b:b};
+  }
+  function luminance(rgb){
+    var sr = rgb.r/255, sg = rgb.g/255, sb = rgb.b/255;
+    [sr,sg,sb] = [sr,sg,sb].map(function(v){ return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); });
+    return 0.2126*sr + 0.7152*sg + 0.0722*sb;
+  }
+  var b1 = hex(getComputedStyle(root).getPropertyValue('--btn1'));
+  var lum = luminance(hexToRgb(b1));
+  root.style.setProperty('--btn-text', lum > 0.55 ? '#111111' : '#ffffff');
+})();
+</script>
+{% endblock %}
+
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', path='theme.css') }}?v={{ now() if now else '' }}">
+  {% if is_owner_preview %}
+  <meta name="robots" content="noindex, nofollow" />
+  {% endif %}
+  <meta property="og:title" content="{{ event.Name }}" />
+  <meta property="og:description" content="{% if custom and custom.UploadInstructions %}{{ custom.UploadInstructions }}{% else %}Share your photos and videos for this event.{% endif %}" />
+  <meta property="og:url" content="{{ canonical_url or (request.base_url|string + 'e/' ~ event.Code) }}" />
+  {% if custom and custom.CoverPhotoPath %}
+    <meta property="og:image" content="{{ custom.CoverPhotoPath }}" />
+    <meta name="twitter:card" content="summary_large_image" />
+  {% else %}
+    <meta name="twitter:card" content="summary" />
+  {% endif %}
+  <meta name="twitter:title" content="{{ event.Name }}" />
+  <style></style>
+{% endblock %}

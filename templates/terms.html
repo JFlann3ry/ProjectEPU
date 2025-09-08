@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Terms & Conditions - EPU{% endblock %}
+
+{% block content %}
+<div class="container section center">
+    <div class="page-hero center">
+        <h1 class="hero-title">Terms & Conditions</h1>
+        <p class="hero-sub">Please review our terms before using EPU.</p>
+    </div>
+    <div class="card" style="max-width:900px;margin:0 auto;">
+        {% include "components/terms_text.html" %}
+    </div>
+</div>
+{% endblock %}

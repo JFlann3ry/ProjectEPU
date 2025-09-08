@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container section">
+  <div class="page-hero">
+    <h1 class="hero-title">Error Logs</h1>
+    <p class="hero-sub">Browse recent AppErrorLog entries.</p>
+  </div>
+  <form class="card form" method="get" style="margin-bottom:16px;">
+    <div class="grid" style="grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px;">
+      <div class="floating-field">
+        <label class="fl-label" for="rqid">Request ID</label>
+        <input class="input-field" id="rqid" name="request_id" value="{{ request_id | e }}">
+      </div>
+      <div class="floating-field">
+        <label class="fl-label" for="since">Since (YYYY-MM-DD)</label>
+        <input class="input-field" id="since" name="since" value="{{ since | e }}">
+      </div>
+      <div class="floating-field">
+        <label class="fl-label" for="until">Until (YYYY-MM-DD)</label>
+        <input class="input-field" id="until" name="until" value="{{ until | e }}">
+      </div>
+      <div class="floating-field">
+        <label class="fl-label" for="ps">Page size</label>
+        <input class="input-field" id="ps" name="page_size" type="number" min="1" max="200" value="{{ page_size }}">
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn primary" type="submit">Filter</button>
+      <a class="btn" href="/admin/errors">Reset</a>
+    </div>
+  </form>
+
+  <div class="card">
+    <div class="muted" style="margin-bottom:8px;">Total: {{ total }}</div>
+    <div class="table responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Status</th>
+            <th>Request ID</th>
+            <th>Method</th>
+            <th>Path</th>
+            <th>Client</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td>{{ r.OccurredAt }}</td>
+            <td>{{ r.StatusCode }}</td>
+            <td>{{ r.RequestID }}</td>
+            <td>{{ r.Method }}</td>
+            <td>{{ r.Path }}</td>
+            <td>{{ r.ClientIP }}</td>
+          </tr>
+          <tr>
+            <td colspan="6">
+              <div class="muted">UA: {{ r.UserAgent }}</div>
+              {% if r.Referer %}<div class="muted">Ref: {{ r.Referer }}</div>{% endif %}
+              {% if r.Message %}<div style="margin-top:6px;"><strong>Message:</strong> {{ r.Message }}</div>{% endif %}
+              {% if r.StackTrace %}<pre style="margin-top:6px; white-space: pre-wrap;">{{ r.StackTrace }}</pre>{% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="muted">No errors match your filters.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="btn-row" style="justify-content: flex-end; margin-top: 12px;">
+      {% if page > 1 %}
+        <a class="btn" href="?request_id={{ request_id | urlencode }}&since={{ since | urlencode }}&until={{ until | urlencode }}&page={{ page-1 }}&page_size={{ page_size }}">Prev</a>
+      {% endif %}
+      {% if (page * page_size) < total %}
+        <a class="btn" href="?request_id={{ request_id | urlencode }}&since={{ since | urlencode }}&until={{ until | urlencode }}&page={{ page+1 }}&page_size={{ page_size }}">Next</a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="btn-row" style="margin-top: 12px;">
+    <a class="btn" href="/admin">Back to Admin</a>
+  </div>
+ </div>
+{% endblock %}

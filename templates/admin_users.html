@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Users - EPU{% endblock %}
+
+{% block breadcrumbs %}
+<div class="container section" style="padding-bottom:0;">
+  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
+    <a href="/admin" class="crumb">Admin</a>
+    <span class="sep" aria-hidden="true">›</span>
+    <span class="crumb current">Users</span>
+  </nav>
+  </div>
+{% endblock %}
+{% block content %}
+<div class="container section center">
+  <div class="page-hero">
+    <h1 class="hero-title">Users</h1>
+    <p class="hero-sub">Search, filter, and manage admin roles.</p>
+  </div>
+
+  <form method="get" class="card" style="display:grid; gap:12px; grid-template-columns: 1fr repeat(3, minmax(0, 160px)) 120px; align-items:end;">
+    <div class="floating-field">
+      <label for="q" class="fl-label">Search name or email</label>
+      <input id="q" class="input-field" type="text" name="q" value="{{ q }}">
+    </div>
+    <div class="floating-field">
+      <label class="fl-label" for="is_admin">Admin</label>
+      <select id="is_admin" class="input-field" name="is_admin">
+        <option value="" {% if is_admin is none %}selected{% endif %}>Any</option>
+        <option value="1" {% if is_admin is not none and is_admin %}selected{% endif %}>Yes</option>
+        <option value="0" {% if is_admin is not none and not is_admin %}selected{% endif %}>No</option>
+      </select>
+    </div>
+    <div class="floating-field">
+      <label class="fl-label" for="verified">Verified</label>
+      <select id="verified" class="input-field" name="verified">
+        <option value="" {% if verified is none %}selected{% endif %}>Any</option>
+        <option value="1" {% if verified is not none and verified %}selected{% endif %}>Yes</option>
+        <option value="0" {% if verified is not none and not verified %}selected{% endif %}>No</option>
+      </select>
+    </div>
+    <div class="floating-field">
+      <label class="fl-label" for="active">Active</label>
+      <select id="active" class="input-field" name="active">
+        <option value="" {% if active is none %}selected{% endif %}>Any</option>
+        <option value="1" {% if active is not none and active %}selected{% endif %}>Yes</option>
+        <option value="0" {% if active is not none and not active %}selected{% endif %}>No</option>
+      </select>
+    </div>
+    <div>
+      <button class="btn primary" type="submit" style="width:100%">Apply</button>
+    </div>
+  </form>
+
+  <div class="card section" style="overflow:auto;">
+    <table class="kv" style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr>
+          <th style="text-align:left;">ID</th>
+          <th style="text-align:left;">Name</th>
+          <th style="text-align:left;">Email</th>
+          <th>Verified</th>
+          <th>Active</th>
+          <th>Admin</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in rows %}
+        <tr>
+          <td>#{{ u.UserID }}</td>
+          <td>{{ u.FirstName }} {{ u.LastName }}</td>
+          <td>{{ u.Email }}</td>
+          <td style="text-align:center;">{% if u.EmailVerified %}✓{% else %}—{% endif %}</td>
+          <td style="text-align:center;">{% if u.IsActive %}✓{% else %}—{% endif %}</td>
+          <td style="text-align:center;">{% if u.IsAdmin %}<span class="badge">Admin</span>{% else %}—{% endif %}</td>
+          <td>
+            <form method="post" action="/admin/users/{{ u.UserID }}/set-admin" style="display:inline;">
+              <input type="hidden" name="is_admin" value="{{ 0 if u.IsAdmin else 1 }}">
+              <button class="btn" type="submit">{{ 'Remove Admin' if u.IsAdmin else 'Make Admin' }}</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="muted">No users found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="btn-row" style="justify-content:space-between; margin-top:12px;">
+      <div class="muted">Page {{ page }} of {{ ((total - 1) // page_size) + 1 }}</div>
+      <div class="btn-row">
+        {% set prev = page - 1 %}
+        {% set next = page + 1 %}
+        {% if page > 1 %}
+          <a class="btn" href="?q={{ q }}&is_admin={{ '1' if is_admin else ('' if is_admin is none else '0') }}&verified={{ '1' if verified else ('' if verified is none else '0') }}&active={{ '1' if active else ('' if active is none else '0') }}&page={{ prev }}&page_size={{ page_size }}">Prev</a>
+        {% endif %}
+        {% if page * page_size < total %}
+          <a class="btn" href="?q={{ q }}&is_admin={{ '1' if is_admin else ('' if is_admin is none else '0') }}&verified={{ '1' if verified else ('' if verified is none else '0') }}&active={{ '1' if active else ('' if active is none else '0') }}&page={{ next }}&page_size={{ page_size }}">Next</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

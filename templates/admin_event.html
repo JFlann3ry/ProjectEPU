@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Event #{{ event.EventID }} - Admin{% endblock %}
+
+{% block breadcrumbs %}
+<div class="container section" style="padding-bottom:0;">
+  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
+    <a href="/admin" class="crumb">Admin</a>
+    <span class="sep" aria-hidden="true">›</span>
+    <a href="/admin/users" class="crumb">Users</a>
+    <span class="sep" aria-hidden="true">›</span>
+    <span class="crumb current">Event #{{ event.EventID }}</span>
+  </nav>
+  </div>
+{% endblock %}
+{% block content %}
+<div class="container section center">
+  <div class="page-hero center">
+    <h1 class="hero-title">Event #{{ event.EventID }}</h1>
+    <p class="hero-sub">{{ event.Name }} — Owner: {% if owner %}#{{ owner.UserID }} {{ owner.FirstName }} {{ owner.LastName }} ({{ owner.Email }}){% else %}Unknown{% endif %}</p>
+  </div>
+
+  <div class="grid grid-2 section equal-heights">
+    <div class="card full-height">
+      <h3>Details</h3>
+      <div class="kv">
+        <div>Code</div><div>{{ event.Code }}</div>
+        <div>Date</div><div>{{ event.Date }}</div>
+        <div>Published</div><div>{% if event.Published %}Yes{% else %}No{% endif %}</div>
+        <div>Date Locked</div><div>{% if event.IsDateLocked %}Yes ({{ event.DateLockedAt }}){% else %}No{% endif %}</div>
+        <div>Created</div><div>{{ event.CreatedAt }}</div>
+        <div>Updated</div><div>{{ event.LastUpdated }}</div>
+      </div>
+      <div class="btn-row" style="margin-top:12px;">
+        <a class="btn" href="/events/{{ event.EventID }}">Open as owner</a>
+        <a class="btn" href="/e/{{ event.Code }}">Public share</a>
+      </div>
+    </div>
+  <div class="card full-height">
+      <h3>Owner</h3>
+      {% if owner %}
+      <div class="kv">
+        <div>User</div><div>#{{ owner.UserID }}</div>
+        <div>Name</div><div>{{ owner.FirstName }} {{ owner.LastName }}</div>
+        <div>Email</div><div>{{ owner.Email }}</div>
+        <div>Verified</div><div>{% if owner.EmailVerified %}Yes{% else %}No{% endif %}</div>
+        <div>Active</div><div>{% if owner.IsActive %}Yes{% else %}No{% endif %}</div>
+        <div>Admin</div><div>{% if owner.IsAdmin %}Yes{% else %}No{% endif %}</div>
+      </div>
+      {% else %}
+      <p class="muted">Owner not found.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="section">
+    <a class="btn" href="/admin">Back to Admin</a>
+    <a class="btn" href="/admin/users">Manage Users</a>
+  </div>
+</div>
+{% endblock %}

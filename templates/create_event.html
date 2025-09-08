@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Create Event - EPU{% endblock %}
+
+{% block breadcrumbs %}
+<div class="container section" style="padding-bottom:0;">
+    <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
+        <a href="/events" class="crumb">My Events</a>
+        <span class="sep" aria-hidden="true">›</span>
+    <span class="crumb current" aria-current="page">Create Event</span>
+    </nav>
+</div>
+{% endblock %}
+{% block content %}
+<div class="container section center">
+    <div class="page-hero">
+        <h1 class="hero-title">Create a New Event</h1>
+        <p class="hero-sub">Set up your event details; you can customize visuals later.</p>
+    </div>
+    <form class="card form" method="post" action="/events/create" style="max-width:680px;">
+            <div class="floating-field">
+                <label for="name" class="fl-label">Event Name</label>
+                <input class="input-field" type="text" id="name" name="name" required>
+            </div>
+            <div class="floating-field">
+                <label for="date" class="fl-label">Event Date</label>
+                <input class="input-field" type="date" id="date" name="date">
+            </div>
+            <div class="floating-field">
+                <label for="type" class="fl-label">Event Type</label>
+                <select class="input-field" id="type" name="type">
+                <option value="">-- Select type --</option>
+                {% for t in event_types %}
+                <option value="{{ t.Name }}">{{ t.Name }}</option>
+                {% endfor %}
+                <option value="Other">Other…</option>
+            </select>
+            </div>
+            <div class="floating-field" id="type_custom_wrap" style="display:none;">
+                <label for="type_custom" class="fl-label">Custom Type</label>
+                <input class="input-field" type="text" id="type_custom" name="type_custom">
+            </div>
+            <label for="terms" class="p-bold checkbox-row">
+                <input type="checkbox" id="terms" name="terms" required class="checkbox-field">
+                <span>I agree to the <a href="/terms" target="_blank">terms</a></span>
+            </label>
+            {% if error %}
+            <div class="notice error">{{ error }}</div>
+            {% endif %}
+            <button type="submit" class="btn primary">Create Event</button>
+    </form>
+</div>
+<script>
+const typeSelect = document.getElementById('type');
+const typeCustomWrap = document.getElementById('type_custom_wrap');
+const typeCustom = document.getElementById('type_custom');
+typeSelect.addEventListener('change', function() {
+    if (typeSelect.value === 'Other') {
+        typeCustomWrap.style.display = '';
+        typeCustom.required = true;
+    } else {
+        typeCustomWrap.style.display = 'none';
+        typeCustom.required = false;
+    }
+});
+</script>
+{% endblock %}

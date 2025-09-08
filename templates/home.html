@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Event Photo Upload — Effortless event galleries{% endblock %}
+
+{% block content %}
+<section class="page-hero center">
+    <div class="container center">
+        <div class="card" style="padding:28px;">
+            <div class="grid grid-2" style="align-items:center;">
+                <div>
+                    <h1 class="hero-title">Collect event photos in minutes</h1>
+                    <p class="hero-sub">EPU makes it easy to collect, review, and share guest photos and videos from any event. No apps. No friction.</p>
+                    <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+                        {% if request.cookies.get('session_id') %}
+                            <a class="btn primary" href="/events/create">Create an event</a>
+                            <a class="btn" href="/events">Go to my events</a>
+                        {% else %}
+                            <a class="btn primary" href="/signup">Get started free</a>
+                            <a class="btn" href="/pricing">See pricing</a>
+                        {% endif %}
+                    </div>
+                    <ul style="margin-top:14px; padding-left:18px; color: var(--color-text-muted);">
+                        <li>Simple guest upload links with QR codes</li>
+                        <li>Smart gallery with selection, restore, and ZIP download</li>
+                        <li>Themes and branded pages out of the box</li>
+                    </ul>
+                </div>
+                <div>
+                    <div class="thumb">
+                        <img src="/static/images/Logo.svg" alt="EPU preview" style="width:100%; object-fit:contain; background:#0f111b; padding:16px;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <style>
+            .benefit-icon { font-size: 28px; line-height: 1; }
+            .how-step .num { width: 28px; height: 28px; border-radius: 999px; display:inline-flex; align-items:center; justify-content:center; background: var(--color-surface-2); border:1px solid var(--color-border); font-weight:700; margin-right:8px; }
+            .testimonial blockquote { margin:0; }
+        </style>
+        <div class="grid grid-3 equal-heights">
+            <div class="card full-height">
+                <div class="benefit-icon">⚡</div>
+                <h3>Fast setup</h3>
+                <p>Create an event, pick a theme, and share a QR code in under a minute.</p>
+            </div>
+            <div class="card full-height">
+                <div class="benefit-icon">📱</div>
+                <h3>Guest-friendly</h3>
+                <p>No apps required. Guests upload straight from their camera roll.</p>
+            </div>
+            <div class="card full-height">
+                <div class="benefit-icon">🛠️</div>
+                <h3>Built-in controls</h3>
+                <p>Review, delete/restore, and bulk-download with one click.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <div class="card">
+            <h2 style="margin-top:0;">How it works</h2>
+            <div class="grid grid-3 equal-heights" style="margin-top:8px;">
+                <div class="card full-height how-step">
+                    <div class="num">1</div><strong>Create</strong>
+                    <p class="muted" style="margin-top:8px;">Create an event and choose a theme.</p>
+                </div>
+                <div class="card full-height how-step">
+                    <div class="num">2</div><strong>Share</strong>
+                    <p class="muted" style="margin-top:8px;">Share a link or QR code with your guests.</p>
+                </div>
+                <div class="card full-height how-step">
+                    <div class="num">3</div><strong>Collect & Share</strong>
+                    <p class="muted" style="margin-top:8px;">Review uploads and share the gallery.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    </section>
+
+<section class="section">
+    <div class="container">
+        <div class="card">
+            <h2 style="margin-top:0;">Testimonials</h2>
+            <p class="muted" style="margin:6px 0 0;">Coming soon.</p>
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+            <div>
+                <h3 style="margin:0 0 4px;">Ready to try it?</h3>
+                <p style="margin:0;" class="muted">Start free. Upgrade when you need more.</p>
+            </div>
+            <div>
+                {% if request.cookies.get('session_id') %}
+                    <a class="btn primary" href="/events/create">Create an event</a>
+                {% else %}
+                    <a class="btn primary" href="/signup">Get started free</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,1239 @@
+{% extends "base.html" %}
+{% block title %}Edit Event - EPU{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', path='theme.css') }}?v={{ now() if now else '' }}">
+<style>
+  /* Edit Event page scoped styles */
+  /* Shared width for hex inputs and color swatches */
+  .edit-event { --hex-width: 164px; }
+  /* Use default site container width; no page-level override */
+  /* Make the main edit form fill the container (form.css sets max-width:368px by default) */
+  .edit-event > form.form.card { max-width: 100%; width: 100%; }
+  .edit-event .card { background: #0f0f12 !important; border-color: rgba(255,255,255,0.14) !important; padding:16px !important; }
+  .edit-event .card, .edit-event .card label, .edit-event .card .p-bold { color: #e9e9f1; }
+  .edit-event .card .muted { color: #c9c9d3; }
+  .edit-event .chip[aria-pressed="true"] { background: rgba(255,255,255,0.14); color:#fff; border-color: rgba(255,255,255,0.28); }
+  .edit-event .chip[aria-pressed="false"] { background: transparent; color:#e0e0e6; border-color: rgba(255,255,255,0.18); }
+  .edit-event .chip { cursor: pointer; }
+  .edit-event .chip:focus-visible { outline: 2px solid #6ea8fe; outline-offset: 2px; }
+  .edit-event .input-field { background:#13141a; color:#f0f0f6; border-color: rgba(255,255,255,0.2); }
+  .edit-event .input-field::placeholder { color:#a9a9b3; }
+  .edit-event select.input-field option { color:#0f0f12; background:#ffffff; }
+  /* Theme editor input rows: place color swatch + hex input side-by-side and let hex grow */
+  .edit-event .floating-field .color-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .edit-event .floating-field .color-swatch { width:52px; height:44px; padding:0; }
+  .edit-event .floating-field .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; flex:1; min-width:0; }
+  /* In the theme editor, place swatch + hex with matching fixed widths under the label */
+  .edit-event #theme-editor-like .color-row { display:grid; grid-template-columns: var(--hex-width) var(--hex-width); gap:8px; align-items:center; }
+  .edit-event #theme-editor-like .color-row .color-swatch { width:var(--hex-width); height:44px; padding:0; }
+  /* Make theme-editor hex boxes match the QR input styling and width */
+  .edit-event #theme-editor-like .color-row .mono { background:#1a1b23 !important; color:#f5f7ff !important; border-color: rgba(255,255,255,0.24) !important; height:44px; line-height:44px; padding:0 10px; width:var(--hex-width); box-sizing:border-box; min-width:0; }
+  .edit-event #theme-editor-like .color-row .input-field:focus { box-shadow: 0 0 0 3px rgba(110,168,254,0.2); border-color: #6ea8fe; }
+  .edit-event #theme-editor-like .color-row .mono::placeholder { color:#c8c8d2; }
+  .edit-event #theme-editor-like .fl-label { background: #0f0f12; z-index: 1; }
+  /* Ensure inputs can shrink within grid without overflow and add breathing room */
+  .edit-event #theme-editor-like .floating-field { min-width:0; margin-bottom:10px; }
+  .edit-event #theme-editor-like .grid { gap:14px !important; }
+  /* Toggle chips separated, not conjoined */
+  .edit-event .seg { display:flex; gap:8px; }
+  .edit-event .seg .chip { border:1px solid rgba(255,255,255,0.22); border-radius:8px; background:transparent; color:#e0e0e6; padding:6px 10px; }
+  .edit-event .seg .chip[aria-pressed="true"] { background: rgba(255,255,255,0.14); color:#fff; border-color: rgba(255,255,255,0.28); }
+
+  /* Do not let page-level card/input overrides leak into the Live Preview */
+  .edit-event .preview-block .card,
+  .edit-event .preview-block .theme-card { background: var(--card) !important; border-color: var(--accent) !important; }
+  .edit-event .preview-block .card *,
+  .edit-event .preview-block .theme-card * { color: var(--card-text) !important; }
+  /* Inputs inside theme editor: occupy available width */
+  #theme-editor-like .input-field, #theme-editor-like select.input-field { width: 100%; }
+  .edit-event .preview-block .input-field { background: var(--input-bg) !important; color: var(--card-text) !important; border-color: var(--accent) !important; }
+  .edit-event .preview-block .dropzone { background: var(--dropzone-bg) !important; border-color: var(--accent) !important; }
+  .edit-event .preview-block .btn.primary { color: var(--btn-text) !important; }
+  /* Ensure themed progress bar uses theme vars inside preview */
+  .edit-event .preview-block .progress-bar { border-color: var(--accent) !important; }
+  /* Match progress fill to primary button colors in preview */
+    #preview-root.is-gradient .progress-bar .progress-fill { background: var(--btn-gradient, linear-gradient(90deg, var(--btn1), var(--btn2))) !important; box-shadow: none !important; }
+  #preview-root.is-solid .progress-bar .progress-fill { background: var(--btn1) !important; box-shadow: 0 0 0 1px var(--btn1) inset !important; }
+  /* Smooth width animation for progress fill inside preview */
+  .edit-event .preview-block .progress-bar .progress-fill { transition: width 120ms linear; }
+    /* Also reflect gradient/solid on primary buttons in preview */
+    #preview-root.is-gradient .btn.primary { background: var(--btn-gradient, linear-gradient(90deg, var(--btn1), var(--btn2))) !important; }
+    #preview-root.is-solid .btn.primary { background: var(--btn1) !important; }
+  /* Make the Live Preview wider on the Edit page (scales down responsively) */
+  .edit-event .web-preview { width: 1400px; }
+  /* Hide Accessibility panel for this page */
+  .edit-event #contrast-panel { display: none !important; }
+  /* Responsive collapse of editor grid to avoid overlap */
+  @media (max-width: 1200px) {
+    .edit-event #theme-editor-like .grid .floating-field { grid-column: span 6 !important; }
+  }
+  @media (max-width: 800px) {
+    .edit-event #theme-editor-like .grid .floating-field { grid-column: span 12 !important; }
+  /* On small screens stack swatch + hex full-width */
+  .edit-event #theme-editor-like .color-row { grid-template-columns: 1fr; }
+  .edit-event #theme-editor-like .color-row .color-swatch,
+  .edit-event #theme-editor-like .color-row .mono { width: 100%; }
+  }
+  /* QR section layout and polish */
+  .edit-event .qr-card .qr-grid { display: grid; grid-template-columns: 1fr 180px; gap: 12px; align-items: start; }
+  .edit-event .qr-card .qr-preview { display: flex; flex-direction: column; align-items: center; gap: 8px; align-self: center; }
+  .edit-event .qr-card .qr-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; align-items: start; min-width: 0; }
+  .edit-event .qr-card .qr-controls .floating-field { min-width: 0; }
+  .edit-event .qr-card .qr-controls { max-width: 100%; width: 100%; box-sizing: border-box; overflow: hidden; }
+  .edit-event .qr-card h3 { margin-top: 0; }
+  /* Ensure the QR card header has no odd background */
+  .edit-event .qr-card h3 { background: transparent !important; background-image: none !important; box-shadow: none !important; border: 0 !important; padding: 0; }
+  .edit-event .qr-card .qr-controls { margin: 0; }
+  @media (max-width: 800px){ .edit-event .qr-card .qr-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 520px){ .edit-event .qr-card .qr-controls { grid-template-columns: 1fr; } }
+  /* Tighter spacing before QR section */
+  .edit-event .qr-card { margin-top: 8px; }
+  /* More generous spacing for QR colour controls; keep columns flexible to avoid overflow */
+  .edit-event .qr-card .qr-controls { gap: 14px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  @media (min-width: 900px){ .edit-event .qr-card .qr-controls { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); } }
+  /* QR color rows mimic theme editor sizing/readability */
+  .edit-event .qr-card .color-row { display:grid; grid-template-columns: 1fr; gap:8px; align-items:start; min-width:0; }
+  .edit-event .qr-card .color-row .input-field { margin: 0; }
+  .edit-event .qr-card .color-swatch { width:100%; height:44px; padding:0; }
+  .edit-event .qr-card .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; background:#1a1b23 !important; color:#f5f7ff !important; border-color: rgba(255,255,255,0.24) !important; height:44px; line-height:44px; padding:0 10px; width:100%; box-sizing:border-box; min-width:0; }
+  .edit-event .qr-card .mono::placeholder { color:#c8c8d2; }
+  .edit-event .qr-card .input-field:focus { box-shadow: 0 0 0 3px rgba(110,168,254,0.2); border-color: #6ea8fe; }
+  /* Make floating labels readable on dark QR card */
+  .edit-event .qr-card .fl-label { background: #0f0f12; z-index: 1; }
+  /* In the QR Colours box use simple labels to avoid overlap */
+  .edit-event .qr-card .qr-controls .floating-field { position: static; }
+  .edit-event .qr-card .qr-controls .floating-field .fl-label { position: static; transform: none; top: auto; left: auto; padding: 0; margin: 0 0 6px 0; background: transparent; }
+  /* Section header and tip inside controls */
+  /* Tip placement moved under preview; keep generic styling */
+  .edit-event .qr-card .qr-tip { font-size: 0.9em; opacity: 0.8; }
+  .edit-event .qr-card .qr-preview .qr-tip { text-align: center; margin-top: 4px; }
+  .edit-event .qr-card .qr-controls .qr-divider { grid-column: 1 / -1; height: 1px; background: rgba(255,255,255,0.08); margin: 4px 0 2px; border-radius: 1px; }
+  /* Custom file input: hide native, show styled button + filename */
+  .edit-event .file-input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; clip-path: inset(50%); }
+  .edit-event .file-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .edit-event #assets .assets-preview img { max-width: 360px; width:100%; height:auto; border-radius:12px; display:block; }
+  /* Add small spacing below the banner label */
+  .edit-event #assets label[for="banner_image"] { display: inline-block; margin-bottom: 6px; }
+  /* Slightly compact the file row visuals */
+  .edit-event #assets .file-row .btn.sm { padding: 4px 10px; }
+  .edit-event .button-style-options { gap: 16px; }
+  .edit-event .radio-row { display: inline-flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; }
+  .edit-event .radio-row input[type="radio"] { transform: scale(1.05); }
+  .edit-event .radio-row span { margin-left: 2px; }
+  /* Ensure the Live Preview reflects the chosen font across all widgets */
+  .edit-event #preview-root, .edit-event #preview-root * { font-family: var(--font, Inter, Arial, sans-serif) !important; }
+  .edit-event #assets .file-row #banner_file_name { font-size: 0.85em; }
+</style>
+{% endblock %}
+{% block breadcrumbs %}
+<div class="breadcrumbs-container section" style="padding-bottom:0;">
+  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
+    <a href="/events" class="crumb">My Events</a>
+    <span class="sep" aria-hidden="true">›</span>
+    <span class="crumb">{{ event.Name or 'Event' }}</span>
+    <span class="sep" aria-hidden="true">›</span>
+  <span class="crumb current" aria-current="page">Edit</span>
+  </nav>
+</div>
+{% endblock %}
+{% block content %}
+<div class="container center section edit-event">
+  <div class="page-hero center">
+    <h1 class="hero-title">Edit Event</h1>
+    <p class="hero-sub">Update your event details and preview your chosen theme live.</p>
+  </div>
+  <!-- Subtle notice to indicate the Live Preview appears below -->
+  <div class="notice" style="margin: 8px 0 12px 0; font-size:0.95em; opacity:0.9; text-align:center;">
+    A preview of the guest upload page is shown below this form. <a href="#admin-like-preview" class="link">Jump to preview</a>
+  </div>
+  {% if event.IsDateLocked %}
+  <div class="notice error" style="margin: 8px 0 16px 0;">
+    This event date is finalised and cannot be changed. {% if event.DateLockedAt %}Locked at: <span class="p-bold">{{ event.DateLockedAt|dtfmt }}</span>{% endif %}
+  </div>
+  {% endif %}
+    {% set tv = {
+      'bg': custom.BackgroundColour if custom else None,
+      'text': custom.TextColour if custom else None,
+      'btn1': custom.ButtonColour1 if custom else None,
+      'btn2': custom.ButtonColour2 if custom else None,
+      'accent': custom.AccentColour if custom else None,
+      'font': custom.FontFamily if custom else None,
+  'input_bg': custom.InputBackgroundColour if custom else None,
+  'dropzone_bg': custom.DropzoneBackgroundColour if custom else None,
+  'bg_img': custom.CoverPhotoPath if custom and custom.CoverPhotoPath else None
+    } %}
+    {% include "_theme_vars.html" %}
+    {% set hs = (custom.HeadingSize if custom and custom.HeadingSize else 'm') %}
+    {% set cr = (custom.CornerRadius if custom and custom.CornerRadius else 'rounded') %}
+    {% set bs = (custom.ButtonStyle if custom and custom.ButtonStyle else 'gradient') %}
+  {% set gsty = (custom.ButtonGradientStyle if custom and custom.ButtonGradientStyle else 'linear') %}
+  {% set gdir = (custom.ButtonGradientDirection if custom and custom.ButtonGradientDirection else '90deg') %}
+  <form id="event-edit-form" class="form card" method="post" action="/events/{{ event.EventID }}/edit" enctype="multipart/form-data">
+      <div class="floating-field">
+        <label for="name" class="fl-label">Event Name</label>
+        <input class="input-field" type="text" id="name" name="name" value="{{ event.Name }}" required>
+      </div>
+      <div class="grid" style="grid-template-columns: repeat(12, minmax(0,1fr)); gap:12px; align-items:end;">
+        <div class="floating-field" style="grid-column: span 6; min-width:240px;">
+          <label for="date" class="fl-label">Event Date</label>
+          <input class="input-field" type="date" id="date" name="date" value="{{ event.Date.strftime('%Y-%m-%d') if event.Date else '' }}" {% if event.IsDateLocked or event.Published %}disabled aria-disabled="true"{% endif %}>
+        </div>
+        <div id="event-type-group" style="grid-column: span 6; min-width:240px; display:grid; grid-template-columns: 1fr; gap:10px; align-items:end;">
+          <div id="event-type-wrap" class="floating-field" style="min-width:180px;">
+            <label for="event_type_id" class="fl-label">Event Type</label>
+            <select class="input-field" id="event_type_id" name="event_type_id">
+              <option value="">— None —</option>
+              {% for t in event_types %}
+                <option value="{{ t.EventTypeID }}" {% if event.EventTypeID and event.EventTypeID == t.EventTypeID %}selected{% endif %}>{{ t.Name }}</option>
+              {% endfor %}
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="floating-field" id="custom-event-type-wrap" style="min-width:180px; display:none;">
+            <label for="custom_event_type" class="fl-label">Custom Event Type</label>
+            <input class="input-field" type="text" id="custom_event_type" name="custom_event_type" placeholder="Enter your event type" maxlength="100" disabled>
+          </div>
+        </div>
+      </div>
+  {# Duplicate warning removed to avoid two notices #}
+      <div class="grid" style="grid-template-columns: repeat(12, minmax(0,1fr)); gap:12px;">
+        <div class="floating-field" style="grid-column: span 6; min-width:240px;">
+          <label for="welcome_message" class="fl-label">Welcome Message</label>
+          <textarea class="input-field" id="welcome_message" name="welcome_message">{{ custom.WelcomeMessage if custom else '' }}</textarea>
+        </div>
+        <div class="floating-field" style="grid-column: span 6; min-width:240px;">
+          <label for="upload_instructions" class="fl-label">Upload Instructions</label>
+          <textarea class="input-field" id="upload_instructions" name="upload_instructions">{{ custom.UploadInstructions if custom else '' }}</textarea>
+        </div>
+      </div>
+      
+      
+      
+
+      <!-- Keep original customizer inputs but hidden; these will submit to backend -->
+      <div id="customizer" style="display:none;">
+        <input type="hidden" id="primary_color" name="primary_color" value="{{ custom.ButtonColour1 if custom else '#F25F4C' }}">
+        <input type="hidden" id="secondary_color" name="secondary_color" value="{{ (custom.ButtonColour2 if custom and custom.ButtonColour2 else '#FF8906') }}">
+  {% set bs = (custom.ButtonStyle if custom and custom.ButtonStyle else 'gradient') %}
+  <input type="hidden" id="button_style" name="button_style" value="{{ bs }}">
+  <input type="hidden" id="button_gradient_style" name="button_gradient_style" value="{{ gsty }}">
+  <input type="hidden" id="button_gradient_direction" name="button_gradient_direction" value="{{ gdir }}">
+        <input type="hidden" id="text_color" name="text_color" value="{{ (custom.TextColour if custom and custom.TextColour else '#0F0E17') }}">
+        <input type="hidden" id="accent_color" name="accent_color" value="{{ custom.AccentColour if custom else '#222' }}">
+        <input type="hidden" id="background_color" name="background_color" value="{{ custom.BackgroundColour if custom else '#ffffff' }}">
+        {% set ff = (custom.FontFamily if custom and custom.FontFamily else 'Inter, Arial, sans-serif') %}
+        <input type="hidden" id="font_family" name="font_family" value="{{ ff }}">
+        <input type="hidden" id="input_background_color" name="input_background_color" value="{{ custom.InputBackgroundColour or '#15161e' }}">
+        <input type="hidden" id="dropzone_background_color" name="dropzone_background_color" value="{{ custom.DropzoneBackgroundColour or '#121424' }}">
+      </div>
+
+    <div class="grid" style="grid-template-columns: repeat(12, minmax(0,1fr)); gap:12px; align-items:stretch;">
+      <div id="assets" class="card" style="grid-column: span 6; min-width:280px; height:100%;">
+          <label class="p-bold" for="banner_image">Banner / Background Image</label>
+          <div class="assets-preview" style="margin-bottom: 10px;">
+            <img id="asset-banner-preview" src="{{ custom.CoverPhotoPath if custom and custom.CoverPhotoPath else '' }}" alt="Current Banner" style="border: 1px solid rgba(255,255,255,0.08);" {% if not (custom and custom.CoverPhotoPath) %}hidden{% endif %}>
+          </div>
+          <div class="file-row">
+            <input class="file-input" type="file" id="banner_image" name="banner_image" accept="image/*">
+            <label for="banner_image" class="btn sm">Choose file</label>
+            <span id="banner_file_name" class="muted small">No file chosen</span>
+          </div>
+          <div class="floating-field" style="margin-top:10px;">
+            <input type="hidden" id="remove_banner" name="remove_banner" value="0">
+            <button type="button" id="remove-banner-btn" class="btn sm danger" {% if not (custom and custom.CoverPhotoPath) %}disabled aria-disabled="true"{% endif %}>Remove current banner image</button>
+          </div>
+        </div>
+
+  <aside class="card qr-card" style="grid-column: span 6; min-width:280px; height:100%;">
+        <h3 style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">Guest Upload QR</h3>
+          <div class="qr-grid">
+            <div class="qr-controls">
+              <div class="floating-field">
+                <label class="fl-label" for="qr-fg">QR Colour</label>
+                <div class="color-row">
+                  <input id="qr-fg" class="input-field color-swatch" type="color" value="#000000">
+                  <input id="qr-fg-hex" class="input-field mono" value="#000000" maxlength="9" autocomplete="off" placeholder="#000000">
+                </div>
+              </div>
+              <div class="floating-field">
+                <label class="fl-label" for="qr-bg">Background Colour</label>
+                <div class="color-row">
+                  <input id="qr-bg" class="input-field color-swatch" type="color" value="#ffffff">
+                  <input id="qr-bg-hex" class="input-field mono" value="#ffffff" maxlength="9" autocomplete="off" placeholder="#ffffff">
+                </div>
+              </div>
+              <!-- Box size control removed per request -->
+            </div>
+            <div class="qr-preview">
+  <img id="qr-img" class="qr" src="/qr?url={{ guest_url | urlencode }}&theme=classic&logo=1" alt="QR Code to guest upload" style="width:140px;height:140px;border-radius:12px;display:block;">
+    <div class="qr-tip muted">Use high contrast (e.g. black on white) for the most reliable scans.</div>
+            </div>
+          </div>
+        </aside>
+    </div>
+      <div style="margin-top:12px;">
+        <button type="submit" class="btn primary" style="display:block; width:100%;">Save Changes</button>
+      </div>
+      </form>
+    <!-- Theme selection moved next to preview for better live feedback -->
+  <div class="card" style="margin:16px 0 12px 0;">
+      <div class="grid" style="grid-template-columns: repeat(12, minmax(0,1fr)); gap:12px; align-items:end;">
+        <div class="floating-field" style="grid-column: span 6; min-width:280px;">
+          <label for="theme_id" class="fl-label">Theme</label>
+          <select class="input-field" id="theme_id" name="theme_id" form="event-edit-form">
+            <option value="">-- Custom --</option>
+            {% for theme in themes %}
+            <option value="{{ theme.ThemeID }}"
+              data-button1="{{ theme.ButtonColour1 or '' }}"
+              data-button2="{{ theme.ButtonColour2 or '' }}"
+              data-bg="{{ theme.BackgroundColour or '' }}"
+              data-font="{{ theme.FontFamily or '' }}"
+              data-text="{{ theme.TextColour or '' }}"
+              data-accent="{{ theme.AccentColour or '' }}"
+              data-input-bg="{{ theme.InputBackgroundColour or '' }}"
+              data-dropzone-bg="{{ theme.DropzoneBackgroundColour or '' }}"
+              data-style="{{ theme.ButtonStyle or 'gradient' }}"
+              data-desc="{{ theme.Description or '' }}"
+              {% if custom and custom.ThemeID == theme.ThemeID %}selected{% endif %}>{{ theme.Name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div id="theme-meta" style="grid-column: span 6; display:none; align-items:center; gap:14px; justify-content:space-between;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div id="theme-swatch" title="Theme preview" style="width:120px; height:40px; border-radius:8px; border:1px solid rgba(255,255,255,0.18);"></div>
+            <div id="theme-desc" class="muted" style="font-size:0.95em;"></div>
+          </div>
+          
+        </div>
+      </div>
+      <!-- Global Button Style controls (outside Custom editor) -->
+      <div class="grid" style="grid-template-columns: repeat(12, minmax(0,1fr)); gap:12px; align-items:center; margin-top:8px;">
+        <div class="floating-field" style="grid-column: span 12; min-width:240px;">
+          <div class="p-bold" style="margin: 0 0 6px 0;">Button style</div>
+          <div class="btn-row button-style-options" style="flex-wrap: wrap;">
+            <label class="radio-row">
+              <input type="radio" name="ButtonStyleRadio" id="ButtonStyleSolid" value="solid" {% if bs=='solid' %}checked{% endif %}>
+              <span>Solid</span>
+            </label>
+
+            <label class="radio-row">
+              <input type="radio" name="ButtonStyleRadio" id="ButtonStyleGradient" value="gradient" {% if bs!='solid' %}checked{% endif %}>
+              <span>Gradient</span>
+            </label>
+            
+            <div id="gradient-controls" style="margin-left:12px; display:grid; grid-auto-flow: column; gap:6px; align-items:end;">
+              <div id="gradient-type-wrap" class="floating-field" style="min-width:90px;">
+                <label for="ButtonGradientStyle" class="fl-label">Type</label>
+                <select id="ButtonGradientStyle" class="input-field" style="width:auto; padding:6px 8px; height:36px;">
+                  <option value="linear" {% if gsty=='linear' %}selected{% endif %}>Linear</option>
+                  <option value="radial" {% if gsty=='radial' %}selected{% endif %}>Radial</option>
+                </select>
+              </div>
+              <div id="gradient-dir-wrap" class="floating-field" style="min-width:160px;">
+                <label for="ButtonGradientDirection" class="fl-label">Direction</label>
+                <select id="ButtonGradientDirection" class="input-field" style="width:auto; padding:6px 8px; height:36px;">
+                  <option value="90deg" {% if gdir=='90deg' %}selected{% endif %}>Left → Right</option>
+                  <option value="0deg" {% if gdir=='0deg' %}selected{% endif %}>Top → Bottom</option>
+                  <option value="45deg" {% if gdir=='45deg' %}selected{% endif %}>↘ Diagonal</option>
+                  <option value="135deg" {% if gdir=='135deg' %}selected{% endif %}>↗ Diagonal</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Admin-like Theme Editor (shown for Custom) placed directly under Theme selector -->
+    <div id="theme-editor-like" class="card" style="display:none; margin: 8px 0 12px 0;">
+      <div class="grid" style="grid-template-columns: repeat(12, minmax(0,1fr)); gap:16px; align-items:start;">
+        <div class="floating-field" style="grid-column: span 4; min-width:240px;">
+          <label class="fl-label" for="BackgroundColour">Background</label>
+          <div class="color-row">
+            <input class="input-field color-swatch" type="color" id="BackgroundColour" value="{{ custom.BackgroundColour or '#ffffff' }}">
+            <input class="input-field mono" id="BackgroundColourHex" value="{{ custom.BackgroundColour or '#ffffff' }}" maxlength="9" autocomplete="off">
+          </div>
+        </div>
+        <div class="floating-field" style="grid-column: span 4; min-width:240px;">
+          <label class="fl-label" for="TextColour">Text</label>
+          <div class="color-row">
+            <input class="input-field color-swatch" type="color" id="TextColour" value="{{ custom.TextColour or '#0F0E17' }}">
+            <input class="input-field mono" id="TextColourHex" value="{{ custom.TextColour or '#0F0E17' }}" maxlength="9" autocomplete="off">
+          </div>
+        </div>
+        <div class="floating-field" style="grid-column: span 4; min-width:240px;">
+          <label class="fl-label" for="ButtonColour1">Primary Button Colour</label>
+          <div class="color-row">
+            <input class="input-field color-swatch" type="color" id="ButtonColour1" value="{{ custom.ButtonColour1 or '#F25F4C' }}">
+            <input class="input-field mono" id="ButtonColour1Hex" value="{{ custom.ButtonColour1 or '#F25F4C' }}" maxlength="9" autocomplete="off">
+          </div>
+        </div>
+  <div class="floating-field" id="ButtonColour2Wrap" style="grid-column: span 4; min-width:240px;">
+          <label class="fl-label" for="ButtonColour2">Secondary Button Colour</label>
+          <div class="color-row">
+            <input class="input-field color-swatch" type="color" id="ButtonColour2" value="{{ custom.ButtonColour2 or '#FF8906' }}">
+            <input class="input-field mono" id="ButtonColour2Hex" value="{{ custom.ButtonColour2 or '#FF8906' }}" maxlength="9" autocomplete="off">
+          </div>
+        </div>
+        <div class="floating-field" style="grid-column: span 4; min-width:240px;">
+          <label class="fl-label" for="AccentColour">Border</label>
+          <div class="color-row">
+            <input class="input-field color-swatch" type="color" id="AccentColour" value="{{ custom.AccentColour or '#222222' }}">
+            <input class="input-field mono" id="AccentColourHex" value="{{ custom.AccentColour or '#222222' }}" maxlength="9" autocomplete="off">
+          </div>
+        </div>
+      </div>
+
+      <div class="grid" style="grid-template-columns: repeat(12, minmax(0,1fr)); gap:16px; align-items:start;">
+        <div class="floating-field" style="grid-column: span 6; min-width:240px;">
+          <label class="fl-label" for="InputBackgroundColour">Text boxes</label>
+          <div class="color-row">
+            <input class="input-field color-swatch" type="color" id="InputBackgroundColour" value="{{ custom.InputBackgroundColour or '#15161e' }}">
+            <input class="input-field mono" id="InputBackgroundColourHex" value="{{ custom.InputBackgroundColour or '#15161e' }}" maxlength="9" autocomplete="off">
+          </div>
+        </div>
+        <div class="floating-field" style="grid-column: span 6; min-width:240px;">
+          <label class="fl-label" for="DropzoneBackgroundColour">Upload Dropzone</label>
+          <div class="color-row">
+            <input class="input-field color-swatch" type="color" id="DropzoneBackgroundColour" value="{{ custom.DropzoneBackgroundColour or '#121424' }}">
+            <input class="input-field mono" id="DropzoneBackgroundColourHex" value="{{ custom.DropzoneBackgroundColour or '#121424' }}" maxlength="9" autocomplete="off">
+          </div>
+        </div>
+      </div>
+      {% set preset_fonts = [
+        'Inter, Arial, sans-serif',
+        'System UI, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
+        'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
+        'Arial, Helvetica, sans-serif',
+        'Verdana, Geneva, Tahoma, sans-serif',
+        'Trebuchet MS, Tahoma, sans-serif',
+        'Roboto, Arial, sans-serif',
+        'Open Sans, Arial, sans-serif',
+        'Lato, Arial, sans-serif',
+        'Poppins, Arial, sans-serif',
+        'Montserrat, Arial, sans-serif',
+        'Source Sans Pro, Arial, sans-serif',
+        'Nunito, Arial, sans-serif',
+        'Merriweather, Georgia, serif',
+        "Georgia, 'Times New Roman', serif",
+        'Times New Roman, Times, serif',
+        "Garamond, Baskerville, 'Times New Roman', serif",
+        "Palatino Linotype, 'Book Antiqua', Palatino, serif",
+        'Cambria, Georgia, serif',
+        "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace",
+        'Consolas, Menlo, Monaco, monospace',
+        'Courier New, Courier, monospace',
+        "Covered By Your Grace, cursive"
+      ] %}
+      {% set ff2 = (custom.FontFamily if custom and custom.FontFamily in preset_fonts else 'Inter, Arial, sans-serif') %}
+      <div style="display:grid; gap:12px; grid-template-columns: repeat(12, minmax(0,1fr)); align-items:start;">
+        <div class="floating-field" style="grid-column: span 6; min-width:280px;">
+          <label class="fl-label" for="FontFamilySelect">Font</label>
+          <select class="input-field" id="FontFamilySelect" autocomplete="off">
+            {% for ff in preset_fonts %}
+              {% set label = (ff.split(',')[0] | replace("'", '') | trim) %}
+              {% if label == 'ui-monospace' %}{% set label = 'Monospace' %}{% endif %}
+              <option value="{{ ff }}" {% if ff2 == ff %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+    <!-- Admin-like Live Preview (shown for Custom) placed after the form to avoid layout interference -->
+    <div id="admin-like-preview" class="card preview-block" style="margin: 12px 0 16px;">
+      <div class="btn-row" style="justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="margin:0;">Live Preview</h3>
+  <div class="btn-row" style="gap:6px;">
+          <label class="checkbox-row"><input id="pv-banner" type="checkbox" class="checkbox-field"><span>Banner Image</span></label>
+          <label class="checkbox-row"><input id="pv-progress" type="checkbox" class="checkbox-field"><span>Uploading</span></label>
+          <label class="checkbox-row"><input id="pv-uploads" type="checkbox" class="checkbox-field"><span>Your uploads</span></label>
+        </div>
+      </div>
+      <div class="web-preview-wrapper">
+        <div id="preview-root" class="theme-root section-bg-only {{ 'is-solid' if bs=='solid' else 'is-gradient' }}">
+          {% include "_theme_vars.html" %}
+          <div class="web-preview" data-base="1400">
+            <div class="container center" style="padding-top: 12px;">
+              <div class="frost-wrap" style="max-width:1100px;margin:0 auto; border-radius:12px;">
+                <div class="theme-card card guest-card rounded radius-{{ 'subtle' if cr=='subtle' else ('sharp' if cr=='sharp' else 'rounded') }} center">
+                  <h1 id="guest-title" class="login-title heading-{{ hs }}" style="margin-bottom:6px; text-align:center;">{{ custom.WelcomeMessage if custom and custom.WelcomeMessage else 'Guest Upload' }}</h1>
+                  <p id="guest-instructions" class="muted" style="color: var(--card-text); opacity:0.9; margin-top:0; text-align:center;">{{ custom.UploadInstructions if custom and custom.UploadInstructions else 'Welcome! Please upload your files for this event.' }}</p>
+                  <div id="pv-cover-wrap" style="display:none; margin-bottom: 16px; text-align: center;"><img id="pv-cover-img" src="{{ custom.CoverPhotoPath if custom and custom.CoverPhotoPath else 'https://picsum.photos/1000/240' }}" alt="Event Banner" style="max-width: 100%; border-radius: 12px;"></div>
+                  <div class="form">
+                    <div class="floating-field" style="margin-top:8px;">
+                      <label class="fl-label">Your Email (optional)</label>
+                      <input class="input-field" type="email" placeholder="you@example.com">
+                    </div>
+                    <div id="pv-guestbook-wrap" class="floating-field" style="margin-top:8px;">
+                      <label class="fl-label" for="pv-guestbook-message">Guestbook Message (optional)</label>
+                      <textarea id="pv-guestbook-message" class="input-field" placeholder="Write a message for the event hosts"></textarea>
+                    </div>
+                    <div style="margin: 6px 0 6px;">
+                      <div class="muted" style="color: var(--card-text); opacity:0.9; margin-bottom:6px;">Select Photos/Videos</div>
+                      <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="File dropzone">
+                        <div class="dz-inner">
+                          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M12 3v12m0-12l-4 4m4-4l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M6 15v2a4 4 0 004 4h4a4 4 0 004-4v-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                          </svg>
+                          <div class="dz-text">
+                            <span class="dz-hint-dnd"><strong>Drag and drop</strong> photos or videos here</span>
+
+                            <span class="dz-hint-tap"><strong>Tap to select</strong> photos or videos</span><br>
+                            <span class="muted small dz-browse-click">or click to browse</span>
+                            <span class="muted small dz-browse-tap">or tap to browse</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div id="selection" class="chip-list" style="display:none;"></div>
+                    </div>
+                    <div class="upload-actions" style="margin-top:6px; display:flex; gap:8px; align-items:center; justify-content:space-between;">
+                      <div class="btn-row">
+                        <span id="file-count" class="muted small"></span>
+                        <button type="button" class="btn sm" style="display:none;">Clear selection</button>
+                      </div>
+                      <div class="btn-row" style="margin-left:auto; align-items:center;">
+                        <label class="terms-inline">
+                          <input type="checkbox" class="checkbox-field">
+                          <span>I agree to the <a href="#" title="View the full terms and conditions">terms and conditions</a></span>
+                        </label>
+                        <button type="button" class="btn primary">Upload</button>
+                      </div>
+                    </div>
+                    <div id="progress-container" style="display:none; margin:10px 0; width:100%; position:relative;">
+                      <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
+                      <div id="progress-percent" class="muted small" style="position:absolute; top:100%; left:0; right:0; text-align:center; margin-top:4px;">0%</div>
+                    </div>
+                    <div id="uploads-empty-hint" class="muted small" style="margin-top:8px; text-align:center;">
+                      You’ll see your photos here after upload.
+                    </div>
+                    <div id="pv-uploads-wrap" class="card" style="display:none; margin-top:12px; background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.08);">
+                      <h3 style="margin:0 0 8px;">Your uploads</h3>
+                      <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
+                        {% for i in range(0,8) %}
+                        <div class="thumb" style="padding:6px; border-radius:10px; background:#0f111b; display:flex;">
+                          <img src="https://picsum.photos/seed/{{ i }}/200/120" alt="Preview" style="width:100%; height:100px; object-fit:cover; border-radius:6px;" loading="lazy">
+                        </div>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+  </div>
+  <!-- Data hook with initial banner url if present -->
+  <div id="initial-banner" data-url="{{ custom.CoverPhotoPath if custom and custom.CoverPhotoPath else '' }}" hidden></div>
+  <script id="theme-init" type="application/json">{{ {
+    'text': (custom.TextColour if custom and custom.TextColour else '#0F0E17'),
+    'font': (custom.FontFamily if custom and custom.FontFamily else 'Inter, Arial, sans-serif'),
+    'button2': (custom.ButtonColour2 if custom and custom.ButtonColour2 else '#FF8906')
+  } | tojson }}</script>
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const sel = document.getElementById('theme_id');
+  const eventTypeSel = document.getElementById('event_type_id');
+  const customTypeWrap = document.getElementById('custom-event-type-wrap');
+  const customTypeInput = document.getElementById('custom_event_type');
+  const customizer = document.getElementById('customizer');
+  const editorLike = document.getElementById('theme-editor-like');
+  const previewWrap = document.getElementById('admin-like-preview');
+  const meta = document.getElementById('theme-meta');
+  const swatch = document.getElementById('theme-swatch');
+  const desc = document.getElementById('theme-desc');
+  const primary = document.getElementById('primary_color');
+  const accent = document.getElementById('accent_color');
+  const secondary = document.getElementById('secondary_color');
+  const textColor = document.getElementById('text_color');
+  const fontSelect = document.getElementById('font_family');
+  const ffSelectEl = document.getElementById('FontFamilySelect');
+  const bg = document.getElementById('background_color');
+  const welcome = document.getElementById('welcome_message');
+  const instructions = document.getElementById('upload_instructions');
+  const banner = document.getElementById('banner_image');
+  // No standalone #preview; use pv-cover-img for banner and pRoot for background
+  const pTitle = document.getElementById('guest-title');
+  const pDesc = document.getElementById('guest-instructions');
+  const pBtn = document.getElementById('pre22view-button');
+  const pRoot = document.getElementById('preview-root');
+  const pvBanner = document.getElementById('pv-banner');
+  const pvProgress = document.getElementById('pv-progress');
+  const pvUploads = document.getElementById('pv-uploads');
+  const coverWrap = document.getElementById('pv-cover-wrap');
+  
+  const removeBannerHidden = document.getElementById('remove_banner');
+  const removeBannerBtn = document.getElementById('remove-banner-btn');
+  // Example swatches (removed for simplified preview)
+  const exText = document.getElementById('ex-text');
+  const exAccent = document.getElementById('ex-accent');
+  const exBg = document.getElementById('ex-bg');
+  const buttonStyle = document.getElementById('button_style');
+  const cornerRadius = document.getElementById('corner_radius');
+  const headingSize = document.getElementById('heading_size');
+  const showCover = document.getElementById('show_cover');
+  const typeGrad = document.getElementById('type-gradient');
+  const typeSolid = document.getElementById('type-solid');
+  const gradientControls = document.getElementById('gradient-controls');
+  const gradientDirWrap = document.getElementById('gradient-dir-wrap');
+  const gradientTypeSelect = document.getElementById('ButtonGradientStyle');
+  const bsSolidRadio = document.getElementById('ButtonStyleSolid');
+  const bsGradRadio = document.getElementById('ButtonStyleGradient');
+  // Removed global reset button
+  const fullBtn = document.getElementById('full-button-preview');
+  // Per-card reset links
+  const resetCardButton = document.getElementById('reset-card-button');
+  const resetCardColors = document.getElementById('reset-card-colors');
+  const resetCardTypography = document.getElementById('reset-card-typography');
+  
+
+  // Initial values from server via JSON script to keep JS valid
+  const initEl = document.getElementById('theme-init');
+  const themeInit = initEl ? JSON.parse(initEl.textContent) : {};
+  let themeText = themeInit.text || '#0F0E17';
+  let themeFont = themeInit.font || 'Inter, Arial, sans-serif';
+  let themeButton2 = themeInit.button2 || '#FF8906';
+
+  function isThemeSelected(){
+    return !!(sel && sel.value && sel.value.trim() !== '');
+  }
+
+  function getSelectedThemeData(){
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt) return null;
+    return {
+      b1: opt.getAttribute('data-button1') || '#F25F4C',
+      b2: opt.getAttribute('data-button2') || '#FF8906',
+      bg: opt.getAttribute('data-bg') || '#ffffff',
+      text: opt.getAttribute('data-text') || '#0F0E17',
+      font: opt.getAttribute('data-font') || 'Inter, Arial, sans-serif',
+  accent: opt.getAttribute('data-accent') || '#222',
+  input_bg: opt.getAttribute('data-input-bg') || '#15161e',
+  dropzone_bg: opt.getAttribute('data-dropzone-bg') || '#121424',
+  style: opt.getAttribute('data-style') || 'gradient',
+  desc: opt.getAttribute('data-desc') || ''
+    };
+  }
+
+  function toggleCustomizer(){
+    const useTheme = isThemeSelected();
+    // Always show preview; only hide the custom editor when a prebuilt theme is selected
+    if (previewWrap) previewWrap.style.display = '';
+    if (editorLike) editorLike.style.display = useTheme ? 'none' : '';
+    if (customizer){
+      customizer.style.display = useTheme ? 'none' : '';
+      // Disable/enable inputs within so they don't submit when hidden
+      customizer.querySelectorAll('input, select, textarea, button').forEach(function(el){ el.disabled = useTheme; });
+    }
+    if (meta){ meta.style.display = useTheme ? 'flex' : 'none'; }
+  }
+
+  // Place the custom theme editor inside the Theme card just below the selector
+  (function(){
+    try {
+      const themeSelect = document.getElementById('theme_id');
+      const themeCard = themeSelect ? themeSelect.closest('.card') : null;
+      const rowBelow = themeSelect ? themeSelect.closest('.grid') : null;
+      if (editorLike && themeCard && rowBelow) {
+        // Avoid nested card visuals; the editor should look like a section inside the Theme card
+        editorLike.classList.remove('card');
+        // Ensure spacing is compact under the selector row
+        editorLike.style.margin = '8px 0 0 0';
+        if (editorLike.parentElement !== themeCard) {
+          rowBelow.insertAdjacentElement('afterend', editorLike);
+        }
+      }
+    } catch (e) { /* no-op */ }
+  })();
+
+  function applyThemeFromSelect(){
+    toggleCustomizer();
+    // Update theme meta preview immediately
+    const data = getSelectedThemeData();
+    if (meta && data){
+      if (swatch){
+        swatch.style.background = `linear-gradient(90deg, ${data.b1} 0%, ${data.b2} 100%)`;
+        swatch.style.boxShadow = `inset 0 0 0 4px ${data.bg || '#ffffff'}`;
+      }
+      if (desc){ desc.textContent = data.desc || ''; }
+    }
+  // Keep hidden button_style in sync with selected theme default (does not change radio state)
+  const style = (data && data.style) || 'gradient';
+  const hidden = document.getElementById('button_style'); if (hidden){ hidden.value = style; }
+    updatePreview();
+  }
+  if (sel) sel.addEventListener('change', applyThemeFromSelect);
+
+  // Event Type: show custom input when "Other" is selected and place side-by-side; otherwise stack
+  function updateCustomTypeVisibility(){
+    if (!eventTypeSel || !customTypeWrap || !customTypeInput) return;
+    const isOther = String(eventTypeSel.value || '').toLowerCase() === 'other';
+    customTypeWrap.style.display = isOther ? '' : 'none';
+    customTypeInput.disabled = !isOther;
+    if (!isOther) { customTypeInput.value = ''; }
+    const group = document.getElementById('event-type-group');
+    const wrap = document.getElementById('event-type-wrap');
+    if (group){ group.style.gridTemplateColumns = isOther ? '1fr 1fr' : '1fr'; }
+    if (wrap){ wrap.style.marginRight = isOther ? '6px' : '0'; }
+  }
+  if (eventTypeSel){ eventTypeSel.addEventListener('change', updateCustomTypeVisibility); }
+  updateCustomTypeVisibility();
+
+  function hexToRgb(hex){
+    if (!hex) return {r:0,g:0,b:0};
+    const h = hex.replace('#','');
+    const v = h.length === 3 ? h.split('').map(c=>c+c).join('') : h;
+    const num = parseInt(v, 16);
+    return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+  }
+  function relLuminance({r,g,b}){
+    const srgb = [r,g,b].map(v=>v/255).map(v=> v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4));
+    return 0.2126*srgb[0] + 0.7152*srgb[1] + 0.0722*srgb[2];
+  }
+  function mix(hex1, hex2){
+    const a = hexToRgb(hex1), b = hexToRgb(hex2);
+    return { r: Math.round((a.r+b.r)/2), g: Math.round((a.g+b.g)/2), b: Math.round((a.b+b.b)/2) };
+  }
+  function rgbToHex({r,g,b}){
+    const to2 = (n)=>n.toString(16).padStart(2,'0');
+    return `#${to2(r)}${to2(g)}${to2(b)}`;
+  }
+  function getContrastColor(gradStart, gradEnd, bgColor){
+    // Approximate visible bg as average of gradient colors laid over bg
+    const gMix = mix(gradStart || '#000000', gradEnd || '#000000');
+    const gLum = relLuminance(gMix);
+    // Compare against white/black
+    const whiteLum = relLuminance({r:255,g:255,b:255});
+    const blackLum = relLuminance({r:0,g:0,b:0});
+    const cWhite = (Math.max(gLum, whiteLum)+0.05)/(Math.min(gLum, whiteLum)+0.05);
+    const cBlack = (Math.max(gLum, blackLum)+0.05)/(Math.min(gLum, blackLum)+0.05);
+    return cWhite >= cBlack ? '#FFFFFF' : '#111111';
+  }
+
+  function updatePreview(){
+    const useTheme = isThemeSelected();
+    const data = useTheme ? getSelectedThemeData() : null;
+    // Helper to get current value from visible theme-editor controls
+    function val(id, fallback){ var el = document.getElementById(id); return (el && el.value) || fallback; }
+
+    // Colors
+    // When a theme is selected, its values take precedence. In Custom mode, prefer visible editor inputs.
+    const bgColor = useTheme
+      ? (data && data.bg)
+      : val('BackgroundColour', (bg && bg.value) || '#ffffff');
+    const txtColor = useTheme
+      ? (data && data.text)
+      : val('TextColour', (textColor && textColor.value) || themeText || '#0F0E17');
+    const gradStart = useTheme
+      ? (data && data.b1)
+      : val('ButtonColour1', (primary && primary.value) || '#F25F4C');
+    const gradEnd = useTheme
+      ? (data && data.b2)
+      : val('ButtonColour2', (secondary && secondary.value) || themeButton2 || '#FF8906');
+    const accentCol = useTheme
+      ? (data && data.accent)
+      : val('AccentColour', (accent && accent.value) || '#222');
+    // Font: prefer theme font when theme selected; otherwise use the editor's FontFamilySelect, then hidden fallback
+    const fontFam = (useTheme && data && data.font) || (ffSelectEl && ffSelectEl.value) || (fontSelect && fontSelect.value) || themeFont || 'Inter, Arial, sans-serif';
+  const btnText = getContrastColor(gradStart, gradEnd, bgColor);
+
+    // Drive theme via CSS variables for exact parity
+    if (pRoot){
+      pRoot.style.setProperty('--bg', bgColor || '#ffffff');
+      pRoot.style.setProperty('--text', txtColor || '#0F0E17');
+      pRoot.style.setProperty('--font', fontFam || 'Inter, Arial, sans-serif');
+      pRoot.style.setProperty('--btn1', gradStart || '#F25F4C');
+      pRoot.style.setProperty('--btn2', gradEnd || '#FF8906');
+      pRoot.style.setProperty('--btn-text', btnText || '#ffffff');
+      // Ensure card and borders match selected theme, not stale custom vars
+      pRoot.style.setProperty('--card', bgColor || '#0f0f12');
+      pRoot.style.setProperty('--card-text', txtColor || '#e9eef6');
+      pRoot.style.setProperty('--accent', accentCol || 'rgba(255,255,255,0.18)');
+      // Sync to hidden submit fields so backend receives values
+      const mapHidden = {
+        primary_color: gradStart,
+        secondary_color: gradEnd,
+        text_color: txtColor,
+        background_color: bgColor,
+        accent_color: accentCol || (document.getElementById('AccentColour') && document.getElementById('AccentColour').value) || (accent && accent.value) || '#222',
+        font_family: (ffSelectEl && ffSelectEl.value) || (fontSelect && fontSelect.value) || 'Inter, Arial, sans-serif',
+        input_background_color: useTheme ? (data && data.input_bg) : ((document.getElementById('InputBackgroundColour') && document.getElementById('InputBackgroundColour').value) || '#15161e'),
+        dropzone_background_color: useTheme ? (data && data.dropzone_bg) : ((document.getElementById('DropzoneBackgroundColour') && document.getElementById('DropzoneBackgroundColour').value) || '#121424')
+      };
+      Object.keys(mapHidden).forEach(function(k){ var el=document.getElementById(k); if (el && mapHidden[k]) el.value = mapHidden[k]; });
+      // Apply to CSS vars so the previewed form widgets pick up the themed surfaces
+      pRoot.style.setProperty('--input-bg', mapHidden.input_background_color);
+      pRoot.style.setProperty('--dropzone-bg', mapHidden.dropzone_background_color);
+    }
+    // Toggle gradient vs solid on root class; for selected theme, honor its style
+    if (pRoot){
+      const styleVal = (bsSolidRadio && bsSolidRadio.checked)
+        ? 'solid'
+        : ((bsGradRadio && bsGradRadio.checked) ? 'gradient' : ((buttonStyle && buttonStyle.value) || (useTheme && data && data.style) || 'gradient'));
+      if (gradientControls) { gradientControls.style.display = (styleVal === 'solid') ? 'none' : 'grid'; }
+      if (gradientDirWrap) {
+        const selectedType = (document.getElementById('ButtonGradientStyle')?.value) || 'linear';
+        gradientDirWrap.style.display = (styleVal === 'solid' || selectedType === 'radial') ? 'none' : 'block';
+      }
+      if (styleVal === 'solid'){
+        pRoot.classList.remove('is-gradient');
+        pRoot.classList.add('is-solid');
+      } else {
+        pRoot.classList.remove('is-solid');
+        pRoot.classList.add('is-gradient');
+      }
+      // Build gradient CSS and expose as CSS var for buttons/progress
+      const dirSel = document.getElementById('ButtonGradientDirection');
+      const stySel = document.getElementById('ButtonGradientStyle');
+      const dir = (dirSel && dirSel.value) || '90deg';
+      const sty = (stySel && stySel.value) || 'linear';
+      const gradCss = sty === 'radial'
+        ? `radial-gradient(circle at center, ${gradStart} 0%, ${gradEnd} 100%)`
+        : `linear-gradient(${dir}, ${gradStart} 0%, ${gradEnd} 100%)`;
+      pRoot.style.setProperty('--btn-gradient', gradCss);
+      // Keep hidden button_style in sync so saves don’t override theme
+      var bsHidden = document.getElementById('button_style');
+      if (bsHidden) { bsHidden.value = styleVal; }
+  // Persist gradient configuration
+  var bgs = document.getElementById('button_gradient_style'); if (bgs) { bgs.value = sty; }
+  var bgd = document.getElementById('button_gradient_direction'); if (bgd) { bgd.value = dir; }
+    }
+    // Apply heading class (size) via classes
+    if (headingSize && pTitle){
+      pTitle.classList.remove('heading-s','heading-m','heading-l');
+      pTitle.classList.add('heading-' + headingSize.value);
+    }
+    // Apply radius via class on card container
+  const card = document.querySelector('#preview-root .theme-card');
+    if (card && cornerRadius){
+      card.classList.remove('radius-subtle','radius-rounded','radius-sharp');
+      card.classList.add('radius-' + cornerRadius.value);
+    }
+    // Ensure the card visually reflects the selected background and border immediately
+    if (card){
+      card.style.background = bgColor || '';
+      card.style.borderColor = accentCol || '';
+    }
+    // Text content
+    pTitle.textContent = (welcome.value || 'Guest Upload');
+    pDesc.textContent = (instructions.value || 'Welcome! Please upload your files for this event.');
+  // Individual colour swatches removed; rely on Live Preview and full button preview only
+
+    // Theme meta preview
+    if (meta){
+      if (useTheme){
+        if (swatch){
+          const dir = (document.getElementById('ButtonGradientDirection')?.value) || '90deg';
+          const sty = (document.getElementById('ButtonGradientStyle')?.value) || 'linear';
+          const gradCss = sty === 'radial'
+            ? `radial-gradient(circle at center, ${gradStart} 0%, ${gradEnd} 100%)`
+            : `linear-gradient(${dir}, ${gradStart} 0%, ${gradEnd} 100%)`;
+          swatch.style.background = gradCss;
+          swatch.style.boxShadow = `inset 0 0 0 4px ${bgColor}`;
+        }
+        if (desc){ desc.textContent = (data && data.desc) || ''; }
+      } else {
+        if (swatch){ swatch.style.background = ''; swatch.style.boxShadow = ''; }
+        if (desc){ desc.textContent = ''; }
+      }
+    }
+  }
+
+  const gradDirEl = document.getElementById('ButtonGradientDirection');
+  const gradStyEl = document.getElementById('ButtonGradientStyle');
+  [primary, secondary, textColor, fontSelect, ffSelectEl, accent, bg, welcome, instructions, buttonStyle, cornerRadius, headingSize, showCover, gradDirEl, gradStyEl].forEach(function(el){
+    if (el) el.addEventListener('input', updatePreview);
+  });
+  [gradDirEl, gradStyEl].forEach(function(el){ if (el) el.addEventListener('change', updatePreview); });
+  if (gradientTypeSelect) { gradientTypeSelect.addEventListener('change', updatePreview); }
+  if (banner) {
+    banner.addEventListener('change', function(){
+  if (removeBannerHidden) removeBannerHidden.value = '0';
+  if (removeBannerToggle) { removeBannerToggle.checked = false; removeBannerToggle.disabled = false; }
+      const file = banner.files && banner.files[0];
+      const nameEl = document.getElementById('banner_file_name');
+      if (nameEl) { nameEl.textContent = file ? file.name : 'No file chosen'; }
+      if (!file) return updatePreview();
+      const type = (file.type || '').toLowerCase();
+      if (!type.startsWith('image/')){
+        banner.value = '';
+        if (nameEl) nameEl.textContent = 'No file chosen';
+        if (window.snackbar && window.snackbar.show){ window.snackbar.show('Please choose an image file.'); }
+        else { alert('Please choose an image file.'); }
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function(e){
+        // Show as banner image in live preview
+        const img = document.getElementById('pv-cover-img');
+        if (img) { img.src = e.target.result; }
+        if (coverWrap) { coverWrap.style.display = ''; }
+        // Also show in assets preview card
+        const ap = document.getElementById('asset-banner-preview');
+        if (ap) { ap.src = e.target.result; ap.removeAttribute('hidden'); }
+        // Tick and lock the Banner toggle
+        if (pvBanner) { pvBanner.checked = true; pvBanner.disabled = true; }
+        // Set frosted background using CSS vars on theme root
+        if (pRoot) {
+          pRoot.style.setProperty('--bg-image', `url(${e.target.result})`);
+          pRoot.style.setProperty('--bg-size', 'cover');
+          pRoot.style.setProperty('--bg-position', 'center');
+          pRoot.style.setProperty('--bg-blur', '44px');
+        }
+        updatePreview();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  if (removeBannerBtn){
+    removeBannerBtn.addEventListener('click', function(){
+      if (removeBannerHidden) removeBannerHidden.value = '1';
+      if (pvBanner){ pvBanner.checked = false; pvBanner.disabled = false; }
+      if (coverWrap){ coverWrap.style.display = 'none'; const im=document.getElementById('pv-cover-img'); if (im){ im.removeAttribute('src'); im.setAttribute('hidden',''); } }
+      if (pRoot){ pRoot.style.removeProperty('--bg-image'); pRoot.style.removeProperty('--bg-size'); pRoot.style.removeProperty('--bg-position'); pRoot.style.removeProperty('--bg-blur'); }
+      const ap = document.getElementById('asset-banner-preview'); if (ap){ ap.setAttribute('hidden',''); ap.removeAttribute('src'); }
+      const nameEl = document.getElementById('banner_file_name'); if (nameEl){ nameEl.textContent = 'No file chosen'; }
+      if (banner){ try{ banner.value = ''; }catch(e){} }
+      updatePreview();
+    });
+  }
+  // Initial state
+  toggleCustomizer();
+  updatePreview();
+
+  // On submit, make a final sync of visible editor values into hidden fields (Custom mode only)
+  const form = document.getElementById('event-edit-form');
+  if (form) {
+    form.addEventListener('submit', function(){
+      const customMode = !isThemeSelected();
+      if (!customMode) { return; }
+      // Gather latest values from visible controls
+      const getVal = function(id, fallback){ const el = document.getElementById(id); return (el && el.value) || fallback || ''; };
+      const payload = {
+        primary_color: getVal('ButtonColour1', primary && primary.value),
+        secondary_color: getVal('ButtonColour2', secondary && secondary.value),
+        text_color: getVal('TextColour', textColor && textColor.value),
+        background_color: getVal('BackgroundColour', bg && bg.value),
+        accent_color: getVal('AccentColour', accent && accent.value),
+        font_family: (ffSelectEl && ffSelectEl.value) || (fontSelect && fontSelect.value) || '',
+        input_background_color: getVal('InputBackgroundColour', ''),
+        dropzone_background_color: getVal('DropzoneBackgroundColour', ''),
+        button_style: (document.getElementById('ButtonStyleSolid')?.checked ? 'solid' : 'gradient'),
+        button_gradient_style: (document.getElementById('ButtonGradientStyle')?.value) || 'linear',
+        button_gradient_direction: (document.getElementById('ButtonGradientDirection')?.value) || '90deg'
+      };
+      Object.keys(payload).forEach(function(k){
+        const el = document.getElementById(k);
+        if (el) { el.disabled = false; el.value = payload[k]; }
+      });
+      // Also ensure the preview-derived CSS vars are up to date
+      updatePreview();
+    });
+  }
+
+  // Button style type toggle (clickable types)
+  function setType(val){
+    if (!buttonStyle) return;
+    buttonStyle.value = val;
+    if (typeGrad) typeGrad.setAttribute('aria-pressed', String(val === 'gradient'));
+    if (typeSolid) typeSolid.setAttribute('aria-pressed', String(val === 'solid'));
+  if (gradientControls) gradientControls.style.display = (val === 'solid') ? 'none' : 'grid';
+    updatePreview();
+  }
+  if (typeGrad) typeGrad.addEventListener('click', function(){ setType('gradient'); });
+  if (typeSolid) typeSolid.addEventListener('click', function(){ setType('solid'); });
+
+  // Per-card resets
+  if (resetCardButton){
+    resetCardButton.addEventListener('click', function(e){
+      e.preventDefault();
+      if (primary) primary.value = '#F25F4C';
+      if (secondary) secondary.value = '#FF8906';
+      if (buttonStyle) buttonStyle.value = 'gradient';
+      if (typeGrad) typeGrad.setAttribute('aria-pressed', 'true');
+      if (typeSolid) typeSolid.setAttribute('aria-pressed', 'false');
+      updatePreview();
+    });
+  }
+  if (resetCardColors){
+    resetCardColors.addEventListener('click', function(e){
+      e.preventDefault();
+      if (textColor) textColor.value = '#0F0E17';
+      if (accent) accent.value = '#222';
+      if (bg) bg.value = '#ffffff';
+      updatePreview();
+    });
+  }
+  if (resetCardTypography){
+    resetCardTypography.addEventListener('click', function(e){
+      e.preventDefault();
+      if (fontSelect) fontSelect.value = 'Inter, Arial, sans-serif';
+      if (cornerRadius) cornerRadius.value = 'rounded';
+      if (headingSize) headingSize.value = 'm';
+      updatePreview();
+    });
+  }
+
+  // Admin-like Theme Editor behavior
+  (function(){
+    const root = pRoot; if (!root) return;
+    const wrapper = root.closest('.web-preview-wrapper');
+    const web = root.querySelector('.web-preview');
+    function scalePreview(){
+      if (!wrapper || !web) return;
+      web.style.transform = 'scale(1)';
+      const base = parseInt(web.getAttribute('data-base') || '1100', 10);
+      const available = wrapper.clientWidth - 2;
+      const scale = Math.min(1, available / base);
+      web.style.transform = 'scale(' + scale + ')';
+      const naturalHeight = web.scrollHeight;
+      wrapper.style.height = Math.ceil(naturalHeight * scale) + 'px';
+    }
+    window.addEventListener('resize', scalePreview);
+    setTimeout(scalePreview, 0);
+
+    const map = {
+      BackgroundColour: '--card',
+      TextColour: '--card-text',
+      ButtonColour1: '--btn1',
+      ButtonColour2: '--btn2',
+      AccentColour: '--accent',
+      InputBackgroundColour: '--input-bg',
+      DropzoneBackgroundColour: '--dropzone-bg'
+    };
+    function apply(id){
+      const el = document.getElementById(id); if (!el) return;
+      let v = el.value || '';
+      const hexInput = document.getElementById(id + 'Hex'); if (hexInput) { hexInput.value = (v || '').toUpperCase(); }
+      const cssVar = map[id]; if (cssVar) root.style.setProperty(cssVar, v);
+      updateContrast();
+      updatePreview();
+      scalePreview();
+    }
+    ['BackgroundColour','TextColour','ButtonColour1','ButtonColour2','AccentColour','InputBackgroundColour','DropzoneBackgroundColour'].forEach(function(id){
+      const el=document.getElementById(id); if (el){ el.addEventListener('input', function(){ apply(id); }); }
+    });
+    ['BackgroundColour','TextColour','ButtonColour1','ButtonColour2','AccentColour','InputBackgroundColour','DropzoneBackgroundColour'].forEach(function(id){
+      const hex = document.getElementById(id + 'Hex'); if (!hex) return;
+      hex.addEventListener('input', function(){
+        let v = hex.value || '';
+        if (v && !v.startsWith('#') && !v.startsWith('rgb')) v = '#' + v;
+        const sw = document.getElementById(id); if (sw){ sw.value = v; }
+        const cssVar = map[id]; if (cssVar){ root.style.setProperty(cssVar, v); }
+        updateContrast(); updatePreview();
+      });
+    });
+
+    // Contrast helpers
+    function hexToRgb(h){ h=(h||'').trim(); if(!h) return null; if(h[0]==='#') h=h.slice(1); if(h.length===3){ h=h.split('').map(c=>c+c).join(''); } const num=parseInt(h,16); if(isNaN(num)) return null; return {r:(num>>16)&255,g:(num>>8)&255,b:num&255}; }
+    function relLum({r,g,b}){ const sr=[r,g,b].map(v=>{v/=255; return v<=0.03928? v/12.92: Math.pow((v+0.055)/1.055,2.4);}); return 0.2126*sr[0] + 0.7152*sr[1] + 0.0722*sr[2]; }
+    function contrastRatio(bg, tx){ const L1=Math.max(bg,tx), L2=Math.min(bg,tx); return (L1+0.05)/(L2+0.05); }
+    function updateContrast(){
+      const bg = hexToRgb(document.getElementById('BackgroundColour')?.value);
+      const tx = hexToRgb(document.getElementById('TextColour')?.value);
+      const ratioEl = document.getElementById('contrast-ratio'); if (!bg || !tx || !ratioEl) return;
+      const r = contrastRatio(relLum(bg), relLum(tx));
+      ratioEl.textContent = r.toFixed(2) + ':1';
+      const aa = document.getElementById('contrast-aa'); const aaa = document.getElementById('contrast-aaa');
+      if (aa){ aa.style.background = r >= 4.5 ? '#153a2b' : '#3a1514'; aa.style.borderColor = r >= 4.5 ? '#2a6a46' : '#5a1f1a'; }
+      if (aaa){ aaa.style.background = r >= 7 ? '#153a2b' : '#3a1514'; aaa.style.borderColor = r >= 7 ? '#2a6a46' : '#5a1f1a'; }
+    }
+    updateContrast();
+
+    // Button style radios
+    const bsGrad = document.getElementById('ButtonStyleGradient');
+    const bsSolid = document.getElementById('ButtonStyleSolid');
+    function applyButtonStyle(){
+      const isSolid = !!(bsSolid && bsSolid.checked);
+      if (isSolid){ root.classList.add('is-solid'); root.classList.remove('is-gradient'); }
+      else { root.classList.add('is-gradient'); root.classList.remove('is-solid'); }
+      const hidden = document.getElementById('button_style'); if (hidden){ hidden.value = isSolid ? 'solid' : 'gradient'; }
+      // Keep secondary color visible to avoid layout shift per request
+      const b2w = document.getElementById('ButtonColour2Wrap'); if (b2w){ b2w.style.display = ''; }
+  // Hide or show gradient controls immediately
+  const gc = document.getElementById('gradient-controls');
+  const gdw = document.getElementById('gradient-dir-wrap');
+  const gstySel = document.getElementById('ButtonGradientStyle');
+  if (gc) gc.style.display = isSolid ? 'none' : 'grid';
+  if (gdw) gdw.style.display = (isSolid || (gstySel && gstySel.value === 'radial')) ? 'none' : 'block';
+    }
+    if (bsGrad) bsGrad.addEventListener('change', function(){ applyButtonStyle(); updatePreview(); });
+    if (bsSolid) bsSolid.addEventListener('change', function(){ applyButtonStyle(); updatePreview(); });
+    applyButtonStyle();
+
+    // Preview toggles
+    function applyToggles(){
+      if (coverWrap && pvBanner){ coverWrap.style.display = pvBanner.checked ? '' : 'none'; }
+      const prog = document.getElementById('progress-container'); if (prog && pvProgress){ prog.style.display = pvProgress.checked ? '' : 'none'; }
+      const uploadsWrap = document.getElementById('pv-uploads-wrap'); if (uploadsWrap && pvUploads){ uploadsWrap.style.display = pvUploads.checked ? '' : 'none'; }
+      // Guestbook message input is always visible now
+      scalePreview();
+    }
+    [pvBanner, pvProgress, pvUploads].forEach(function(x){ if (x) x.addEventListener('change', applyToggles); });
+    // If a banner already exists, enforce it on load: tick and lock, show cover, set background
+    (function(){
+      var initialBanner = document.getElementById('initial-banner')?.getAttribute('data-url') || '';
+      if (initialBanner) {
+        if (pvBanner) { pvBanner.checked = true; pvBanner.disabled = true; }
+        if (coverWrap) { coverWrap.style.display = ''; }
+        if (pRoot) {
+          pRoot.style.setProperty('--bg-image', `url(${initialBanner})`);
+          pRoot.style.setProperty('--bg-size', 'cover');
+          pRoot.style.setProperty('--bg-position', 'center');
+          pRoot.style.setProperty('--bg-blur', '44px');
+        }
+      }
+      applyToggles();
+    })();
+
+    // Font family selector binds to hidden field
+    const ffSel = document.getElementById('FontFamilySelect');
+    if (ffSel){ ffSel.addEventListener('change', function(){ const h=document.getElementById('font_family'); if (h){ h.value = ffSel.value; } updatePreview(); }); }
+
+    // Preview upload simulation: animate the progress bar and reflect theme colors
+    (function(){
+      const previewUploadBtn = document.querySelector('#preview-root .upload-actions .btn.primary');
+  const progressContainer = document.getElementById('progress-container');
+  const progressFill = progressContainer ? progressContainer.querySelector('.progress-fill') : null;
+  const progressPercent = document.getElementById('progress-percent');
+      let timer = null;
+
+      function resetProgressBar(){
+        if (!progressContainer || !progressFill) return;
+        progressFill.style.width = '0%';
+        if (progressPercent) progressPercent.textContent = '0%';
+      }
+
+      function stopUpload(){
+        if (timer) { clearInterval(timer); timer = null; }
+        resetProgressBar();
+      }
+
+      function startUpload(){
+        if (!progressContainer || !progressFill) return;
+        // Show progress via existing toggle and reset bar
+        if (pvProgress) pvProgress.checked = true;
+        resetProgressBar();
+        applyToggles();
+        let pct = 0;
+        if (timer) { clearInterval(timer); timer = null; }
+        timer = setInterval(function(){
+          pct += Math.random()*12 + 6; // step forward
+          if (pct >= 100){
+            pct = 100;
+            progressFill.style.width = '100%';
+            if (progressPercent) progressPercent.textContent = '100%';
+            clearInterval(timer); timer = null;
+            // Briefly show complete state, then hide and reveal uploads
+            setTimeout(function(){
+              if (pvProgress) pvProgress.checked = false;
+              if (pvUploads) pvUploads.checked = true;
+              resetProgressBar();
+              applyToggles();
+            }, 600);
+          } else {
+            progressFill.style.width = Math.floor(pct) + '%';
+            if (progressPercent) progressPercent.textContent = String(Math.floor(pct)) + '%';
+          }
+        }, 180);
+      }
+
+      if (previewUploadBtn){
+        previewUploadBtn.addEventListener('click', function(e){ e.preventDefault(); startUpload(); });
+      }
+      // Start/stop animation when the "Uploading" toggle is changed
+      if (pvProgress){
+        pvProgress.addEventListener('change', function(){
+          if (pvProgress.checked) { startUpload(); }
+          else { stopUpload(); applyToggles(); }
+        });
+        // If already checked on load, animate
+        if (pvProgress.checked) { startUpload(); }
+      }
+      // Optional: clicking the dropzone suggests files are selected
+      const dropzone = document.getElementById('dropzone');
+      const fileCount = document.getElementById('file-count');
+      if (dropzone && fileCount){
+        dropzone.addEventListener('click', function(){ fileCount.textContent = '3 files selected'; });
+      }
+    })();
+  })();
+});
+</script>
+<!-- QR section container removed; now included above inside .edit-event container -->
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  var img = document.getElementById('qr-img');
+  var theme = null; // removed theme selector
+  var logo = null; // removed logo toggle
+  var fg = document.getElementById('qr-fg');
+  var bg = document.getElementById('qr-bg');
+  var fgHex = document.getElementById('qr-fg-hex');
+  var bgHex = document.getElementById('qr-bg-hex');
+  var ecc = null; // ECC removed
+  var dl = null; // Download removed
+  var logoFile = null; // removed logo upload
+  var customLogo = null;
+  if (!img) return;
+  function buildParams(){
+    var base = '{{ guest_url | urlencode }}';
+    var p = new URLSearchParams();
+    p.set('url', base);
+    // default to classic style; allow overriding fg/bg
+    p.set('theme', 'classic');
+  if (fg) p.set('fg', fg.value||'#000000');
+  if (bg) p.set('bg', bg.value||'#ffffff');
+    // Always include website logo in the QR
+    p.set('logo', '1');
+    return p;
+  }
+  function update(){
+    var url = new URL('/qr', window.location.origin);
+    url.search = '?' + buildParams().toString();
+    img.setAttribute('src', url.pathname + url.search);
+  }
+  // removed theme and logo listeners
+  if (fg) fg.addEventListener('change', update);
+  if (bg) bg.addEventListener('change', update);
+  // ECC selector and Download button removed
+
+  // Sync hex <-> swatch for QR colors
+  function normHex(v){
+    if (!v) return '';
+    v = v.trim();
+    if (!v) return '';
+    if (v.startsWith('rgb')) return v; // ignore rgb/rgba entries
+    if (!v.startsWith('#')) v = '#' + v;
+    return v.toUpperCase();
+  }
+  function syncFromSwatch(id){
+    var sw = document.getElementById(id);
+    var hx = document.getElementById(id + '-hex');
+    if (!sw || !hx) return;
+    hx.value = (sw.value || '').toUpperCase();
+  }
+  function syncFromHex(id){
+    var sw = document.getElementById(id);
+    var hx = document.getElementById(id + '-hex');
+    if (!sw || !hx) return;
+    var v = normHex(hx.value || '');
+    hx.value = v;
+    if (v) { sw.value = v; }
+  }
+  if (fg && fgHex){
+    fg.addEventListener('input', function(){ syncFromSwatch('qr-fg'); update(); });
+    fgHex.addEventListener('input', function(){ syncFromHex('qr-fg'); update(); });
+    syncFromSwatch('qr-fg');
+  }
+  if (bg && bgHex){
+    bg.addEventListener('input', function(){ syncFromSwatch('qr-bg'); update(); });
+    bgHex.addEventListener('input', function(){ syncFromHex('qr-bg'); update(); });
+    syncFromSwatch('qr-bg');
+  }
+  // logo upload removed
+  // Removed login link input as it's not editable
+});
+</script>
+{% endblock %}

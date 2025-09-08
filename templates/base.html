@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}EPU Home{% endblock %}</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', path='favicon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}?v={{ now() if now else '' }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='form.css') }}?v={{ now() if now else '' }}">
+  {% if canonical_url %}
+    <link rel="canonical" href="{{ canonical_url }}">
+  {% endif %}
+    {% block extra_head %}
+      <meta property="og:site_name" content="EPU" />
+      <meta name="twitter:site" content="@" />
+    {% endblock %}
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <a class="skip-link" href="#main">Skip to content</a>
+  <header id="top" class="header" role="banner">
+      <div class="inner">
+        <a class="brand" href="/">
+          <div class="logo"><img src="/static/images/Logo.svg" alt="EPU logo"></div>
+          <div class="title">EPU</div>
+        </a>
+        <button class="menu-toggle" aria-controls="site-nav" aria-expanded="false" aria-label="Toggle navigation">☰</button>
+        <nav id="site-nav" class="nav" role="navigation" aria-label="Main navigation">
+          <a href="/examples" {% if request and request.url and request.url.path.startswith('/examples') %}aria-current="page" class="active"{% endif %}>Examples</a>
+          <a href="/pricing" {% if request and request.url and (request.url.path.startswith('/pricing') or request.url.path.startswith('/plans')) %}aria-current="page" class="active"{% endif %}>Pricing</a>
+          <a href="/guest/login" {% if request and request.url and request.url.path.startswith('/guest') %}aria-current="page" class="active"{% endif %}>Guest</a>
+          {% if request.cookies.get('session_id') %}
+            <a href="/events" {% if request and request.url and request.url.path.startswith('/events') %}aria-current="page" class="active"{% endif %}>My events</a>
+            <a href="/events/create" {% if request and request.url and request.url.path.startswith('/events/create') %}aria-current="page" class="active"{% endif %}>Create event</a>
+            <div class="user-menu">
+              <button class="avatar-btn" id="avatar-btn" aria-haspopup="menu" aria-expanded="false" aria-label="User menu">
+                <!-- Person icon instead of initial letter -->
+                <svg class="avatar-icn" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path fill="currentColor" d="M12 12c2.761 0 5-2.239 5-5s-2.239-5-5-5-5 2.239-5 5 2.239 5 5 5zm0 2c-4.418 0-8 2.239-8 5v1c0 .552.448 1 1 1h14c.552 0 1-.448 1-1v-1c0-2.761-3.582-5-8-5z"/>
+                </svg>
+              </button>
+              <div class="dropdown" id="user-dropdown" role="menu" aria-labelledby="avatar-btn">
+                <a href="/profile" role="menuitem">Profile</a>
+                <a href="/billing/summary" role="menuitem">Billing</a>
+                <a href="/logout" role="menuitem">Logout</a>
+              </div>
+            </div>
+          {% else %}
+            <a href="/login" class="cta" {% if request and request.url and request.url.path.startswith('/login') %}aria-current="page"{% endif %}>Sign Up / Login</a>
+          {% endif %}
+        </nav>
+      </div>
+      
+    </header>
+    <main id="main">
+        <!-- Shared Modal Root -->
+        <div id="modal-root" class="modal-overlay" style="display:none;">
+          <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-body">
+            <button type="button" class="modal-x" aria-label="Close">×</button>
+            <h3 id="modal-title"></h3>
+            <div id="modal-body"></div>
+            <div class="modal-actions"></div>
+          </div>
+        </div>
+        <!-- Global Snackbar -->
+        <div id="snackbar" class="snackbar" style="display:none;">
+          <div class="snack-inner">
+            <span class="snack-text"></span>
+          </div>
+        </div>
+        <style>
+          /* Breadcrumbs */
+          .breadcrumbs { display:flex; align-items:center; gap:8px; margin: 6px 0 8px; }
+          .breadcrumbs .crumb { color: inherit; opacity: 0.9; }
+          .breadcrumbs .crumb.current { opacity: 1; font-weight: 600; }
+          .breadcrumbs .sep { opacity: 0.6; }
+          .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display:none; align-items: center; justify-content: center; z-index: 1000; }
+          .modal { position: relative; background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); backdrop-filter: blur(6px); padding: 20px; border-radius: 12px; width: 100%; max-width: 520px; color: var(--color-text); }
+          .modal h3 { margin: 0 0 8px 0; }
+          /* Ensure modal body text is readable with dark background box */
+          .modal #modal-body { color: var(--color-text); max-height:70vh; overflow:auto; }
+          .modal #modal-body .modal-inner-text { background: rgba(17,18,26,0.92); border:1px solid rgba(255,255,255,0.12); border-radius:10px; padding:12px; }
+          /* Allow specialized preview bodies to opt out of inner box padding/border */
+          .modal #modal-body .preview-body { background: transparent; border:0; padding:0; }
+          .modal .modal-x { position:absolute; top:8px; right:8px; width:32px; height:32px; border-radius:8px; border:1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.25); color:#fff; font-size:18px; line-height:28px; text-align:center; cursor:pointer; }
+          .modal .modal-x:hover { background: rgba(0,0,0,0.35); }
+          /* Make embedded forms readable in modal */
+          .modal .form { background: rgba(17,18,26,0.88); border:1px solid rgba(255,255,255,0.12); color: var(--color-text); max-width: 100%; padding: 16px; }
+          .modal .form label, .modal label, .modal .checkbox-row span { color: var(--color-text); }
+          .modal .form .btn-row { display:flex; gap:10px; }
+          .modal .form input[type="checkbox"] { filter: brightness(1.05) contrast(1.05); }
+          /* Wide modal variant (set inline by JS when needed) */
+          .modal[data-wide="true"] { max-width: 92vw; }
+          /* Fit-to-content modal variant */
+          .modal[data-fit="true"] { width: auto; max-width: 92vw; }
+          .modal-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
+          .preview-body { display:flex; align-items:center; justify-content:center; }
+          /* Snackbar */
+          .snackbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 1001; }
+          .snackbar .snack-inner { display:flex; align-items:center; gap:8px; background: rgba(17,18,26,0.95); border:1px solid rgba(255,255,255,0.12); color:#fff; padding: 10px 12px; border-radius: 999px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
+          .snackbar .snack-action { background: #2b2f43; border-color: #2b2f43; }
+          /* Tiny tooltip component */
+          .tip { display:inline-block; margin-left:6px; cursor:help; position:relative; opacity:0.85; }
+          .tip:focus { outline: 2px solid #888; outline-offset: 2px; }
+          .tip .tooltip { position:absolute; left:100%; top:0; margin-left:8px; background: rgba(0,0,0,0.85); color:#fff; padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); font-size:0.85em; max-width: 260px; display:none; z-index:1001; }
+          .tip[aria-expanded="true"] .tooltip, .tip:hover .tooltip, .tip:focus .tooltip { display:block; }
+          /* Style chips used in editors */
+          .chip { display:inline-block; width:48px; height:18px; border-radius:8px; border:1px solid rgba(0,0,0,0.12); cursor:pointer; }
+          .chip.chip-text, .chip.chip-btn { width:auto; height:auto; padding:2px 8px; font-size:12px; line-height:16px; min-height:18px; border-radius:8px; border:1px solid rgba(0,0,0,0.12); cursor:default; }
+        </style>
+        {% if message %}
+        <div class="form-success" style="color: #1cae81; text-align: center; margin: 16px 0;">{{ message }}</div>
+        {% endif %}
+  {% block breadcrumbs %}{% endblock %}
+        {% block content %}{% endblock %}
+  <script>
+          (function(){
+            const root = document.getElementById('modal-root');
+            const titleEl = document.getElementById('modal-title');
+            const bodyEl = document.getElementById('modal-body');
+            const actionsEl = root ? root.querySelector('.modal-actions') : null;
+            const closeX = root ? root.querySelector('.modal-x') : null;
+            function hide(){ if (root){ const box = root.querySelector('.modal'); if (box){ box.removeAttribute('data-wide'); box.removeAttribute('data-fit'); } root.style.display='none'; root.setAttribute('aria-hidden','true'); bodyEl.innerHTML=''; titleEl.textContent=''; if (actionsEl) actionsEl.innerHTML=''; } }
+            function show(opts){
+              if (!root) return;
+              const { title, body, actions: btns, wide, fit, noDefaultClose, raw } = opts || {};
+              if (titleEl) titleEl.textContent = title || '';
+              if (bodyEl) bodyEl.innerHTML = raw ? (body || '') : ('<div class="modal-inner-text">' + (body || '') + '</div>');
+              const box = root.querySelector('.modal'); if (box){ box.setAttribute('data-wide', wide ? 'true' : 'false'); box.setAttribute('data-fit', fit ? 'true' : 'false'); }
+              if (btns && Array.isArray(btns)){
+                const footerEl = root.querySelector('.modal-actions');
+                footerEl.innerHTML = '';
+                btns.forEach(a => {
+                  const btn = document.createElement('button');
+                  btn.className = a.danger ? 'btn danger' : 'btn';
+                  btn.textContent = a.label || 'OK';
+                  btn.type = 'button';
+                  btn.addEventListener('click', function(){
+                    if (a.onClick) a.onClick(hide);
+                    else if (a.role === 'cancel') hide();
+                  });
+                  footerEl.appendChild(btn);
+                });
+                const cancelExists = btns.some(a=>a.role==='cancel');
+                if (!cancelExists && !noDefaultClose){
+                  const c = document.createElement('button');
+                  c.className = 'btn'; c.textContent = 'Close'; c.type='button'; c.addEventListener('click', hide);
+                  const footerEl2 = root.querySelector('.modal-actions');
+                  footerEl2.appendChild(c);
+                }
+              }
+              root.style.display='flex'; root.setAttribute('aria-hidden','false');
+              root.addEventListener('click', function(e){ if (e.target === root) hide(); }, { once: true });
+              if (closeX){ closeX.onclick = hide; }
+            }
+            window.EPU = window.EPU || {}; window.EPU.modal = { show, hide };
+          })();
+          // Snackbar API
+          (function(){
+            const el = document.getElementById('snackbar');
+            const text = el ? el.querySelector('.snack-text') : null;
+            const action = el ? el.querySelector('.snack-action') : null;
+            let hideT = null;
+            function hide(){ if (!el) return; el.style.display='none'; if (hideT){ clearTimeout(hideT); hideT=null; } if (action){ action.onclick=null; action.style.display=''; } }
+            function show(msg, opts){
+              if (!el) return;
+              const { duration=4000, onAction, actionText='Undo', hideAction=true } = opts||{};
+              text.textContent = msg || '';
+              if (action){
+                if (hideAction){ action.style.display = 'none'; action.onclick = null; }
+                else { action.style.display=''; action.textContent = actionText; action.onclick = function(){ if (onAction) onAction(); hide(); }; }
+              }
+              el.style.display='block';
+              if (hideT){ clearTimeout(hideT); }
+              hideT = setTimeout(hide, duration);
+            }
+            window.EPU = window.EPU || {}; window.EPU.snackbar = { show, hide };
+          })();
+          // Mobile nav toggle + close on Escape and route change
+          (function(){
+            const btn = document.querySelector('.menu-toggle');
+            const nav = document.getElementById('site-nav');
+            if (!btn || !nav) return;
+            function setOpen(open){
+              btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+              nav.classList.toggle('open', !!open);
+            }
+            btn.addEventListener('click', function(){ setOpen(btn.getAttribute('aria-expanded') !== 'true'); });
+            document.addEventListener('click', function(e){
+              if (!nav.classList.contains('open')) return;
+              const inside = e.target === btn || btn.contains(e.target) || e.target === nav || nav.contains(e.target);
+              if (!inside) setOpen(false);
+            });
+            document.addEventListener('keydown', function(e){ if (e.key === 'Escape') setOpen(false); });
+            nav.addEventListener('click', function(e){
+              const link = e.target.closest('a');
+              if (link && link.getAttribute('href')) {
+                setOpen(false);
+              }
+            });
+          })();
+          // Avatar dropdown
+          (function(){
+            const btn = document.getElementById('avatar-btn');
+            const dd = document.getElementById('user-dropdown');
+            if (!btn || !dd) return;
+            function open(on){ btn.setAttribute('aria-expanded', on?'true':'false'); dd.classList.toggle('open', !!on); }
+            btn.addEventListener('click', function(){ open(btn.getAttribute('aria-expanded') !== 'true'); });
+            document.addEventListener('click', function(e){ if (e.target===btn || btn.contains(e.target) || dd.contains(e.target)) return; open(false); });
+            document.addEventListener('keydown', function(e){ if (e.key==='Escape') open(false); });
+          })();
+          // Accessible tooltip interactions
+          (function(){
+            function toggleTip(tip, expand){ if (!tip) return; const on = (expand===undefined) ? (tip.getAttribute('aria-expanded')!=='true') : !!expand; tip.setAttribute('aria-expanded', on?'true':'false'); }
+            document.addEventListener('click', function(e){ const t = e.target.closest('.tip'); if (t){ e.preventDefault(); toggleTip(t); } else { document.querySelectorAll('.tip[aria-expanded="true"]').forEach(el=>el.setAttribute('aria-expanded','false')); } });
+            document.addEventListener('keydown', function(e){ const t = e.target.closest('.tip'); if (!t) return; if (e.key==='Enter' || e.key===' '){ e.preventDefault(); toggleTip(t); } if (e.key==='Escape'){ toggleTip(t, false); t.blur(); } });
+            document.addEventListener('focusout', function(e){ const t = e.target.closest('.tip'); if (t && !t.contains(e.relatedTarget)){ toggleTip(t, false); } });
+          })();
+        </script>
+        {% block extra_js %}{% endblock %}
+        <!-- Cookie Consent Banner -->
+        <div id="cookie-banner" class="cookie-banner" role="dialog" aria-live="polite" aria-label="Cookie consent" style="display:none;">
+          <div class="cookie-inner">
+            <div class="cookie-text">
+              We use necessary cookies to run the site (session, security). Optional analytics are off by default.
+              You can change your choice anytime in Cookie settings.
+            </div>
+            <div class="cookie-actions">
+              <button id="cookie-accept-all" class="btn primary" type="button">Accept all</button>
+              <button id="cookie-settings" class="btn" type="button">Cookie settings</button>
+            </div>
+          </div>
+        </div>
+        <style>
+          .cookie-banner { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; width: min(960px, 96vw); z-index: 1002; }
+          .cookie-inner { margin: 12px; padding: 12px 14px; border-radius: 12px; background: rgba(17,18,26,0.95); color: #fff; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 8px 24px rgba(0,0,0,0.35); display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+          .cookie-text { font-size: 14px; opacity: 0.95; }
+          .cookie-actions { display: flex; gap: 8px; }
+        </style>
+        <script src="{{ url_for('static', path='cookie-consent.js') }}?v={{ now() if now else '' }}"></script>
+    </main>
+  <footer class="footer">
+      <div class="inner">
+        <div class="foot-grid">
+          <div>
+            <div class="foot-title">EPU</div>
+            <div class="foot-brand">© {{ now().strftime('%Y') if now else '' }} EPU</div>
+            <p class="muted" style="max-width: 420px;">Create and share beautiful photo events. Simple uploads, smart galleries, and easy sharing.</p>
+          </div>
+          <div>
+            <div class="foot-title">Product</div>
+            <div class="foot-links">
+              <a href="/">Home</a>
+              <a href="/examples">Examples</a>
+              <a href="/tutorial">Tutorial</a>
+              <a href="/pricing">Pricing</a>
+            </div>
+          </div>
+          <div>
+            <div class="foot-title">Company</div>
+            <div class="foot-links">
+              <a href="/about">About</a>
+              <a href="/contact">Contact</a>
+              <a href="/faq">FAQ</a>
+            </div>
+          </div>
+          <div>
+            <div class="foot-title">Legal</div>
+            <div class="foot-links">
+              <a href="/terms">Terms</a>
+              <a href="/privacy">Privacy</a>
+              <a href="#" id="footer-cookie-settings">Cookie settings</a>
+            </div>
+          </div>
+        </div>
+        <div class="foot-bottom">
+          <div class="muted">All rights reserved.</div>
+          <a href="#top" class="back-to-top">Back to top ↑</a>
+        </div>
+      </div>
+    </footer>
+</body>
+</html>

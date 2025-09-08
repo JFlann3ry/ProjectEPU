@@ -1,0 +1,69 @@
+{# Reusable lightbox modal component. Requires setting data via Lightbox.setData(images, captions). #}
+<style>
+  .lightbox{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:saturate(120%) blur(2px);opacity:0;transform:scale(0.98);visibility:hidden;pointer-events:none;transition:opacity .18s ease, transform .18s ease, visibility 0s linear .18s;}
+  .lightbox.is-open{opacity:1;transform:scale(1);visibility:visible;pointer-events:auto;transition:opacity .18s ease, transform .18s ease;}
+  .lightbox-content{position:relative;display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;border-radius:12px;background:rgba(15,17,27,0.92);box-shadow:0 10px 30px rgba(0,0,0,0.5);} 
+  .lightbox img{max-width:90vw;max-height:72vh;border-radius:8px;display:block;} 
+  .lightbox-close{position:absolute;top:8px;right:10px;font-size:28px;color:#fff;cursor:pointer;line-height:1;opacity:0.9;}
+  .lightbox-prev,.lightbox-next{color:#fff;font-size:28px;cursor:pointer;padding:6px 10px;border-radius:8px;background:rgba(255,255,255,0.08);} 
+  .lightbox-prev:hover,.lightbox-next:hover,.lightbox-close:hover{background:rgba(255,255,255,0.14);} 
+  .lightbox-caption{color:#e6edf7; font-size:14px; margin-top:8px; text-align:center; max-width:90vw;}
+  body.modal-open{overflow:hidden;}
+</style>
+
+<div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="lb-caption" tabindex="-1">
+  <button class="lightbox-close" type="button" aria-label="Close">&times;</button>
+  <div class="lightbox-content" aria-live="polite">
+    <button class="lightbox-prev" type="button" aria-label="Previous">&#10094;</button>
+    <img id="lb-img" alt="Preview">
+    <button class="lightbox-next" type="button" aria-label="Next">&#10095;</button>
+  </div>
+  <div id="lb-caption" class="lightbox-caption" aria-live="polite"></div>
+</div>
+
+<script>
+  (function(){
+    if (window.Lightbox) return; // singleton
+    const state = { images: [], captions: [], index: 0, inited: false };
+    const focusableSelector = 'a[href], area[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const lb = document.getElementById('lightbox');
+    const img = document.getElementById('lb-img');
+    const cap = document.getElementById('lb-caption');
+    const btnPrev = lb.querySelector('.lightbox-prev');
+    const btnNext = lb.querySelector('.lightbox-next');
+    const btnClose = lb.querySelector('.lightbox-close');
+
+    function render(){
+      if (!state.images.length) return;
+      img.src = state.images[state.index];
+      cap.textContent = (state.captions[state.index] || '');
+    }
+
+    function trapFocus(e){
+      if (lb.getAttribute('aria-hidden') === 'true') return;
+      if (e.key !== 'Tab') return;
+      const focusables = lb.querySelectorAll(focusableSelector);
+      if (!focusables.length) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey){
+        if (document.activeElement === first){ e.preventDefault(); last.focus(); }
+      } else {
+        if (document.activeElement === last){ e.preventDefault(); first.focus(); }
+      }
+    }
+
+    function onOverlayClick(e){ if (e.target === lb) api.close(); }
+    function onKey(e){ if (lb.getAttribute('aria-hidden') === 'true') return; if (e.key === 'Escape') api.close(); if (e.key === 'ArrowLeft') api.prev(); if (e.key === 'ArrowRight') api.next(); }
+
+    const api = {
+      init(){ if (state.inited) return; state.inited = true; btnPrev.addEventListener('click', api.prev); btnNext.addEventListener('click', api.next); btnClose.addEventListener('click', api.close); lb.addEventListener('click', onOverlayClick); document.addEventListener('keydown', onKey); lb.addEventListener('keydown', trapFocus); },
+      setData(images, captions){ state.images = Array.isArray(images)?images:[]; state.captions = Array.isArray(captions)?captions:[]; },
+      open(i){ api.init(); if (!state.images.length) return; state.index = Math.max(0, Math.min(i||0, state.images.length-1)); render(); lb.classList.add('is-open'); lb.setAttribute('aria-hidden','false'); document.body.classList.add('modal-open'); try { btnClose.focus(); } catch(e){} },
+      close(){ lb.classList.remove('is-open'); lb.setAttribute('aria-hidden','true'); document.body.classList.remove('modal-open'); },
+      prev(){ if (!state.images.length) return; state.index = (state.index - 1 + state.images.length) % state.images.length; render(); },
+      next(){ if (!state.images.length) return; state.index = (state.index + 1) % state.images.length; render(); },
+    };
+    window.Lightbox = api;
+  })();
+</script>

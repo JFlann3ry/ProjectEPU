@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Contact Support - EPU{% endblock %}
+
+{% block content %}
+<div class="container section center">
+  <div class="page-hero center">
+    <h1 class="hero-title">Contact Support</h1>
+    <p class="hero-sub">We usually respond within 1 business day.</p>
+  </div>
+  {% if error %}
+  <div class="notice error">{{ error }}</div>
+  {% endif %}
+  {% if request_id %}
+  <div class="notice info" style="text-align:left; max-width:620px; margin: 0 auto 12px;">
+    We detected a recent error on your request. Including this ID helps us debug faster:
+    <div class="muted" style="margin-top:4px;">Request ID: <code>{{ request_id }}</code></div>
+  </div>
+  {% endif %}
+  <form class="card form center" method="post" style="max-width:620px;">
+      <div class="floating-field">
+        <label for="contact_name" class="fl-label">Name</label>
+        <input class="input-field" type="text" id="contact_name" name="name" required autocomplete="name" maxlength="80" value="{{ (form.name if form else '') | e }}">
+        <div class="muted" style="text-align:right; margin-top:4px;"><small id="name-counter">0/80</small></div>
+      </div>
+      <div class="floating-field">
+        <label for="contact_email" class="fl-label">Email</label>
+        <input class="input-field" type="email" id="contact_email" name="email" required autocomplete="email" maxlength="254" value="{{ (form.email if form else '') | e }}">
+        <div class="muted" style="text-align:right; margin-top:4px;"><small id="email-counter">0/254</small></div>
+      </div>
+      <div class="floating-field">
+        <label for="contact_topic" class="fl-label">Topic</label>
+        <select class="input-field" id="contact_topic" name="topic" required>
+          <option value="" disabled {% if not form or not form.topic %}selected{% endif %}>Select a topic</option>
+          <option {% if form and form.topic=='Abuse/report' %}selected{% endif %}>Abuse/report</option>
+          <option {% if form and form.topic=='Account' %}selected{% endif %}>Account</option>
+          <option {% if form and form.topic=='Billing' %}selected{% endif %}>Billing</option>
+          <option {% if form and form.topic=='Data/privacy' %}selected{% endif %}>Data/privacy</option>
+          <option {% if form and form.topic=='Event help' %}selected{% endif %}>Event help</option>
+          <option {% if form and form.topic=='Feature request' %}selected{% endif %}>Feature request</option>
+          <option {% if form and form.topic=='Technical issue' %}selected{% endif %}>Technical issue</option>
+          <option {% if form and form.topic=='Other' %}selected{% endif %}>Other</option>
+        </select>
+      </div>
+      <div id="billing-extra" style="display:none;">
+        <div class="floating-field">
+          <label for="order_number" class="fl-label">Order number (optional)</label>
+          <input class="input-field" type="text" id="order_number" name="order_number" placeholder="ch_... or inv_..." value="{{ (form.order_number if form else '') | e }}">
+        </div>
+        <div class="floating-field">
+          <label for="event_url" class="fl-label">Event URL (optional)</label>
+          <input class="input-field" type="url" id="event_url" name="event_url" placeholder="https://.../events/123" value="{{ (form.event_url if form else '') | e }}">
+        </div>
+      </div>
+      <div id="subject-other" style="display:none;">
+        <div class="floating-field">
+          <label for="contact_subject" class="fl-label">Subject</label>
+          <input class="input-field" type="text" id="contact_subject" name="subject" maxlength="120" value="{{ (form.subject if form else '') | e }}">
+          <div class="muted" style="text-align:right; margin-top:4px;"><small id="subject-counter">0/120</small></div>
+        </div>
+      </div>
+      <div class="floating-field">
+        <label for="contact_message" class="fl-label">How can we help?</label>
+        <textarea class="input-field" id="contact_message" name="message" rows="8" style="resize: vertical;" maxlength="2000" required placeholder="Tell us how we can help…">{{ (form.message if form else '') | e }}</textarea>
+        <div class="muted" style="text-align:right; margin-top:4px;"><small id="message-counter">0/2000</small></div>
+      </div>
+  <!-- Honeypot field for bots (leave empty) -->
+  <div style="position:absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden;">
+    <label>Company<input type="text" name="hp" tabindex="-1" autocomplete="off"></label>
+  </div>
+  <!-- Optional CAPTCHA widget placeholder (e.g., Turnstile/hCaptcha). When enabled, set a hidden token field named captcha_token. -->
+  <input type="hidden" name="captcha_token" value="">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">
+  <button class="btn primary block" type="submit">Send</button>
+  </form>
+</div>
+{% block extra_js %}
+<script>
+  (function(){
+    var sel = document.getElementById('contact_topic');
+    var extra = document.getElementById('billing-extra');
+    var subjWrap = document.getElementById('subject-other');
+    var msg = document.getElementById('contact_message');
+    var examples = {
+      'Account': 'Log in issues, email changes, profile…',
+      'Abuse/report': 'Link to the event/file and what’s wrong…',
+      'Billing': 'Refund, invoice, VAT, or charge questions…',
+      'Data/privacy': 'Data export/deletion, privacy questions…',
+      'Event help': 'Share your event code and what you need…',
+      'Feature request': 'What feature would help you most?…',
+      'Technical issue': 'Describe the issue and steps to reproduce…',
+      'Other': 'Tell us how we can help…'
+    };
+    function sync(){
+      if (!sel) return;
+      var v = sel.value || '';
+      if (extra) extra.style.display = (v === 'Billing') ? 'block' : 'none';
+      if (subjWrap) subjWrap.style.display = (v === 'Other') ? 'block' : 'none';
+      if (msg) msg.placeholder = examples[v] || examples['Other'];
+    }
+    if (sel){ sel.addEventListener('change', sync); }
+    // Counters
+    function bindCounter(input, counterEl, max){
+      if (!input || !counterEl) return;
+      function update(){ var len = (input.value||'').length; counterEl.textContent = len + '/' + max; }
+      input.addEventListener('input', update); update();
+    }
+    bindCounter(document.getElementById('contact_name'), document.getElementById('name-counter'), 80);
+    bindCounter(document.getElementById('contact_email'), document.getElementById('email-counter'), 254);
+    bindCounter(document.getElementById('contact_subject'), document.getElementById('subject-counter'), 120);
+    bindCounter(document.getElementById('contact_message'), document.getElementById('message-counter'), 2000);
+    // Initial sync after potential server-side prefill
+    sync();
+  })();
+</script>
+{% endblock %}
+{% endblock %}

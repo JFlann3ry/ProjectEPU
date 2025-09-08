@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+
+{% block title %}My Events - EPU{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs-container section" style="padding-bottom:0;">
+    <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
+        <a href="/profile" class="crumb">Profile</a>
+        <span class="sep" aria-hidden="true">›</span>
+        <span class="crumb current" aria-current="page">My Events</span>
+    </nav>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container section center">
+    <div class="page-hero" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div>
+            <h1 class="hero-title">My Events</h1>
+            {% if plan %}
+                <p class="hero-sub">You have {{ total_events }} event(s).</p>
+            {% endif %}
+        </div>
+        <div>
+            {% if can_create %}
+                <a class="btn primary" href="/events/create" title="Create a new event">Create Event</a>
+            {% else %}
+                <span class="btn" style="opacity:0.6; cursor:not-allowed;" title="{{ create_block_reason }}" aria-disabled="true">Create Event</span>
+                <a class="btn primary" href="/billing/summary" style="margin-left:6px;">Upgrade</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if plan %}
+        <div class="notice" style="margin:12px 0 18px;">
+            <div class="p-bold">Current Package: {{ plan.Name }} ({{ plan.Code|upper }})</div>
+            <div class="small" style="opacity:0.9;">
+                {% if features.max_events is not none and features.max_events > 0 %}
+                    Max events: {{ features.max_events }}
+                {% endif %}
+                {% if features.max_guests_per_event is not none %}
+                    · Guests per event: {{ features.max_guests_per_event if features.max_guests_per_event>0 else 'Unlimited' }}
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+        <div class="notice" style="margin:12px 0 18px; border-style: dashed;">
+            No active package. <a href="/pricing">Choose a package</a> to get started.
+        </div>
+    {% endif %}
+
+    {% if events and events|length > 0 %}
+    <div class="events-grid-wrap" style="display:flex; flex-wrap:wrap; justify-content:center; gap:12px;">
+                                        {% for e in events %}
+                                        {% set etname = (e.EventTypeName or '') %}
+                                        {% set etkey = etname|lower %}
+                                        {% set etmap = {
+                                            'wedding':'💍', 'birthday':'🎂', 'party':'🎉', 'corporate':'🏢', 'conference':'🎤', 'sports':'🏟️',
+                                            'holiday':'🎄', 'baby shower':'🍼', 'graduation':'🎓', 'concert':'🎵', 'festival':'🎪', 'engagement':'💞', 'funeral':'🕊️'
+                                        } %}
+                                        {% set etemoji = etmap.get(etkey, '📷') %}
+                                        {% set etimgmap = {
+                                            'wedding':'/static/images/examples/wedding1.svg',
+                                            'corporate':'/static/images/examples/corporate1.svg',
+                                            'school':'/static/images/examples/school1.svg'
+                                        } %}
+                                        {% set etimg = etimgmap.get(etkey, '/static/images/examples/corporate1.svg') %}
+                    <div class="card full-height event-card v5">
+                        <!-- Cover banner -->
+                        <div class="cover" style="position:relative; overflow:hidden; padding-right:6px;">
+                            <div class="title-row" style="position:relative; display:flex; justify-content:space-between; align-items:stretch; gap:12px;">
+                                <div class="title-left" style="display:flex; flex-direction:column; align-items:flex-start; gap:4px; flex:1 1 auto; min-width:0;">
+                                    <h3 class="event-title" title="{{ e.Name }}">{{ e.Name }}</h3>
+                                    <div class="status-pills published">
+                                        {% if e.Published %}
+                                            <span class="pill success" title="Publicly accessible">Published</span>
+                                        {% else %}
+                                            <span class="pill warn" title="Not published">Unpublished</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="title-right" style="position:relative; display:flex; align-items:center; gap:8px; margin-left:auto; padding-right:0; width:auto;">
+                                    <button class="btn ghost share-btn" type="button" data-event-id="{{ e.EventID }}" data-code="{{ e.Code }}" data-published="{{ 1 if e.Published else 0 }}" data-title="{{ e.Name }}" title="Share options" style="position:absolute; top:6px; right:6px; bottom:6px; display:flex; align-items:center;">
+                                        <svg class="icn" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 8a3 3 0 1 0-2.83-4H12A3 3 0 0 0 9 7a3 3 0 0 0 .17 1.02l-1.9 1.13A3 3 0 1 0 9 14.98l1.9-1.13A3 3 0 0 0 12 15a3 3 0 1 0 2.83-4.02l-1.9-1.13A3.01 3.01 0 0 0 12 9c0-.35.06-.68.17-1.02l1.9-1.13A3 3 0 0 0 15 8Z" stroke="currentColor" stroke-width="1.5"/></svg>
+                                        <span>Share</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Body with date card and interactive metrics -->
+                        <div class="body">
+                            <div class="row top" style="grid-template-columns: 100px 1fr;">
+                                <div class="date-card" title="Event date">
+                                    <div class="date-top">
+                                        <svg class="icn calendar-mini" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                            <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                                            <path d="M3 9h18" stroke="currentColor" stroke-width="1.5"/>
+                                            <path d="M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                        </svg>
+                                        {% if e.Date %}
+                                            {% set mon = e.Date.strftime('%b') %}
+                                            <span class="mon">{{ mon }}</span>
+                                        {% else %}
+                                            <span class="mon">—</span>
+                                        {% endif %}
+                                    </div>
+                    {% if e.Date %}
+                    {% set dayn = e.Date.day %}
+                    <div class="date-day">{{ '%02d' % dayn }}<sup style="font-size:0.55em; vertical-align:super; margin-left:1px;">{{ dayn|ordsuffix }}</sup></div>
+                                        <div class="date-foot" data-date="{{ e.Date.isoformat() }}">Calculating…</div>
+                                    {% else %}
+                                        <div class="date-day">—</div>
+                                        <div class="date-foot">No date</div>
+                                    {% endif %}
+                                </div>
+                <div class="thumb" aria-label="Event photo" style="width:100%; height:100%; min-height:120px; border-radius:12px; border:1px solid var(--color-border); background:#0f1322; overflow:hidden; display:flex; align-items:center; justify-content:center; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);">
+                    <div aria-hidden="true" style="width:100%; height:100%; background-image:url('{{ e.CoverPhotoPath if e.CoverPhotoPath else etimg }}'); background-size:cover; background-position:center;"></div>
+                </div>
+                            </div>
+
+                            {% set show_storage = features.max_storage_per_event_mb and e.StorageUsageMB is not none and features.max_storage_per_event_mb > 0 %}
+                            {% set show_guests = features.max_guests_per_event and e.GuestCount is defined and features.max_guests_per_event > 0 %}
+                            {% if show_storage or show_guests %}
+                            <div class="metrics v5">
+                                {% if show_storage %}
+                                    {% set s_limit = features.max_storage_per_event_mb %}
+                                    {% set s_used = e.StorageUsageMB %}
+                                    {% set s_ratio = (s_used / s_limit) if s_limit > 0 else 0 %}
+                                    {% set s_pct = (s_ratio * 100) | round(0, 'floor') %}
+                                    <div class="metric">
+                                        <div class="m-head">
+                                            <div class="m-label">Storage</div>
+                                            <div class="m-value">{{ s_used }}MB / {{ s_limit }}MB</div>
+                                        </div>
+                                        <div class="progress" data-pct="{{ s_pct }}" data-state="{% if s_ratio >= 1 %}danger{% elif s_ratio >= 0.9 %}warn{% else %}ok{% endif %}" aria-label="Storage used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ s_pct }}">
+                                            <div class="bar"></div>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                                {% if show_guests %}
+                                    {% set limit = features.max_guests_per_event %}
+                                    {% set used = e.GuestCount %}
+                                    {% set ratio = (used / limit) if limit > 0 else 0 %}
+                                    {% set pct = (ratio * 100) | round(0, 'floor') %}
+                                    <div class="metric">
+                                        <div class="m-head">
+                                            <div class="m-label">Guests</div>
+                                            <div class="m-value">{{ used }}/{{ limit }}</div>
+                                        </div>
+                                        <div class="progress" data-pct="{{ pct }}" data-state="{% if ratio >= 1 %}danger{% elif ratio >= 0.9 %}warn{% else %}ok{% endif %}" aria-label="Guests used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct }}">
+                                            <div class="bar"></div>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+
+                            <!-- Compact To‑Do section -->
+                            <div class="setup v5" style="max-width: 320px;">
+                                <div class="small muted" style="margin-bottom:6px;">To‑Do</div>
+                                <a class="task {% if e.Date %}done{% else %}pending{% endif %}" href="/events/{{ e.EventID }}/edit" title="Set or update event date">
+                                    <svg class="ck" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    <span class="label">Set event date</span>
+                                </a>
+                                {% if e.Published %}
+                                <div class="task done">
+                                    <svg class="ck" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    <span class="label">Publish event</span>
+                                </div>
+                                {% else %}
+                                <a class="task pending" href="/events/{{ e.EventID }}" title="Open event to publish (Lock date)">
+                                    <svg class="ck" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    <span class="label">Publish event</span>
+                                </a>
+                                {% endif %}
+                                <button class="task {% if e.SharedOnce %}done{% else %}pending{% endif %} share-btn" type="button" data-event-id="{{ e.EventID }}" data-code="{{ e.Code }}" data-published="{{ 1 if e.Published else 0 }}" data-title="{{ e.Name }}" title="Share options">
+                                    <svg class="ck" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    <span class="label">Share event</span>
+                                </button>
+                                <a class="task {% if e.StorageUsageMB and e.StorageUsageMB > 0 %}done{% else %}pending{% endif %}" href="/guest/upload/{{ e.Code }}" title="Open guest upload page">
+                                    <svg class="ck" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    <span class="label">Upload first photos</span>
+                                </a>
+                            </div>
+
+                            <div class="spacer"></div>
+                            <div class="actions btn-row" style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                                <a class="btn" href="/events/code/{{ e.Code }}" title="Manage event" style="width:100%; justify-content:center;">
+                                    <svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                        <path d="M4 4v7M4 17v3M12 4v4M12 12v8M20 4v9M20 17v3M1 11h6M9 8h6M17 16h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                    <span>Manage</span>
+                                </a>
+                                    <button type="button" class="btn gallery-btn" data-gallery-select data-event-id="{{ e.EventID }}" title="Open gallery" style="width:100%; justify-content:center;">
+                                        <svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 14l3-3 3 3 3-3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/></svg>
+                                        <span>Gallery</span>
+                                    </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+    {% else %}
+        <div class="card" style="padding:22px; text-align:center;">
+            <h3 style="margin-top:0;">No events yet</h3>
+            <p class="muted">Create your first event to share a guest upload link and gallery.</p>
+            <a class="btn primary" href="/events/create">Create Event</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+    (function(){
+        // Handle Gallery open without form wrappers
+        document.addEventListener('click', async function(e){
+            var gb = e.target.closest('[data-gallery-select]');
+            if (gb){
+                e.preventDefault();
+                var eid = gb.getAttribute('data-event-id');
+                if (!eid) return;
+                try {
+                    var res = await fetch('/gallery/select', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'fetch' },
+                        body: 'event_id=' + encodeURIComponent(eid)
+                    });
+                    if (res.ok) { window.location.href = '/gallery'; }
+                    else { if (window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Failed to open gallery'); }
+                } catch(err){ if (window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Network error'); }
+            }
+        });
+        function esc(s){ return (s||'').replace(/[&<>"];/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',';':'&#59;'}[c]) || c; }); }
+    function openShare(code, published, title, eid){
+            var url = new URL('/e/' + code, window.location.origin).href;
+            var encUrl = encodeURIComponent(url);
+            var encTitle = encodeURIComponent(title || 'My event');
+            var warn = !published ? '<div class="notice" style="margin-bottom:10px;">This event is not published. Shared links may not be viewable by others until you publish.</div>' : '';
+            var body = warn +
+                '<div class="btn-row" style="flex-wrap:wrap; gap:10px;">' +
+            '<a class="btn share-via" data-eid="' + (eid||'') + '" href="https://wa.me/?text=' + encTitle + '%20' + encUrl + '" target="_blank" rel="noopener" title="Share via WhatsApp">' +
+                        '<span>WhatsApp</span>' +
+                    '</a>' +
+            '<a class="btn share-via" data-eid="' + (eid||'') + '" href="fb-messenger://share/?link=' + encUrl + '" target="_blank" rel="noopener" title="Share via Messenger (mobile)">' +
+                        '<span>Messenger</span>' +
+                    '</a>' +
+            '<a class="btn share-via" data-eid="' + (eid||'') + '" href="mailto:?subject=' + encTitle + '&body=' + encTitle + '%0A' + encUrl + '" title="Share via Email">' +
+                        '<span>Email</span>' +
+                    '</a>' +
+            '<button class="btn share-copy" type="button" data-url="' + esc(url) + '" data-eid="' + (eid||'') + '"><span>Copy Link</span></button>' +
+                '</div>' +
+                '<div class="small muted" style="margin-top:6px;">The share page URL is ' + esc(url) + '</div>';
+            if (window.EPU && window.EPU.modal){ window.EPU.modal.show({ title: 'Share Event', body: body, fit: true, actions: [], noDefaultClose: true }); }
+        }
+        async function copyToClipboard(text){
+            try { if (navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(text); return true; } } catch(e){}
+            try { var ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); return true; } catch(e){ return false; }
+        }
+        function markSharedUI(eid){
+            if (!eid) return;
+            // Flip share to-do to done for this event card
+            document.querySelectorAll('.event-card.v5 [data-event-id="' + eid + '"]').forEach(function(el){
+                if (el.classList.contains('share-btn')){
+                    el.classList.remove('pending');
+                    el.classList.add('done');
+                }
+            });
+        }
+        async function markShared(eid){
+            try { if (eid) { await fetch('/events/' + eid + '/mark-shared', { method: 'POST', headers: { 'X-Requested-With':'fetch' } }); } } catch(err){}
+            markSharedUI(eid);
+        }
+        document.addEventListener('click', function(e){
+            var shareBtn = e.target.closest('.share-btn');
+            if (shareBtn){
+                e.preventDefault();
+                var code = shareBtn.getAttribute('data-code');
+                var eid = shareBtn.getAttribute('data-event-id');
+                var pub = shareBtn.getAttribute('data-published') === '1';
+                var title = shareBtn.getAttribute('data-title') || 'My event';
+                openShare(code, pub, title, eid);
+                return;
+            }
+            var copyBtn = e.target.closest('.share-copy');
+            if (copyBtn){
+                var u = copyBtn.getAttribute('data-url');
+                var eid2 = copyBtn.getAttribute('data-eid');
+                copyToClipboard(u).then(function(ok){
+                    if (window.EPU && window.EPU.snackbar){ window.EPU.snackbar.show(ok?'Link copied':'Copy failed'); }
+                    if (ok) { markShared(eid2); }
+                });
+                return;
+            }
+            var shareVia = e.target.closest('.share-via');
+            if (shareVia){
+                // Treat clicking an external share link as a share action
+                var eid3 = shareVia.getAttribute('data-eid');
+                markShared(eid3);
+                return;
+            }
+        });
+
+            // Hydrate progress bars (v5)
+            function hydrateProgress(){
+                document.querySelectorAll('.event-card.v5 .progress').forEach(function(p){
+                    var pct = parseInt(p.getAttribute('data-pct') || '0', 10);
+                    var state = (p.getAttribute('data-state') || 'ok').toLowerCase();
+                    var bar = p.querySelector('.bar');
+                    if(!bar) return;
+                    bar.classList.remove('warn','danger');
+                    if(state === 'warn') bar.classList.add('warn');
+                    if(state === 'danger') bar.classList.add('danger');
+                    requestAnimationFrame(function(){ bar.style.width = Math.max(0, Math.min(100, pct)) + '%'; });
+                });
+            }
+            hydrateProgress();
+
+            // Countdown footer inside date card
+            function hydrateCountdown(){
+                var now = new Date();
+                document.querySelectorAll('.event-card.v5 .date-foot[data-date]').forEach(function(el){
+                    var iso = el.getAttribute('data-date');
+                    if(!iso) return;
+                    var dt = new Date(iso);
+                    if(isNaN(dt)) return;
+                    var diffMs = dt.setHours(0,0,0,0) - (new Date(now)).setHours(0,0,0,0);
+                    var days = Math.round(diffMs / 86400000);
+                    if (days > 0){
+                        el.textContent = days + ' days';
+                        el.title = days + ' day' + (days===1?'':'s') + ' to go';
+                    } else if (days === 0){
+                        el.textContent = 'Today';
+                        el.title = 'Event is today';
+                    } else {
+                        var past = Math.abs(days);
+                        el.textContent = past + ' days ago';
+                        el.title = past + ' day' + (past===1?'':'s') + ' ago';
+                    }
+                });
+            }
+            hydrateCountdown();
+    })();
+</script>
+{% endblock %}

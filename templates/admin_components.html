@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Components - Admin{% endblock %}
+
+{% block content %}
+<div class="container section center">
+  <div class="page-hero center">
+    <h1 class="hero-title">UI Components</h1>
+    <p class="hero-sub">Showcase of common components and modal style</p>
+  </div>
+  <div class="card" style="max-width:980px;margin:0 auto;">
+    <h3>Buttons</h3>
+    <div class="btn-row" style="flex-wrap:wrap;">
+      <button class="btn">Default</button>
+      <button class="btn primary">Primary</button>
+      <button class="btn danger">Danger</button>
+      <button class="btn accent">Accent</button>
+      <button class="btn sm">Small</button>
+      <button class="btn block" style="max-width:240px;">Block</button>
+    </div>
+    <hr>
+    <h3>Chips</h3>
+    <p class="muted">Use chips to surface compact status or metadata. Base class is <code>.chip</code>. Themed variants:</p>
+    <ul>
+      <li><code>.status-paid</code> – success/paid</li>
+      <li><code>.status-pending</code> – pending/awaiting</li>
+      <li><code>.status-refunded</code> – neutral/refunded</li>
+      <li><code>.status-canceled</code> – danger/canceled</li>
+    </ul>
+    <div class="btn-row" style="flex-wrap:wrap;">
+      <span class="chip">Default</span>
+      <span class="chip status-paid">Paid</span>
+      <span class="chip status-pending">Pending</span>
+      <span class="chip status-refunded">Refunded</span>
+      <span class="chip status-canceled">Canceled</span>
+    </div>
+    <hr>
+    <h3>Inputs</h3>
+    <div class="form" style="max-width:520px;">
+      <div class="floating-field">
+        <label class="fl-label" for="ex1">Floating Label</label>
+        <input class="input-field" id="ex1" placeholder=" ">
+      </div>
+      <div class="floating-field">
+        <label class="fl-label" for="ex2">Textarea</label>
+        <textarea class="input-field" id="ex2" rows="3" placeholder=" "></textarea>
+      </div>
+      <label class="checkbox-row"><input type="checkbox"> <span>Checkbox label</span></label>
+      <div class="btn-row"><button class="btn primary">Submit</button><button class="btn">Cancel</button></div>
+    </div>
+    <hr>
+    <h3>Notices</h3>
+    <div class="notice">Neutral notice</div>
+    <div class="notice success">Success notice</div>
+    <div class="notice error">Error notice</div>
+    <hr>
+    <h3>Cards & Grid</h3>
+    <div class="grid grid-2-compact equal-heights">
+      <div class="card full-height">Card A</div>
+      <div class="card full-height">Card B</div>
+    </div>
+    <hr>
+    <h3>Modal</h3>
+    <div class="btn-row">
+      <button id="demo-modal" class="btn primary">Open Demo Modal</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.getElementById('demo-modal')?.addEventListener('click', function(){
+    const body = `
+      <div class="modal-section">
+        <p class="muted">This is the standard modal style with a top-right close (×). No footer Close button is added by default on showcases.</p>
+        <form class="form">
+          <div class="floating-field">
+            <label for="m-email" class="fl-label">Email</label>
+            <input class="input-field" type="email" id="m-email" placeholder="you@example.com" />
+          </div>
+          <div class="btn-row">
+            <button class="btn primary" type="button">Action</button>
+          </div>
+        </form>
+      </div>
+    `;
+    window.EPU?.modal?.show({ title: 'Demo Modal', body, wide: false, fit: true, actions: [], noDefaultClose: true });
+  });
+</script>
+{% endblock %}

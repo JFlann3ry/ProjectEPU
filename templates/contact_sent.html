@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Message sent — EPU{% endblock %}
+
+{% block content %}
+<div class="container section center">
+  <div class="page-hero center">
+    <h1 class="hero-title">Thanks for contacting us</h1>
+    <p class="hero-sub">We received your message and will reply by email shortly.</p>
+  </div>
+  <div class="card center" style="max-width:560px;">
+    <p class="p-regular" style="margin:0 0 12px;">If you have more details to add, feel free to reply to our email when it arrives.</p>
+    <div class="btn-row" style="margin-top:8px; justify-content:center;">
+      <a class="btn" href="/">Go to Home</a>
+      <a class="btn primary" href="/contact">Send another message</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,2 @@
+Generic single-database configuration with autogenerate enabled.
+Use `alembic revision --autogenerate -m "message"` to create migrations.

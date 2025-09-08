@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Pricing — Simple packages{% endblock %}
+
+{% block content %}
+<div class="container center">
+    <section class="page-hero center">
+        <h1 class="hero-title">Pricing</h1>
+        <p class="hero-sub">Clear packages in GBP. Start free, upgrade when you need more.</p>
+    </section>
+
+        <section class="section">
+            {# Feature label/tooltip mapping (no support levels) #}
+            {% set feature_labels = {
+                'active_events': {'label':'Active events','tip':'Number of events you can keep live at once'},
+                'guests_per_event': {'label':'Guests per event','tip':'Max unique guest uploads per event'},
+                'qr': {'label':'Guest upload link + QR','tip':'Share a QR code that links straight to your upload page'},
+                'zip': {'label':'ZIP downloads','tip':'Bulk download selected media as a ZIP'},
+                'branding': {'label':'Branding & themes','tip':'Customize your event pages to match your brand'},
+                'analytics': {'label':'Analytics','tip':'Engagement, uploads, and activity insights'},
+                'upload_window': {'label':'Upload window','tip':'How long guests can upload after your event date'},
+                'download_window': {'label':'Download window','tip':'How long you can download after your event date'}
+            } %}
+            {# Compact responsive grid (shows all packages without scrolling on desktop) #}
+            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:12px; align-items:stretch;">
+                {% set plans_sorted = (plans or []) %}
+                {% for p in plans_sorted %}
+                {% set c = (p.currency or 'gbp')|lower %}
+                {% set sym = '£' if c == 'gbp' else ('$' if c == 'usd' else c|upper ~ ' ') %}
+                {% set price = (p.price_cents or 0) / 100 %}
+                <div class="card full-height plan-card" style="display:flex; flex-direction:column; gap:8px;">
+                    {% if (p.code or '')|lower in ['ultimate'] %}
+                    <div class="plan-ribbon" title="Best value">Best Value</div>
+                    {% endif %}
+                    <div>
+                        <h3 style="margin:0;">{{ p.name }}</h3>
+                        {% if p.description %}<p class="muted" style="margin:4px 0 0;">{{ p.description }}</p>{% endif %}
+                    </div>
+                    <div style="font-size:32px; font-weight:800;">{{ sym }}{{ '%.2f'|format(price) }}</div>
+                    {% set feats = p.features if p.features else [] %}
+                    <ul style="margin:0; padding-left:18px; color: var(--color-text-muted); display:grid; gap:6px;">
+                        {# Always show a concise included list per plan #}
+                        
+                        <li title="{{ feature_labels['guests_per_event'].tip }}">{{ feature_labels['guests_per_event'].label }}:
+                            {% if (p.code or '')|lower == 'free' %}—{% else %}{{ p.limits.get('guests_per_event') or 'Unlimited' }}{% endif %}
+                        </li>
+                        {% if 'upload_window' in feats %}
+                            {% set m = p.limits.get('upload_months') %}
+                            <li title="{{ feature_labels['upload_window'].tip }}">Upload window: {% if m>0 %}{{ m }} month{{ 's' if m!=1 }}{% else %}—{% endif %}</li>
+                        {% endif %}
+                        {% if 'download_window' in feats %}
+                            {% set m2 = p.limits.get('download_months') %}
+                            <li title="{{ feature_labels['download_window'].tip }}">Download window: {% if m2>0 %}{{ m2 }} month{{ 's' if m2!=1 }}{% else %}—{% endif %}</li>
+                        {% endif %}
+                        {% if 'qr' in feats %}<li title="{{ feature_labels['qr'].tip }}">{{ feature_labels['qr'].label }}</li>{% endif %}
+                        {% if 'zip' in feats %}<li title="{{ feature_labels['zip'].tip }}">{{ feature_labels['zip'].label }}</li>{% endif %}
+                        {% if 'branding' in feats %}<li title="{{ feature_labels['branding'].tip }}">{{ feature_labels['branding'].label }}</li>{% endif %}
+                        {% if 'analytics' in feats %}<li title="{{ feature_labels['analytics'].tip }}">{{ feature_labels['analytics'].label }}</li>{% endif %}
+                    </ul>
+                    <div style="margin-top:12px;">
+                        {% set is_free = (p.price_cents or 0) == 0 %}
+                        {% if is_free %}
+                            <a class="btn block" href="/signup">Sign up free</a>
+                        {% else %}
+                            {% if request.cookies.get('session_id') %}
+                                <button class="btn primary block" onclick="startCheckout('{{ p.code }}')">Continue</button>
+                            {% else %}
+                                <a class="btn primary block" href="/signup">Sign up to purchase</a>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        {% if (plans or [])|length > 1 %}
+        <section class="section">
+            <div class="card" style="max-width: 980px; margin: 0 auto;">
+                <h3 style="margin-top:0;">Compare features</h3>
+                        {% set headings = plans|map(attribute='name')|list %}
+                        <div class="grid compare-grid" data-cols="{{ headings|length }}" style="gap:0; border:1px solid var(--color-border); border-radius: var(--radius); overflow:hidden;">
+                    <div class="muted" style="padding:10px 12px; background: var(--color-surface-2);"></div>
+                    {% for h in headings %}
+                    <div style="padding:10px 12px; font-weight:700; background: var(--color-surface-2);">{{ h }}</div>
+                    {% endfor %}
+
+                            {% set rows = ['guests_per_event','qr','zip','branding','analytics','upload_window','download_window'] %}
+                            {% for key in rows %}
+                                {% set meta = feature_labels.get(key) %}
+                                <div style="padding:10px 12px; border-top:1px solid var(--color-border);" title="{{ meta.tip if meta }}">{{ (meta.label if meta else key) }}</div>
+                        {% for p in plans %}
+                                        {% set val = (p.features or []) %}
+                            <div style="padding:10px 12px; border-top:1px solid var(--color-border);">
+                                {# show check or text based on feature presence; render Unlimited when guests cap is 0 #}
+                                            {% if key in val %}
+                                                {% if key == 'active_events' and p.limits and p.limits.get('active_events') is not none %}
+                                                    {{ p.limits.get('active_events') }}
+                                                {% elif key == 'guests_per_event' and p.limits is not none %}
+                                                    {% set g = p.limits.get('guests_per_event') %}
+                                                    {% if (p.code or '')|lower == 'free' %}—{% elif g is not none %}{{ g if g>0 else 'Unlimited' }}{% else %}—{% endif %}
+                                                {% elif key == 'upload_window' and p.limits and p.limits.get('upload_months') is not none %}
+                                                    {% set m = p.limits.get('upload_months') %}
+                                                    {% if m > 0 %}{{ m }} month{{ 's' if m != 1 }}{% else %}—{% endif %}
+                                                {% elif key == 'download_window' and p.limits and p.limits.get('download_months') is not none %}
+                                                    {% set m = p.limits.get('download_months') %}
+                                                    {% if m > 0 %}{{ m }} month{{ 's' if m != 1 }}{% else %}—{% endif %}
+                                                {% else %}
+                                                    ✓
+                                                {% endif %}
+                                            {% else %}{% endif %}
+                            </div>
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if extras and extras|length > 0 %}
+        <section class="section">
+            <div class="card" style="max-width: 980px; margin: 0 auto;">
+                <h3 style="margin:0 0 8px;">Extras</h3>
+                <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:10px;">
+                    {% for x in extras %}
+                        {% set c = (x.currency or 'gbp')|lower %}
+                        {% set sym = '£' if c == 'gbp' else ('$' if c == 'usd' else c|upper ~ ' ') %}
+                        {% set price = (x.price_cents or 0) / 100 %}
+                        <div class="card" style="display:flex; flex-direction:column; gap:6px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                                <div>
+                                    <div class="p-bold">{{ x.name }}</div>
+                                    {% if x.description %}<div class="small muted">{{ x.description }}</div>{% endif %}
+                                </div>
+                                <div class="p-bold">{% if price>0 %}{{ sym }}{{ '%.2f'|format(price) }}{% else %}Varies{% endif %}</div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+</div>
+
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+const stripe = Stripe("{{ STRIPE_PUBLISHABLE_KEY }}");
+async function startCheckout(plan){
+    try {
+        const res = await fetch('/create-checkout-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan })
+        });
+        if (res.status === 401 || res.status === 403) { window.location = '/login'; return; }
+        const data = await res.json();
+        if (!data.id) throw new Error('Invalid response');
+        stripe.redirectToCheckout({ sessionId: data.id });
+    } catch (e) {
+        alert('Unable to start checkout. Please try again.');
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Examples — How teams use EPU{% endblock %}
+
+{% block content %}
+<div class="container center">
+  <section class="page-hero center">
+  <h1 class="hero-title">Examples</h1>
+  <p class="hero-sub">See ways people use EPU to collect and share photos and videos at events.</p>
+  </section>
+
+  <section class="section">
+    <div class="grid grid-3 equal-heights">
+      <div class="card full-height">
+        <h3>Weddings</h3>
+        <p>Give guests a simple QR to upload candid photos. Share a curated gallery the next day.</p>
+        <div class="btn-row" style="margin-top:8px;">
+          <a href="#" class="btn" onclick="exOpen(0); return false;">Preview</a>
+        </div>
+      </div>
+      <div class="card full-height">
+        <h3>Corporate events</h3>
+        <p>Collect booth photos and session highlights. Centralize media for marketing teams.</p>
+        <div class="btn-row" style="margin-top:8px;">
+          <a href="#" class="btn" onclick="exOpen(1); return false;">Preview</a>
+        </div>
+      </div>
+      <div class="card full-height">
+        <h3>School plays</h3>
+        <p>Parents upload from their seats. Easily download the best moments as a ZIP.</p>
+        <div class="btn-row" style="margin-top:8px;">
+          <a href="#" class="btn" onclick="exOpen(2); return false;">Preview</a>
+        </div>
+      </div>
+      <div class="card full-height">
+        <h3>Sports</h3>
+        <p>Post-match upload links for teams and fans. Quick highlights for social.</p>
+        <div class="btn-row" style="margin-top:8px;">
+          <a href="#" class="btn" onclick="exOpen(3); return false;">Preview</a>
+        </div>
+      </div>
+      <div class="card full-height">
+        <h3>Conferences</h3>
+        <p>Capture attendee experiences and sponsor activations across venues.</p>
+        <div class="btn-row" style="margin-top:8px;">
+          <a href="#" class="btn" onclick="exOpen(4); return false;">Preview</a>
+        </div>
+      </div>
+      <div class="card full-height">
+        <h3>Community</h3>
+        <p>Neighborhood events, meetups, birthdays—EPU keeps everything in one place.</p>
+        <div class="btn-row" style="margin-top:8px;">
+          <a href="#" class="btn" onclick="exOpen(5); return false;">Preview</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+      <div>
+        <h3 style="margin:0 0 4px;">Try it with your next event</h3>
+        <p class="muted" style="margin:0;">Start free. Upgrade any time.</p>
+      </div>
+      <div>
+        {% if request.cookies.get('session_id') %}
+          <a class="btn primary" href="/events/create">Create an event</a>
+        {% else %}
+          <a class="btn primary" href="/signup">Get started free</a>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+      <div class="card">
+        <h3 style="margin-top:0;">Sample galleries</h3>
+        <p class="muted" style="margin-top: -4px;">A quick peek at what your event gallery could look like.</p>
+        <div class="dynamic-gallery" style="margin-top:12px;">
+          <div class="gallery-item gallery-clickable" data-index="0">
+            <img class="gallery-img" src="/static/images/examples/wedding1.svg" alt="Wedding example" loading="lazy">
+          </div>
+          <div class="gallery-item gallery-clickable" data-index="1">
+            <img class="gallery-img" src="/static/images/examples/corporate1.svg" alt="Corporate example" loading="lazy">
+          </div>
+          <div class="gallery-item gallery-clickable" data-index="2">
+            <img class="gallery-img" src="/static/images/examples/school1.svg" alt="School example" loading="lazy">
+          </div>
+        </div>
+      </div>
+    </section>
+
+  {% include 'components/lightbox.html' %}
+    </div>
+
+  {% block extra_js %}
+  <script>
+    const exImages = [
+      '/static/images/examples/wedding1.svg',
+      '/static/images/examples/corporate1.svg',
+      '/static/images/examples/school1.svg',
+      '/static/images/examples/wedding1.svg',
+      '/static/images/examples/corporate1.svg',
+      '/static/images/examples/school1.svg'
+    ];
+    const exCaptions = [
+      'Weddings — candid guest photos with a simple QR',
+      'Corporate events — booth photos and session highlights',
+      'School plays — parent uploads and quick ZIP downloads',
+      'Weddings — curated galleries next day',
+      'Corporate events — centralize media for marketing',
+      'School — highlights and easy sharing'
+    ];
+    document.addEventListener('DOMContentLoaded', function(){
+      if (window.Lightbox) Lightbox.setData(exImages, exCaptions);
+      document.querySelectorAll('.gallery-clickable').forEach(function(el){
+        el.addEventListener('click', function(){
+          const idx = parseInt(el.getAttribute('data-index')) || 0;
+          Lightbox.open(idx);
+        });
+      });
+      // Wire preview buttons
+      const previewButtons = document.querySelectorAll('a.btn[onclick^="exOpen("]');
+      previewButtons.forEach(function(btn){
+        btn.addEventListener('click', function(e){ e.preventDefault(); try { const m = btn.getAttribute('onclick').match(/exOpen\((\d+)\)/); const idx = m?parseInt(m[1]):0; Lightbox.open(idx); } catch(_) { Lightbox.open(0); } });
+      });
+    });
+  </script>
+  {% endblock %}
+{% endblock %}

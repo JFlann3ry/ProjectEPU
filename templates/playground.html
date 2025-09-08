@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Component Playground</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='playground.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='form.css') }}">
+
+</head>
+<body>
+    <h1>Component Playground</h1>
+    <div>
+        <h2>Button Component</h2>
+        <button class="menu-btn">Menu Button</button>
+        <br>
+        <br>
+    <button class="btn">Button</button>
+    </div>
+    <h2>Form Component</h2>
+    <div>
+        <div class="floating-field" style="max-width:360px;">
+            <label for="demo_input" class="fl-label">Input Field</label>
+            <input type="text" id="demo_input" class="input-field">
+        </div>
+        <div style="margin-top:12px;">
+            <label class="p-bold" for="accept-terms">Accept Terms</label>
+            <input type="checkbox" id="accept-terms" class="checkbox-field">
+        </div>
+    </div>
+    <h3>Form Example</h3>
+    <div class="form" style="max-width:400px;">
+        <form>
+            <div class="floating-field">
+                <label for="name" class="fl-label">Name</label>
+                <input type="text" id="name" name="name" class="input-field">
+            </div>
+            <div class="floating-field">
+                <label for="email" class="fl-label">Email</label>
+                <input type="email" id="email" name="email" class="input-field">
+            </div>
+            <button type="submit" class="btn">Submit</button>
+        </form>
+    <div class="text-styles">
+        <h1>H1 - Heading 1</h1>
+        <h2>H2 - Heading 2</h2> 
+        <h3>H3 - Heading 3</h3>
+        <h4>H4 - Heading 4</h4>
+        <p class="p-bold">Paragraph Bold</p>
+        <p class="p-regular">Paragraph Regular</p>
+        <p class="p-italic">Paragraph Italic</p>
+    </div>
+
+</body>
+</html>

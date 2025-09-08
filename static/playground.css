@@ -1,0 +1,192 @@
+@font-face {
+    font-family: 'Inter';
+    src: url('/static/fonts/Inter-VariableFont_opsz\,wght.ttf') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Covered By Your Grace';
+    src: url('/static/fonts/CoveredByYourGrace-Regular.ttf') format('truetype');
+    font-style: normal;
+}
+
+h1, h2, h3, h4, P {
+    font-family: 'Inter', Arial, sans-serif;
+    font-style: Bold;
+    color: #0F0E17;
+}
+h1 {
+    font-size: 50px;
+}
+h2 {
+    font-size: 36px;
+}
+
+h3 {
+    font-size: 24px;
+}
+
+h4 {
+    font-size: 20px;
+}
+
+p {
+    color: #A7A9BE;
+}
+
+.p-bold {
+    font-family: 'Inter', Arial, sans-serif;
+    font-weight: 700;
+    font-style: normal;
+}
+
+.p-regular {
+    font-family: 'Inter', Arial, sans-serif;
+    font-weight: 400;
+    font-style: normal;
+}
+
+.p-italic {
+    font-family: 'Inter', Arial, sans-serif;
+    font-weight: 400;
+    font-style: italic;
+}
+
+
+body {
+    background-color: #FFFFFE;
+}
+
+.menu-btn {
+    background-color: #FF8906;
+    color: #FFFFFE;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-family: 'Covered By Your Grace';
+    font-weight: 400;
+    font-size: 20px;
+    cursor: pointer;
+    
+}
+
+.menu-btn:hover {
+    background-color: #F25F4C;
+}
+
+.content-btn {
+    background-color: #F25F4C;
+    color: #FFFFFE;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-family: 'Covered By Your Grace';
+    font-weight: 400;
+    font-size: 20px;
+    cursor: pointer;
+    
+}
+
+.content-btn:hover {
+    background-color: #E53170;
+}
+
+
+label {
+    display: block;
+    font-family: 'Inter', Arial, sans-serif;
+    font-weight: 700;
+    font-style: normal;
+    color: #0F0E17;
+}
+
+form label.p-bold {
+    color: #FFFFFE;
+}
+
+.input-field {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 20px;
+    border: 1px solid #A7A9BE;
+    border-radius: 8px;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 16px;
+    color: #0F0E17;
+}
+
+.input-field:hover {
+    border-color: #FF8906;
+}
+
+.input-field:focus {
+    border-color: #F25F4C;
+    box-shadow: 0 0 5px #F25F4C;
+    outline: none;
+}
+
+.checkbox-field {
+    width: 18px;
+    height: 18px;
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+    cursor: pointer;
+    vertical-align: middle;
+    margin-right: 8px;
+    background: url('/static/images/tbfalse.svg') no-repeat center center;
+    background-size: contain;
+    border: none;
+    transition: background 0.2s;
+}
+
+.checkbox-field:checked {
+    background: url('/static/images/tbtrue.svg') no-repeat center center;
+    background-size: contain;
+}
+
+form > *:first-child {
+    margin-top: 0;
+}
+form {
+    margin-top: 0;
+    align-self: center;
+    display: flex;
+    flex-direction: column;
+    max-width: 368px;
+    padding: 24px    ;
+    background-color: #0F0E17;
+    border-radius: 8px;
+}
+
+.login-center-wrapper {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: #0F0E17;
+    border-radius: 16px;
+    padding: 32px 24px;
+}
+
+.login-title {
+    text-align: center;
+    margin-bottom: 24px;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #0F0E17;
+}

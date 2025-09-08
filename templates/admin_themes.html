@@ -1,0 +1,451 @@
+{% extends "base.html" %}
+
+{% block title %}Admin · Themes - EPU{% endblock %}
+{% block extra_head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', path='theme.css') }}?v={{ now() if now else '' }}">
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="container section" style="padding-bottom:0;">
+  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
+    <a href="/admin" class="crumb">Admin</a>
+    <span class="sep" aria-hidden="true">›</span>
+    <span class="crumb current">Themes</span>
+  </nav>
+  </div>
+{% endblock %}
+{% block content %}
+<div class="container center section admin-themes">
+  <div class="page-hero center">
+    <h1 class="hero-title">Theme Manager</h1>
+    <p class="hero-sub">Browse, edit, and preview the themes available to customers.</p>
+    <div class="btn-row" style="margin-top:8px;">
+      <a class="btn primary" href="/admin/themes">Themes</a>
+      <a class="btn" href="/admin/themes/audit">Audit</a>
+    </div>
+  </div>
+  <div class="grid admin-themes-grid equal-heights">
+    <!-- Sidebar list -->
+    <aside class="card full-height" style="min-width:280px;">
+      <div class="btn-row" style="justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <strong>Themes ({{ themes|length }})</strong>
+        <form id="seed-form" method="post" action="/admin/seed-themes" style="margin:0;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">
+          <button class="btn sm" id="seed-btn" type="submit" title="Seed default themes">Seed defaults</button>
+        </form>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        {% for t in themes %}
+          {% set sw_btn1 = t.ButtonColour1 or '#4f8cff' %}
+          {% set sw_btn2 = t.ButtonColour2 or '#8338EC' %}
+          {% set sw_bg = t.BackgroundColour or '#0f0f12' %}
+          {% set sw_txt = t.TextColour or '#e9eef6' %}
+          <a class="btn{% if selected and selected.ThemeID==t.ThemeID %} primary{% endif %}" href="/admin/themes?id={{ t.ThemeID }}" style="justify-content:space-between;">
+            <span style="display:flex; align-items:center; gap:8px;">
+              <span title="Theme swatch" class="theme-swatch" data-style="{{ 'solid' if t.ButtonStyle=='solid' else 'gradient' }}" data-btn1="{{ sw_btn1 }}" data-btn2="{{ sw_btn2 }}" style="width:22px; height:16px; border-radius:4px; border:1px solid rgba(255,255,255,0.2); display:inline-block; box-shadow: inset 0 0 0 2px rgba(0,0,0,0.12);"></span>
+              <span>{{ t.Name }}</span>
+            </span>
+            <span class="badge" style="margin-left:8px;">#{{ t.ThemeID }}</span>
+          </a>
+        {% endfor %}
+      </div>
+    </aside>
+    <script>
+      // Apply backgrounds to theme swatches using data attributes to avoid template logic inside CSS
+      (function(){
+        var nodes = document.querySelectorAll('.theme-swatch');
+        nodes.forEach(function(n){
+          var style = (n.getAttribute('data-style')||'gradient').toLowerCase();
+          var c1 = n.getAttribute('data-btn1') || '#4f8cff';
+          var c2 = n.getAttribute('data-btn2') || '#8338EC';
+          if (style === 'solid'){
+            n.style.background = c1;
+            n.style.backgroundImage = 'none';
+          } else {
+            n.style.backgroundImage = 'linear-gradient(90deg,' + c1 + ',' + c2 + ')';
+          }
+        });
+      })();
+    </script>
+  </div>
+  {% if selected %}
+  <!-- Live Preview (full width, zoomed) -->
+  <div class="card preview-block">
+  <div class="btn-row" style="justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <h3 style="margin:0;">Live Preview</h3>
+      <div class="btn-row" style="gap:6px;">
+  <label class="checkbox-row"><input id="pv-banner" type="checkbox" class="checkbox-field"><span>Banner</span></label>
+    <label class="checkbox-row"><input id="pv-progress" type="checkbox" class="checkbox-field"><span>Uploading</span></label>
+    <label class="checkbox-row"><input id="pv-uploads" type="checkbox" class="checkbox-field"><span>Your uploads</span></label>
+      </div>
+    </div>
+    <div class="web-preview-wrapper">
+  {% set tv = {
+        'bg': selected.BackgroundColour or '#0f0f12',
+        'text': selected.TextColour or '#e9eef6',
+        'page_bg': '#0b0b10',
+        'btn1': selected.ButtonColour1 or '#4f8cff',
+        'btn2': selected.ButtonColour2 or '#8338EC',
+        'accent': selected.AccentColour or 'rgba(255,255,255,0.22)',
+        'font': selected.FontFamily or 'Inter, Arial, sans-serif',
+        'input_bg': selected.InputBackgroundColour or '#15161e',
+        'dropzone_bg': selected.DropzoneBackgroundColour or '#121424',
+        'bg_img': None
+      } %}
+  <div id="preview-root" class="theme-root {{ 'is-solid' if selected.ButtonStyle=='solid' else 'is-gradient' }}">
+        {% include "_theme_vars.html" %}
+        <div class="web-preview" data-base="1100">
+          <div id="guest-theme" class="container center" style="padding-top: 12px;">
+            <div class="theme-card card guest-card rounded radius-rounded center" style="max-width:860px;margin:0 auto;">
+              <h1 id="guest-title" class="login-title heading-m" style="margin-bottom:6px; text-align:center;">Guest Upload</h1>
+              <p id="guest-instructions" class="muted" style="color: var(--card-text); opacity:0.9; margin-top:0; text-align:center;">Welcome! Please upload your files for this event.</p>
+              <div id="pv-cover-wrap" style="display:none; margin-bottom: 16px; text-align: center;"><img id="pv-cover-img" src="https://picsum.photos/1000/240" alt="Event Banner" style="max-width: 100%; border-radius: 12px;"></div>
+              <div class="form">
+                <div class="floating-field" style="margin-top:8px;">
+                  <label class="fl-label">Your Email (optional)</label>
+                  <input class="input-field" type="email" placeholder="you@example.com">
+                </div>
+                <div style="margin: 6px 0 6px;">
+                  <div class="muted" style="color: var(--card-text); opacity:0.9; margin-bottom:6px;">Select Photos/Videos</div>
+                  <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="File dropzone">
+                    <div class="dz-inner">
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M12 3v12m0-12l-4 4m4-4l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M6 15v2a4 4 0 004 4h4a4 4 0 004-4v-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <div class="dz-text">
+                        <span class="dz-hint-dnd"><strong>Drag and drop</strong> photos or videos here</span>
+                        <span class="dz-hint-tap"><strong>Tap to select</strong> photos or videos</span>
+                        <br>
+                        <span class="muted small dz-browse-click">or click to browse</span>
+                        <span class="muted small dz-browse-tap">or tap to browse</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div id="selection" class="chip-list" style="display:none;"></div>
+                </div>
+                <div class="upload-actions" style="margin-top:6px; display:flex; gap:8px; align-items:center; justify-content:space-between;">
+                  <div class="btn-row">
+                    <span id="file-count" class="muted small"></span>
+                    <button type="button" class="btn sm" style="display:none;">Clear selection</button>
+                  </div>
+                  <div class="btn-row" style="margin-left:auto; align-items:center;">
+                    <label class="terms-inline">
+                      <input type="checkbox" class="checkbox-field">
+                      <span>I agree to the <a href="#" title="View the full terms and conditions">terms and conditions</a></span>
+                    </label>
+                    <button type="button" class="btn primary">Upload</button>
+                  </div>
+                </div>
+                <div id="progress-container" style="display:none; margin:10px 0; width:100%;">
+                  <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
+                </div>
+                <div id="uploads-empty-hint" class="muted small" style="margin-top:8px; text-align:center;">
+                  You’ll see your photos here after upload.
+                </div>
+                <div id="pv-uploads-wrap" class="card" style="display:none; margin-top:12px; background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.08);">
+                  <h3 style="margin:0 0 8px;">Your uploads</h3>
+                  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
+                    {% for i in range(0,8) %}
+                    <div class="thumb" style="padding:6px; border-radius:10px; background:#0f111b; display:flex;">
+                      <img src="https://picsum.photos/seed/{{ i }}/200/120" alt="Preview" style="width:100%; height:100px; object-fit:cover; border-radius:6px;" loading="lazy">
+                    </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Full-width editor -->
+  <section class="card">
+    <form id="theme-form" class="form" method="post" action="/admin/themes/{{ selected.ThemeID }}/update">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">
+      <div class="grid" style="grid-template-columns: repeat(12, minmax(0,1fr)); gap:16px;">
+        <div style="grid-column: span 12;">
+          <h3 style="margin-top:0;">Edit Theme</h3>
+        </div>
+        <div class="floating-field" style="grid-column: span 6; min-width: 280px;">
+          <label class="fl-label" for="Name">Name</label>
+          <input class="input-field" id="Name" name="Name" value="{{ selected.Name }}" required>
+        </div>
+        <div class="floating-field" style="grid-column: span 6; min-width: 280px;">
+          <label class="fl-label" for="Description">Description</label>
+          <input class="input-field" id="Description" name="Description" value="{{ selected.Description or '' }}">
+        </div>
+        <div class="grid" style="grid-template-columns: repeat(12, minmax(0,1fr)); gap:12px; grid-column: span 12;">
+          <div class="floating-field" style="grid-column: span 4; min-width:240px;">
+            <label class="fl-label" for="BackgroundColour">Background</label>
+            <div class="color-row">
+              <input class="input-field color-swatch" type="color" id="BackgroundColour" name="BackgroundColour" value="{{ selected.BackgroundColour or '#0b0b10' }}">
+              <input class="input-field mono" id="BackgroundColourHex" value="{{ selected.BackgroundColour or '#0b0b10' }}" maxlength="9" autocomplete="off">
+            </div>
+          </div>
+          <div class="floating-field" style="grid-column: span 4; min-width:240px;">
+            <label class="fl-label" for="TextColour">Text</label>
+            <div class="color-row">
+              <input class="input-field color-swatch" type="color" id="TextColour" name="TextColour" value="{{ selected.TextColour or '#e9eef6' }}">
+              <input class="input-field mono" id="TextColourHex" value="{{ selected.TextColour or '#e9eef6' }}" maxlength="9" autocomplete="off">
+            </div>
+          </div>
+          <div class="floating-field" style="grid-column: span 4; min-width:240px;">
+            <label class="fl-label" for="ButtonColour1">Button 1</label>
+            <div class="color-row">
+              <input class="input-field color-swatch" type="color" id="ButtonColour1" name="ButtonColour1" value="{{ selected.ButtonColour1 or '#4f8cff' }}">
+              <input class="input-field mono" id="ButtonColour1Hex" value="{{ selected.ButtonColour1 or '#4f8cff' }}" maxlength="9" autocomplete="off">
+            </div>
+          </div>
+          <div class="floating-field" id="ButtonColour2Wrap" style="grid-column: span 4; min-width:240px;">
+            <label class="fl-label" for="ButtonColour2">Button 2</label>
+            <div class="color-row">
+              <input class="input-field color-swatch" type="color" id="ButtonColour2" name="ButtonColour2" value="{{ selected.ButtonColour2 or '#8338EC' }}">
+              <input class="input-field mono" id="ButtonColour2Hex" value="{{ selected.ButtonColour2 or '#8338EC' }}" maxlength="9" autocomplete="off">
+            </div>
+          </div>
+          <div class="floating-field" style="grid-column: span 4; min-width:240px;">
+            <label class="fl-label" for="AccentColour">Border</label>
+            <div class="color-row">
+              <input class="input-field color-swatch" type="color" id="AccentColour" name="AccentColour" value="{{ selected.AccentColour or '#5a9cff' }}">
+              <input class="input-field mono" id="AccentColourHex" value="{{ selected.AccentColour or '#5a9cff' }}" maxlength="9" autocomplete="off">
+            </div>
+          </div>
+        </div>
+        <div class="floating-field" style="grid-column: span 12; min-width:280px;">
+          <label class="fl-label">Primary button style</label>
+          <div class="btn-row">
+            <label class="checkbox-row"><input type="radio" name="ButtonStyle" id="ButtonStyleGradient" value="gradient" class="checkbox-field" {% if selected.ButtonStyle!='solid' %}checked{% endif %}><span>Gradient</span></label>
+            <label class="checkbox-row"><input type="radio" name="ButtonStyle" id="ButtonStyleSolid" value="solid" class="checkbox-field" {% if selected.ButtonStyle=='solid' %}checked{% endif %}><span>Solid</span></label>
+          </div>
+        </div>
+        <div class="notice" id="contrast-panel" style="margin-top:8px; grid-column: span 12;">
+          <div style="font-weight:700; margin-bottom:4px;">Accessibility</div>
+          <div class="small">BG/Text contrast: <span id="contrast-ratio" class="badge">—</span>
+            <span id="contrast-aa" class="badge">AA</span>
+            <span id="contrast-aaa" class="badge">AAA</span>
+          </div>
+        </div>
+        <div class="grid" style="grid-template-columns: repeat(12, minmax(0,1fr)); gap:12px; grid-column: span 12;">
+          <div class="floating-field" style="grid-column: span 6; min-width:240px;">
+            <label class="fl-label" for="InputBackgroundColour">Text boxes</label>
+            <div class="color-row">
+              <input class="input-field color-swatch" type="color" id="InputBackgroundColour" name="InputBackgroundColour" value="{{ selected.InputBackgroundColour or '#15161e' }}">
+              <input class="input-field mono" id="InputBackgroundColourHex" value="{{ selected.InputBackgroundColour or '#15161e' }}" maxlength="9" autocomplete="off">
+            </div>
+          </div>
+          <div class="floating-field" style="grid-column: span 6; min-width:240px;">
+            <label class="fl-label" for="DropzoneBackgroundColour">Dropzone</label>
+            <div class="color-row">
+              <input class="input-field color-swatch" type="color" id="DropzoneBackgroundColour" name="DropzoneBackgroundColour" value="{{ selected.DropzoneBackgroundColour or '#121424' }}">
+              <input class="input-field mono" id="DropzoneBackgroundColourHex" value="{{ selected.DropzoneBackgroundColour or '#121424' }}" maxlength="9" autocomplete="off">
+            </div>
+          </div>
+        </div>
+        {% set preset_fonts = [
+          'Inter, Arial, sans-serif',
+          'System UI, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
+          'Roboto, Arial, sans-serif',
+          'Open Sans, Arial, sans-serif',
+          'Lato, Arial, sans-serif',
+          'Poppins, Arial, sans-serif',
+          'Montserrat, Arial, sans-serif',
+          'Source Sans Pro, Arial, sans-serif',
+          'Nunito, Arial, sans-serif',
+          'Merriweather, Georgia, serif',
+          "Georgia, 'Times New Roman', serif",
+          'Times New Roman, Times, serif',
+          "Garamond, Baskerville, 'Times New Roman', serif",
+          "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace",
+          'Courier New, Courier, monospace'
+        ] %}
+        {% set current_ff = (selected.FontFamily if selected.FontFamily in preset_fonts else 'Inter, Arial, sans-serif') %}
+        <div style="grid-column: span 12; display:grid; gap:12px; grid-template-columns: repeat(12, minmax(0,1fr));">
+          <div class="floating-field" style="grid-column: span 6; min-width:280px;">
+            <label class="fl-label" for="FontFamilySelect">Font family</label>
+            <select class="input-field" id="FontFamilySelect" autocomplete="off">
+              {% for ff in preset_fonts %}
+                <option value="{{ ff }}" {% if current_ff == ff %}selected{% endif %}>{{ ff }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <!-- Hidden field to submit and to drive preview via existing JS mapping -->
+          <input type="hidden" id="FontFamily" name="FontFamily" value="{{ current_ff }}">
+        </div>
+        <div class="btn-row" style="margin-top:8px; grid-column: span 12;">
+          <button class="btn primary" type="submit">Save</button>
+          <button class="btn" type="button" id="reset-preview">Reset preview</button>
+          <a class="btn outline" href="/admin/themes/{{ selected.ThemeID }}/export" title="Export as JSON">Export</a>
+          <button class="btn" type="submit" title="Duplicate theme" formaction="/admin/themes/{{ selected.ThemeID }}/duplicate" formmethod="post">Duplicate</button>
+        </div>
+      </div>
+    </form>
+  </section>
+  {% else %}
+    <div class="card"><div class="muted">No theme selected.</div></div>
+  {% endif %}
+</div>
+
+{% if selected %}
+<script>
+  (function(){
+    const root = document.getElementById('preview-root'); if (!root) return;
+    // Auto-scale the web preview to fit the wrapper width
+    const wrapper = root.closest('.web-preview-wrapper');
+    const web = root.querySelector('.web-preview');
+    function scalePreview(){
+      if (!wrapper || !web) return;
+      const base = parseInt(web.getAttribute('data-base') || '1100', 10);
+      // Reset to natural size to measure height
+      web.style.transform = 'scale(1)';
+      const available = wrapper.clientWidth - 2; // account for borders
+      const scale = Math.min(1, available / base);
+      web.style.transform = 'scale(' + scale + ')';
+      // lock wrapper height to scaled content height to avoid cut-off
+      const naturalHeight = web.scrollHeight; // height at scale(1)
+      wrapper.style.height = Math.ceil(naturalHeight * scale) + 'px';
+    }
+    window.addEventListener('resize', scalePreview);
+    // Initial scale after layout
+    requestAnimationFrame(scalePreview);
+    const seedForm = document.getElementById('seed-form');
+    const seedBtn = document.getElementById('seed-btn');
+    if (seedForm && seedBtn){
+      seedForm.addEventListener('submit', function(){ seedBtn.disabled = true; seedBtn.textContent = 'Seeding…'; });
+    }
+    const map = {
+      BackgroundColour: '--card',
+      TextColour: '--card-text',
+      ButtonColour1: '--btn1',
+      ButtonColour2: '--btn2',
+      AccentColour: '--accent',
+      FontFamily: '--font',
+      InputBackgroundColour: '--input-bg',
+      DropzoneBackgroundColour: '--dropzone-bg'
+    };
+    function apply(id){
+      const el = document.getElementById(id); if (!el) return;
+      let v = el.value || '';
+  // sync paired hex input if present
+  const hexInput = document.getElementById(id + 'Hex'); if (hexInput) { hexInput.value = (v || '').toUpperCase(); }
+      const cssVar = map[id]; if (!cssVar) return; root.style.setProperty(cssVar, v);
+      // Reflow might affect height slightly (fonts), rescale lazily
+      if (id === 'FontFamily'){
+        setTimeout(scalePreview, 50);
+      }
+    }
+  ['BackgroundColour','TextColour','ButtonColour1','ButtonColour2','AccentColour','FontFamily','InputBackgroundColour','DropzoneBackgroundColour'].forEach(function(id){
+      const el = document.getElementById(id); if (!el) return; el.addEventListener('input', function(){ apply(id); });
+    });
+    // Allow typing into hex fields
+    ['BackgroundColour','TextColour','ButtonColour1','ButtonColour2','AccentColour','InputBackgroundColour','DropzoneBackgroundColour'].forEach(function(id){
+      const hex = document.getElementById(id + 'Hex');
+      if (!hex) return;
+      hex.addEventListener('input', function(){
+        let v = hex.value || '';
+        if (v && !v.startsWith('#') && !v.startsWith('rgb')) v = '#' + v;
+        const sw = document.getElementById(id); if (sw){ sw.value = v; }
+        const cssVar = map[id]; if (cssVar){ root.style.setProperty(cssVar, v); }
+        updateContrast();
+      });
+    });
+    // Contrast calculator (WCAG)
+    function hexToRgb(h){
+      h = (h||'').trim(); if (!h) return null; if (h[0] === '#') h = h.slice(1); if (h.length === 3){ h = h.split('').map(c=>c+c).join(''); }
+      const num = parseInt(h, 16); if (isNaN(num)) return null; return { r:(num>>16)&255, g:(num>>8)&255, b:num&255 };
+    }
+    function relLum({r,g,b}){ const sr=[r,g,b].map(v=>{v/=255; return v<=0.03928? v/12.92: Math.pow((v+0.055)/1.055,2.4);}); return 0.2126*sr[0] + 0.7152*sr[1] + 0.0722*sr[2]; }
+    function contrastRatio(bg, tx){ const L1=Math.max(bg,tx), L2=Math.min(bg,tx); return (L1+0.05)/(L2+0.05); }
+    function updateContrast(){
+      const bg = hexToRgb(document.getElementById('BackgroundColour').value);
+      const tx = hexToRgb(document.getElementById('TextColour').value);
+      const panel = document.getElementById('contrast-panel');
+      if(!panel || !bg || !tx){ return; }
+      const r = contrastRatio(relLum(bg), relLum(tx));
+      const ratioEl = document.getElementById('contrast-ratio'); if (ratioEl){ ratioEl.textContent = r.toFixed(2) + ':1'; }
+      const aa = document.getElementById('contrast-aa'); const aaa = document.getElementById('contrast-aaa');
+      if (aa){ aa.style.background = r >= 4.5 ? '#153a2b' : '#3a1514'; aa.style.borderColor = r >= 4.5 ? '#2a6a46' : '#5a1f1a'; }
+      if (aaa){ aaa.style.background = r >= 7 ? '#153a2b' : '#3a1514'; aaa.style.borderColor = r >= 7 ? '#2a6a46' : '#5a1f1a'; }
+    }
+    ['BackgroundColour','TextColour'].forEach(function(id){ const el=document.getElementById(id); if (el){ el.addEventListener('input', updateContrast); }});
+  updateContrast();
+  // Final scale pass once everything is set
+  setTimeout(scalePreview, 0);
+    const resetBtn = document.getElementById('reset-preview');
+    if (resetBtn){ resetBtn.addEventListener('click', function(){ window.location.reload(); }); }
+    // Font family selector -> hidden field binding
+  const ffSelect = document.getElementById('FontFamilySelect');
+  const ffHidden = document.getElementById('FontFamily');
+  function setFontHidden(val){ if (ffHidden){ ffHidden.value = val; } apply('FontFamily'); }
+  if (ffSelect){ ffSelect.addEventListener('change', function(){ setFontHidden(ffSelect.value); }); }
+
+    // Button style toggle: gradient vs solid
+    const bsGrad = document.getElementById('ButtonStyleGradient');
+    const bsSolid = document.getElementById('ButtonStyleSolid');
+    function applyButtonStyle(){
+      if (!root) return;
+      const isSolid = !!(bsSolid && bsSolid.checked);
+      if (isSolid){ root.classList.add('is-solid'); root.classList.remove('is-gradient'); }
+      else { root.classList.add('is-gradient'); root.classList.remove('is-solid'); }
+      // Show/hide Button 2 when solid vs gradient
+      const b2w = document.getElementById('ButtonColour2Wrap');
+      if (b2w){ b2w.style.display = isSolid ? 'none' : ''; }
+      scalePreview();
+    }
+  if (bsGrad) bsGrad.addEventListener('change', applyButtonStyle);
+  if (bsSolid) bsSolid.addEventListener('change', applyButtonStyle);
+  // Default to gradient selected on load
+  if (bsGrad && !bsGrad.checked && !(bsSolid && bsSolid.checked)) { bsGrad.checked = true; }
+  applyButtonStyle();
+
+    // Preview toggles
+  const tCover = document.getElementById('pv-banner');
+    const tProgress = document.getElementById('pv-progress');
+    const tUploads = document.getElementById('pv-uploads');
+    const coverWrap = document.getElementById('pv-cover-wrap');
+    const prog = document.getElementById('progress-container');
+    const uploadsWrap = document.getElementById('pv-uploads-wrap');
+    function applyToggles(){
+      if (coverWrap && tCover){
+        coverWrap.style.display = tCover.checked ? '' : 'none';
+        // Use the banner image as a blurred page background to simulate frosted backdrop
+        const src = document.getElementById('pv-cover-img')?.currentSrc;
+        if (tCover.checked && src){
+          root.style.setProperty('--bg-image', `url('${src}')`);
+          root.style.setProperty('--bg-size', 'cover');
+          root.style.setProperty('--bg-position', 'center');
+          // Add an overlay blur via filter on a pseudo element
+          root.style.setProperty('--bg-blur', '28px');
+          // Show only the blurred background copy (via ::before). Prevent the base element
+          // from also drawing the background image to keep the foreground banner crisp.
+          root.style.setProperty('background-image', 'none', 'important');
+        } else {
+          root.style.setProperty('--bg-image', 'none');
+          root.style.setProperty('--bg-blur', '0px');
+          // Remove the override so default styling can apply when no banner bg is used
+          root.style.removeProperty('background-image');
+        }
+      }
+      if (prog && tProgress){ prog.style.display = tProgress.checked ? '' : 'none'; }
+      if (uploadsWrap && tUploads){ uploadsWrap.style.display = tUploads.checked ? '' : 'none'; }
+  // no logo preview in admin themes
+      scalePreview();
+    }
+  [tCover, tProgress, tUploads].forEach(function(x){ if (x) x.addEventListener('change', applyToggles); });
+    applyToggles();
+    // Simulated progress animation
+    if (tProgress && prog){
+      tProgress.addEventListener('change', function(){
+        if (!tProgress.checked) return;
+        const fill = prog.querySelector('.progress-fill'); if (!fill) return;
+        let p = 0; fill.style.width = '0%';
+        const id = setInterval(function(){ p += 7; fill.style.width = Math.min(p,100) + '%'; if (p>=100){ clearInterval(id); } }, 200);
+      });
+    }
+  })();
+</script>
+{% endif %}
+{% endblock %}

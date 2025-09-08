@@ -1,0 +1,509 @@
+{% extends "base.html" %}
+
+{% block title %}Guest Upload - EPU{% endblock %}
+
+{% block extra_head %}
+    {{ super() }}
+    <link rel="stylesheet" href="{{ url_for('static', path='theme.css') }}?v={{ now() if now else '' }}">
+{% endblock %}
+{% block content %}
+{% set custom = event.eventcustomisation if event and event.eventcustomisation else None %}
+{% set theme = theme if theme else None %}
+{% set tv = {
+    'bg': (custom.BackgroundColour if custom and custom.BackgroundColour else (theme.BackgroundColour if theme else None)),
+    'text': (custom.TextColour if custom and custom.TextColour else (theme.TextColour if theme else None)),
+    'page_bg': '#0b0b10',
+    'btn1': (custom.ButtonColour1 if custom and custom.ButtonColour1 else (theme.ButtonColour1 if theme else None)),
+    'btn2': (custom.ButtonColour2 if custom and custom.ButtonColour2 else (theme.ButtonColour2 if theme else None)),
+    'accent': (custom.AccentColour if custom and custom.AccentColour else (theme.AccentColour if theme else None)),
+    'font': (custom.FontFamily if custom and custom.FontFamily else (theme.FontFamily if theme else None)),
+    'input_bg': (custom.InputBackgroundColour if custom and custom.InputBackgroundColour else (theme.InputBackgroundColour if theme else None)),
+    'dropzone_bg': (custom.DropzoneBackgroundColour if custom and custom.DropzoneBackgroundColour else (theme.DropzoneBackgroundColour if theme else None)),
+    'bg_img': custom.CoverPhotoPath if custom and custom.CoverPhotoPath else None
+} %}
+{% include "_theme_vars.html" %}
+<style>
+/* Use local section-only background and apply a frosted glass effect */
+.theme-root.section-bg-only { background-image: none !important; }
+/* Children above the frosted bg layer */
+#guest-theme .frost-wrap > * { position: relative; z-index: 1; }
+/* Frosted surface for the card (like modals) */
+#guest-theme .guest-card {
+    background: var(--card);
+    border: 1px solid var(--accent);
+}
+#guest-theme .guest-card::before { background: transparent; }
+/* Themed tile style for each upload thumb */
+#guest-theme .theme-tile {
+    padding: 6px;
+    border-radius: 10px;
+    background: var(--input-bg);
+    border: 1px solid var(--accent);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+    color: var(--card-text);
+}
+#guest-theme .theme-tile .name-fallback { color: var(--card-text); }
+</style>
+{% set hs = (custom.HeadingSize if custom and custom.HeadingSize else 'm') %}
+{% set cr = (custom.CornerRadius if custom and custom.CornerRadius else 'rounded') %}
+<div class="theme-root section-bg-only {{ 'is-solid' if custom and custom.ButtonStyle=='solid' else 'is-gradient' }}">
+<div id="guest-theme" class="container center" style="padding-top: 12px;">
+    <div class="frost-wrap" style="--bg-image: {% if tv.bg_img %}url('{{ tv.bg_img }}'){% else %}none{% endif %}; --bg-size: contain; --bg-position: center top; --bg-blur: 14px; max-width:860px;margin:0 auto; border-radius:12px;">
+    <div class="theme-card card guest-card rounded radius-{{ 'subtle' if cr=='subtle' else ('sharp' if cr=='sharp' else 'rounded') }} center">
+    {% if not event %}
+    <h2 class="login-title">Guest Upload</h2>
+    <div class="form-error">{{ error or 'Invalid event code.' }}</div>
+    {% else %}
+    <h2 id="guest-title" class="login-title heading-{{ hs }}" style="margin-bottom:6px; text-align:center;">{{ custom.WelcomeMessage if custom and custom.WelcomeMessage else 'Guest Upload' }}</h2>
+    <p id="guest-instructions" class="muted" style="color: var(--card-text); opacity:0.9; margin-top:0; text-align:center;">{{ custom.UploadInstructions if custom and custom.UploadInstructions else 'Welcome! Please upload your files for this event.' }}</p>
+        {% if custom and custom.CoverPhotoPath %}
+        <div style="margin-bottom: 16px; text-align: center;"><img src="{{ custom.CoverPhotoPath }}" alt="Event Banner" style="max-width: 100%; border-radius: 12px;"></div>
+        {% endif %}
+    <form id="guest-upload-form" class="form" method="post" enctype="multipart/form-data" novalidate>
+            <div class="floating-field" style="margin-top:8px;">
+                <label for="guest_email" class="fl-label">Your Email (optional)</label>
+                <input class="input-field" type="email" id="guest_email" name="guest_email">
+            </div>
+            <div class="floating-field" style="margin-top:8px;">
+                <label for="display_name" class="fl-label">Your Name (optional)</label>
+                <input class="input-field" type="text" id="display_name" name="display_name" maxlength="80" placeholder="How should we show your message?">
+            </div>
+            <!-- Moved message box above the file selector -->
+            <div class="floating-field" style="margin-top:10px;">
+                <label for="guest_message" class="fl-label">Leave a message (optional)</label>
+                <textarea class="input-field" id="guest_message" name="guest_message" rows="3" maxlength="300" placeholder="Say something to the host…"></textarea>
+                <div class="muted" style="text-align:right; margin-top:4px;"><small id="gm-counter">0/300</small></div>
+            </div>
+            <input type="hidden" id="device_type" name="device_type" value="Desktop">
+            <div style="margin: 6px 0 6px;">
+                <div class="muted" style="color: var(--card-text); opacity:0.9; margin-bottom:6px;">Select Photos/Videos</div>
+                <input type="file" id="file" name="files" multiple accept="image/*,video/*" style="display:none;" aria-hidden="true">
+                <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="File dropzone">
+                    <div class="dz-inner">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M12 3v12m0-12l-4 4m4-4l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M6 15v2a4 4 0 004 4h4a4 4 0 004-4v-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                        <div class="dz-text">
+                            <span class="dz-hint-dnd"><strong>Drag and drop</strong> photos or videos here</span>
+                            <span class="dz-hint-tap"><strong>Tap to select</strong> photos or videos</span>
+                            <br>
+                            <span class="muted small dz-browse-click">or click to browse</span>
+                            <span class="muted small dz-browse-tap">or tap to browse</span>
+                        </div>
+                    </div>
+                </div>
+                
+                
+            </div>
+            
+            <div class="upload-actions" aria-label="File selection and upload" style="margin-top:6px;">
+                <div class="btn-row">
+                    <span id="file-count" class="muted small"></span>
+                    <span id="file-hint" class="muted small" style="display:none; color: var(--card-text);">Select at least one file</span>
+                    <button type="button" id="clear-selection" class="btn sm" style="display:none;">Clear selection</button>
+                </div>
+                <div class="btn-row" style="margin-left:auto; align-items:center;">
+                    <label for="terms" id="terms-label" class="terms-inline">
+                        <input type="checkbox" id="terms" name="terms" class="checkbox-field" required>
+                        <span>I agree to the <a id="terms-link" href="#" title="View the full terms and conditions">terms and conditions</a></span>
+                    </label>
+                    <button id="upload-btn" type="submit" class="btn primary">Upload</button>
+                </div>
+            </div>
+            <div id="progress-container" style="display:none; margin:10px 0; width:100%;">
+                <div class="progress-bar"><div class="progress-fill" id="upload-fill" style="width:0%"></div></div>
+            </div>
+                        <div id="upload-success" style="display:none; font-family:'Inter', Arial, sans-serif; font-size:18px; text-align:center; margin:10px 0;">Upload successful!</div>
+                        <div id="upload-duplicates" class="muted" style="display:none; font-size:14px; text-align:center; margin:-6px 0 8px 0;">Some duplicates were skipped.</div>
+                        
+        </form>
+        <div id="uploads-empty-hint" class="muted small {{ '' if (not guest_files or guest_files|length == 0) else 'is-hidden' }}" style="margin-top:8px; text-align:center;">
+            You’ll see your photos here after upload.
+        </div>
+    </div>
+    <div class="section" id="your-uploads-section" style="padding-top:16px;">
+    <div id="your-uploads-card" class="theme-card card {{ 'is-hidden' if not guest_files or guest_files|length == 0 else '' }}">
+            <h3 style="margin:0 0 8px;">Your uploads</h3>
+            <div class="btn-row" style="margin-bottom:6px; align-items:center; justify-content:space-between;">
+                <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+                    <button class="btn sm" id="filter-all">All</button>
+                    <button class="btn sm" id="filter-images">Images</button>
+                    <button class="btn sm" id="filter-videos">Videos</button>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <label for="sort" class="muted" style="font-size: 13px;">Sort</label>
+                    <select id="sort" class="input-field" style="width:auto; padding:6px 8px; height:34px;">
+                        <option value="newest">Newest</option>
+                        <option value="oldest">Oldest</option>
+                        <option value="name_asc">Name A–Z</option>
+                        <option value="size_desc">Size (largest)</option>
+                        <option value="size_asc">Size (smallest)</option>
+                    </select>
+                    <span id="sel-count" class="muted">0 selected</span>
+                    <button id="bulk-remove" class="btn danger" disabled>Remove selected</button>
+                </div>
+            </div>
+            <div id="guest-files" class="grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
+                {% for f in guest_files %}
+                <div class="thumb selectable theme-tile" data-id="{{ f.id }}" data-type="{{ 'image' if f.type.startswith('image') else ('video' if f.type.startswith('video') else 'other') }}">
+                    <input type="checkbox" class="select" aria-label="Select" style="position:absolute; top:6px; left:6px; width:18px; height:18px;">
+                    {% if f.type.startswith('image') %}
+                        <img data-role="preview" src="{{ f.url }}" alt="{{ f.name }}" style="width:100%; height:100px; object-fit:cover; border-radius:6px; cursor:pointer;" loading="lazy">
+                    {% elif f.type.startswith('video') %}
+                        <video data-role="preview" src="{{ f.url }}" style="width:100%; height:100px; object-fit:cover; border-radius:6px; cursor:pointer;" muted preload="metadata"></video>
+                    {% else %}
+                        <div class="name-fallback" style="height:100px; display:flex; align-items:center; justify-content:center; font-size:12px; text-align:center; padding:6px;">{{ f.name }}</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {# Auto-load all; no Load more button #}
+    </div>
+    </div>
+        <script>
+        // Ensure button text contrast against primary color
+        (function(){
+            var root = document.querySelector('.theme-root');
+            if(!root) return;
+            var hex = getComputedStyle(root).getPropertyValue('--btn1').trim();
+            if(!hex) return;
+            hex = hex.replace('#','');
+            if(hex.length===3){ hex = hex.split('').map(function(c){return c+c;}).join(''); }
+            var r = parseInt(hex.substring(0,2),16) || 0;
+            var g = parseInt(hex.substring(2,4),16) || 0;
+            var b = parseInt(hex.substring(4,6),16) || 0;
+            var luma = 0.2126*r + 0.7152*g + 0.0722*b;
+            root.style.setProperty('--btn-text', luma > 140 ? '#111111' : '#ffffff');
+        })();
+
+        // Device type auto-detect
+        (function(){
+            var ua = navigator.userAgent;
+            var deviceType = 'Desktop';
+            if (/Mobi|Android/i.test(ua)) deviceType = 'Mobile';
+            else if (/Tablet|iPad/i.test(ua)) deviceType = 'Tablet';
+            var dt = document.getElementById('device_type'); if (dt) dt.value = deviceType;
+        })();
+
+    // File selection UX: dropzone + count (no filenames) using DataTransfer with array fallback
+        (function(){
+            var fileInput = document.getElementById('file');
+            var fileCount = document.getElementById('file-count');
+            var chooseBtn = document.getElementById('choose-files-btn');
+            var clearBtn = document.getElementById('clear-selection');
+            var dz = document.getElementById('dropzone');
+            var dt = (function(){ try { return new DataTransfer(); } catch(e){ return null; } })();
+            // fallback store of File objects that works in all browsers
+            var store = [];
+            window.__guestFiles = store;
+            // expose dt if present for compatibility
+            window.__guestDT = dt;
+
+            function isAccepted(file){
+                try {
+                    if (file && file.type && (file.type.startsWith('image/') || file.type.startsWith('video/'))) return true;
+                } catch(_){ }
+                try {
+                    var name = (file && file.name) ? file.name.toLowerCase() : '';
+                    var ex = name.split('.').pop();
+                    var ok = ['jpg','jpeg','png','gif','webp','heic','heif','bmp','tiff','tif','mp4','mov','m4v','avi','mkv','webm'];
+                    return ok.indexOf(ex) !== -1;
+                } catch(_){ }
+                return false;
+            }
+
+            function render(){
+                // Update input files and UI
+                if (dt){ try { fileInput.files = dt.files; } catch(e){} }
+                var n = store.length;
+                if (fileCount) fileCount.textContent = n === 0 ? '' : (n === 1 ? '1 item selected' : (n + ' items selected'));
+                if (clearBtn) clearBtn.style.display = n>0 ? '' : 'none';
+                try{ document.dispatchEvent(new CustomEvent('epu-selection-change', { detail: { count: n } })); }catch(e){}
+                // keep global in sync
+                window.__guestDT = dt; window.__guestFiles = store;
+            }
+
+            function addFiles(list){
+                if (!list) return;
+                try {
+                    for (const f of list){
+                        if (!isAccepted(f)) continue;
+                        store.push(f);
+                        if (dt) dt.items.add(f);
+                    }
+                } catch(_){ }
+                render();
+            }
+
+            function removeIndex(idx){
+                // not used without chips; keep for completeness
+                if (idx<0 || idx>=store.length) return;
+                store.splice(idx,1);
+                if (dt){ var ndt = (function(){ try { return new DataTransfer(); } catch(e){ return null; } })(); if (ndt){ for (let i=0;i<store.length;i++){ ndt.items.add(store[i]); } dt = ndt; } }
+                window.__guestDT = dt; window.__guestFiles = store; render();
+            }
+
+            if (chooseBtn && fileInput){ chooseBtn.addEventListener('click', function(){ fileInput.click(); }); }
+            if (clearBtn){ clearBtn.addEventListener('click', function(){ store.splice(0, store.length); if (dt){ try { dt = new DataTransfer(); } catch(e){ dt = null; } } window.__guestDT = dt; window.__guestFiles = store; render(); }); }
+            if (fileInput){ fileInput.addEventListener('change', function(){ addFiles(fileInput.files); fileInput.value=''; }); }
+
+            if (dz){
+                function setDrag(on){ dz.classList.toggle('is-drag', !!on); }
+                dz.addEventListener('click', function(){ fileInput.click(); });
+                dz.addEventListener('keydown', function(e){ if (e.key==='Enter' || e.key===' '){ e.preventDefault(); fileInput.click(); }});
+                dz.addEventListener('dragover', function(e){ e.preventDefault(); setDrag(true); });
+                dz.addEventListener('dragenter', function(e){ e.preventDefault(); setDrag(true); });
+                dz.addEventListener('dragleave', function(e){ setDrag(false); });
+                dz.addEventListener('drop', function(e){ e.preventDefault(); setDrag(false); addFiles(e.dataTransfer && e.dataTransfer.files); });
+            }
+
+            // initial render
+            render();
+        })();
+
+        // Gate the Upload button behind terms checkbox and having a selection
+        (function(){
+            var terms = document.getElementById('terms');
+            var uploadBtn = document.getElementById('upload-btn');
+            var count = 0;
+            function apply(){ if (uploadBtn) uploadBtn.disabled = !(terms && terms.checked && count>0); }
+            if (terms){ terms.addEventListener('change', apply); }
+            document.addEventListener('epu-selection-change', function(e){ count = (e && e.detail && e.detail.count) || 0; apply(); });
+            apply();
+        })();
+
+        // Message counter
+        (function(){
+            var gm = document.getElementById('guest_message');
+            var ctr = document.getElementById('gm-counter');
+            if (!gm || !ctr) return;
+            function sync(){ var n = (gm.value||'').length; ctr.textContent = n + '/300'; }
+            gm.addEventListener('input', sync); sync();
+        })();
+
+        // Terms modal logic via shared modal
+        (function(){
+            var termsLink = document.getElementById('terms-link');
+            var termsCb = document.getElementById('terms');
+            async function openSharedModal(){
+                try {
+                    const res = await fetch('/terms/embed', { headers: { 'X-Requested-With':'fetch' } });
+                    const html = await res.text();
+                    const body = '<div style="height:65vh; overflow:auto; padding:12px 16px;">'+ html +'</div>' +
+                                 '<div class="btn-row" style="justify-content:flex-end; margin-top:8px;">' +
+                                 '  <a href="/terms" target="_blank" class="btn" style="margin-right:auto;">Open full page</a>' +
+                                 '</div>';
+                    if (window.EPU && window.EPU.modal){
+                        window.EPU.modal.show({
+                            title: 'Terms and Conditions',
+                            body: body,
+                            fit: true,
+                            actions: [
+                                { label: 'Cancel', role: 'cancel' },
+                                { label: 'I Agree', onClick: function(h){ if (termsCb) termsCb.checked = true; h(); } }
+                            ]
+                        });
+                    }
+                } catch (e) {
+                    if (window.EPU && window.EPU.modal){
+                        window.EPU.modal.show({ title: 'Terms and Conditions', body: '<p class="muted">Could not load terms. Please open the full page: <a href="/terms" target="_blank">/terms</a></p>', actions: [{ label:'Close', role:'cancel' }], fit: true });
+                    }
+                }
+            }
+            if (termsLink){ termsLink.addEventListener('click', function(e){ e.preventDefault(); openSharedModal(); }); }
+        })();
+
+        // Upload progress form handler + auto-refresh list
+        (function(){
+            var form = document.getElementById('guest-upload-form'); if (!form) return;
+            var fill = document.getElementById('upload-fill');
+            var container = document.getElementById('progress-container');
+            var success = document.getElementById('upload-success');
+            var uploadBtn = document.getElementById('upload-btn');
+            var terms = document.getElementById('terms');
+            form.addEventListener('submit', function(e){
+                e.preventDefault();
+                // guard: require terms + at least one file
+                var filesList = (Array.isArray(window.__guestFiles) ? window.__guestFiles : null);
+                if ((!filesList || filesList.length===0) && document.getElementById('file') && document.getElementById('file').files){ filesList = Array.from(document.getElementById('file').files); }
+                if (!terms || !terms.checked || !filesList || filesList.length === 0){
+                    // subtle feedback so the user knows why
+                    if (uploadBtn){ uploadBtn.classList.add('shake'); setTimeout(function(){ uploadBtn.classList.remove('shake'); }, 350); }
+                    var fh = document.getElementById('file-hint'); if (fh){ fh.style.display = (!filesList || filesList.length===0) ? '' : 'none'; setTimeout(function(){ fh.style.display='none'; }, 2000); }
+                    if (terms && !terms.checked){
+                        var lbl = document.getElementById('terms-label'); if (lbl){ lbl.style.transition='outline-color .2s'; lbl.style.outline='2px solid var(--accent)'; setTimeout(function(){ lbl.style.outline=''; }, 700); }
+                    }
+                    return;
+                }
+                container.style.display = 'block'; success.style.display = 'none'; if (fill) fill.style.width = '0%';
+                if (uploadBtn) uploadBtn.disabled = true;
+                var xhr = new XMLHttpRequest(); xhr.open('POST', window.location.pathname);
+                xhr.upload.onprogress = function(e){ if (e.lengthComputable){ var p = Math.round((e.loaded / e.total) * 100); if (fill) fill.style.width = p + '%'; } };
+                xhr.onload = function(){
+                    if (xhr.status === 200){
+                        success.style.display = 'block'; if (fill) fill.style.width = '100%';
+                        var skipped = parseInt(xhr.getResponseHeader('X-Duplicates-Skipped') || '0');
+                        var dupEl = document.getElementById('upload-duplicates');
+                        if (dupEl){ dupEl.textContent = skipped>0 ? (skipped===1?'1 duplicate was skipped.':(skipped+' duplicates were skipped.')) : ''; dupEl.style.display = skipped>0 ? 'block' : 'none'; }
+                        // Refresh first page of grid so uploads appear immediately
+                        try { refreshGrid(1); } catch(e){}
+                        // Clear selection UI after successful upload
+                        try {
+                            var clearBtn = document.getElementById('clear-selection');
+                            if (clearBtn) clearBtn.click();
+                        } catch(e){}
+                    } else if (xhr.status === 400 || xhr.status === 403){
+                        var card = document.querySelector('.guest-card'); var div = document.createElement('div'); div.className='form-error';
+                        var txt = (xhr.responseText || '').toString(); div.innerHTML = txt.includes('upgrade your plan') ? 'Limit reached. Please <a href="/pricing">choose a package</a>.' : 'Upload blocked.';
+                        card.insertBefore(div, card.firstChild.nextSibling);
+                    }
+                    setTimeout(function(){ container.style.display='none'; }, 800);
+                    if (uploadBtn) uploadBtn.disabled = false;
+                };
+                var fd = new FormData(form);
+                // Ensure text fields are included explicitly
+                try {
+                    var gm = document.getElementById('guest_message');
+                    if (gm) fd.set('guest_message', gm.value || '');
+                    var dn = document.getElementById('display_name');
+                    if (dn) fd.set('display_name', dn.value || '');
+                    var ge = document.getElementById('guest_email');
+                    if (ge) fd.set('guest_email', ge.value || '');
+                } catch(_){}
+                // Append files explicitly from our store
+                try { for (var i=0;i<filesList.length;i++){ fd.append('files', filesList[i]); } } catch(_){}
+                xhr.send(fd);
+            });
+        })();
+
+        // Grid interactions: delete (with undo), preview, pagination, filters
+        (function(){
+            var grid = document.getElementById('guest-files'); if (!grid) return;
+            var btnMore = null; // removed button
+            var bulkBtn = document.getElementById('bulk-remove');
+            var selCount = document.getElementById('sel-count');
+            var currentFilter = 'all'; var currentSort = 'newest'; var page = 1; var selected = new Set();
+
+            function addItem(f){
+                var div = document.createElement('div');
+                div.className='thumb selectable theme-tile'; div.setAttribute('data-id', f.id); div.setAttribute('data-type', (f.type||'').startsWith('image')?'image':((f.type||'').startsWith('video')?'video':'other'));
+                var sel = document.createElement('input'); sel.type='checkbox'; sel.className='select'; sel.setAttribute('aria-label','Select'); sel.style.cssText='position:absolute; top:6px; left:6px; width:18px; height:18px;';
+                var media;
+                if ((f.type||'').startsWith('image')){ media = document.createElement('img'); media.src=f.url; media.alt=f.name; media.loading='lazy'; media.setAttribute('data-role','preview'); media.style.cssText='width:100%; height:100px; object-fit:cover; border-radius:6px; cursor:pointer;'; }
+                else if ((f.type||'').startsWith('video')){ media = document.createElement('video'); media.src=f.url; media.muted=true; media.preload='metadata'; media.setAttribute('data-role','preview'); media.style.cssText='width:100%; height:100px; object-fit:cover; border-radius:6px; cursor:pointer;'; }
+                else { media = document.createElement('div'); media.className='name-fallback'; media.textContent=f.name; media.style.cssText='height:100px; display:flex; align-items:center; justify-content:center; font-size:12px; text-align:center; padding:6px;'; }
+                div.appendChild(sel); div.appendChild(media); grid.appendChild(div);
+            }
+
+            function updateBulkState(){
+                if (selCount) selCount.textContent = selected.size + ' selected';
+                if (bulkBtn) bulkBtn.disabled = selected.size === 0;
+            }
+
+            // Selection handling
+            grid.addEventListener('change', function(ev){
+                var cb = ev.target.closest('input.select'); if (!cb) return; var item = cb.closest('[data-id]'); if (!item) return; var id = item.getAttribute('data-id');
+                if (cb.checked){ selected.add(id); item.style.outline = '2px solid var(--accent)'; }
+                else { selected.delete(id); item.style.outline = ''; }
+                updateBulkState();
+            });
+
+            // Bulk delete
+            if (bulkBtn){
+                bulkBtn.addEventListener('click', function(){
+                    if (selected.size === 0) return;
+                    if (!(window.EPU && window.EPU.modal)) return;
+                    window.EPU.modal.show({
+                        title: 'Remove selected?',
+                        body: 'This will remove '+selected.size+' file(s) from this event.',
+                        actions: [
+                            { label: 'Cancel', role: 'cancel' },
+                            { label: 'Remove', danger: true, onClick: async function(hide){
+                                try{
+                                    const ids = Array.from(selected);
+                                    for (const id of ids){
+                                        const fd = new FormData(); fd.append('file_id', id);
+                                        await fetch(window.location.pathname + '/delete', { method:'POST', body: fd });
+                                        const node = grid.querySelector('[data-id="'+id+'"]'); if (node) node.remove();
+                                    }
+                                    selected.clear(); updateBulkState();
+                                    if (window.EPU && window.EPU.snackbar){ window.EPU.snackbar.show('Removed ' + ids.length + ' item(s).'); }
+                                } finally { hide(); }
+                            } }
+                        ]
+                    });
+                });
+            }
+
+            // Preview on click
+            grid.addEventListener('click', function(ev){
+                var media = ev.target.closest('[data-role="preview"]'); if (!media || !(window.EPU && window.EPU.modal)) return;
+                var isVideo = media.tagName.toLowerCase()==='video';
+                var body = isVideo ? '<div class="preview-body"><video src="'+media.currentSrc+'" controls style="max-width:90vw; max-height:80vh; display:block;"></video></div>' : '<div class="preview-body"><img src="'+media.currentSrc+'" alt="Preview" style="max-width:90vw; max-height:80vh; display:block;" /></div>';
+                window.EPU.modal.show({ title:'Preview', body: body, actions: [{ label:'Close', role:'cancel' }], fit: true });
+            });
+
+            // Filters and pagination
+            function applyFilter(type){ currentFilter = type; const items = Array.from(document.querySelectorAll('#guest-files [data-type]')); items.forEach(function(el){ if (type==='all') el.style.display=''; else el.style.display = (el.getAttribute('data-type')===type) ? '' : 'none'; }); }
+            var fa = document.getElementById('filter-all'); var fi = document.getElementById('filter-images'); var fv = document.getElementById('filter-videos');
+            function bind(btn, type){ if (!btn) return; btn.addEventListener('click', function(e){ e.preventDefault(); applyFilter(type); refreshGrid(1); }); }
+            bind(fa, 'all'); bind(fi, 'image'); bind(fv, 'video');
+
+            var sortSel = document.getElementById('sort');
+            if (sortSel){ sortSel.addEventListener('change', function(){ currentSort = sortSel.value || 'newest'; refreshGrid(1); }); }
+
+            // Auto-load all remaining pages
+            (async function autoLoadAll(){
+                try{
+                    let keep=true;
+                    while(keep){
+                        page += 1;
+                        const url = window.location.pathname + '/list?page=' + page + (currentFilter==='all'?'':('&type='+currentFilter)) + '&sort=' + encodeURIComponent(currentSort);
+                        const res = await fetch(url);
+                        const j = await res.json();
+                        if (j && j.ok && Array.isArray(j.items) && j.items.length){ j.items.forEach(addItem); }
+                        keep = !!(j && j.has_more);
+                        if (!keep) break;
+                    }
+                } catch(_){}
+            })();
+
+            // Refresh helper used after upload
+            window.refreshGrid = async function(pageNum){
+                try{
+                    page = pageNum || 1; const url = window.location.pathname + '/list?page=' + page + (currentFilter==='all'?'':('&type='+currentFilter)) + '&sort=' + encodeURIComponent(currentSort);
+                    const res = await fetch(url); const j = await res.json();
+                    if (j && j.ok && Array.isArray(j.items)){
+                        grid.innerHTML = ''; j.items.forEach(addItem);
+                        // no button; nothing to toggle
+                        // Show/hide the card depending on whether there are any items
+                        var card = document.getElementById('your-uploads-card');
+                        if (card){ if (j.items.length > 0) { card.classList.remove('is-hidden'); } else { card.classList.add('is-hidden'); } }
+                        var hint = document.getElementById('uploads-empty-hint');
+                        if (hint){ if (j.items.length > 0) { hint.classList.add('is-hidden'); } else { hint.classList.remove('is-hidden'); } }
+                        selected.clear(); updateBulkState();
+                    }
+                } catch(e){}
+            };
+        })();
+
+        /* minimal shake animation for feedback */
+(function(){
+  try{
+    var css = document.createElement('style');
+    css.type = 'text/css';
+    css.textContent = '.shake{animation:shake-epu .28s linear;}@keyframes shake-epu{0%{transform:translateX(0)}25%{transform:translateX(-3px)}50%{transform:translateX(3px)}75%{transform:translateX(-2px)}100%{transform:translateX(0)}}';
+    document.head.appendChild(css);
+  }catch(_){ }
+})();
+        </script>
+    {% endif %}
+    </div>
+    </div>
+</div>
+{% endblock %}
+

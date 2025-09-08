@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Admin · Theme Audit - EPU{% endblock %}
+
+{% block breadcrumbs %}
+<div class="container section" style="padding-bottom:0;">
+  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
+    <a href="/admin" class="crumb">Admin</a>
+    <span class="sep" aria-hidden="true">›</span>
+    <a href="/admin/themes" class="crumb">Themes</a>
+    <span class="sep" aria-hidden="true">›</span>
+    <span class="crumb current">Audit</span>
+  </nav>
+  </div>
+{% endblock %}
+{% block content %}
+<div class="container center section">
+  <div class="page-hero center">
+    <h1 class="hero-title">Theme Audit</h1>
+    <p class="hero-sub">Review changes to themes with filters and pagination.</p>
+    <div class="btn-row" style="margin-top:8px;">
+      <a class="btn" href="/admin/themes">Themes</a>
+      <a class="btn primary" href="/admin/themes/audit">Audit</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <form method="get" action="/admin/themes/audit" class="form">
+      <div class="grid" style="grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap:12px;">
+        <div class="floating-field">
+          <label class="fl-label" for="theme_id">Theme</label>
+          <select class="input-field" id="theme_id" name="theme_id">
+            <option value="">All</option>
+            {% for t in themes %}
+              <option value="{{ t.ThemeID }}" {% if filters.theme_id and filters.theme_id == t.ThemeID %}selected{% endif %}>{{ t.Name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="floating-field">
+          <label class="fl-label" for="admin_user_id">Admin User ID</label>
+          <input class="input-field" id="admin_user_id" name="admin_user_id" value="{{ filters.admin_user_id or '' }}" placeholder="UserID">
+        </div>
+        <div class="floating-field">
+          <label class="fl-label" for="q">Contains</label>
+          <input class="input-field" id="q" name="q" value="{{ filters.q or '' }}" placeholder="Text in theme name or changes">
+        </div>
+        <div class="floating-field">
+          <label class="fl-label" for="since">Since</label>
+          <input class="input-field" id="since" name="since" value="{{ filters.since or '' }}" placeholder="YYYY-MM-DD">
+        </div>
+        <div class="floating-field">
+          <label class="fl-label" for="until">Until</label>
+          <input class="input-field" id="until" name="until" value="{{ filters.until or '' }}" placeholder="YYYY-MM-DD">
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="btn primary" type="submit">Apply</button>
+        <a class="btn" href="/admin/themes/audit">Reset</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="btn-row" style="justify-content:space-between; margin-bottom:8px;">
+      <div>
+        <strong>{{ total }}</strong> changes
+      </div>
+      <div class="btn-row">
+        {% if page > 1 %}
+          <a class="btn" href="/admin/themes/audit?page={{ page-1 }}&page_size={{ page_size }}&theme_id={{ filters.theme_id or '' }}&admin_user_id={{ filters.admin_user_id or '' }}&q={{ filters.q or '' }}&since={{ filters.since or '' }}&until={{ filters.until or '' }}">Prev</a>
+        {% endif %}
+        <span class="badge">Page {{ page }} / {{ max_page }}</span>
+        {% if page < max_page %}
+          <a class="btn" href="/admin/themes/audit?page={{ page+1 }}&page_size={{ page_size }}&theme_id={{ filters.theme_id or '' }}&admin_user_id={{ filters.admin_user_id or '' }}&q={{ filters.q or '' }}&since={{ filters.since or '' }}&until={{ filters.until or '' }}">Next</a>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if results|length == 0 %}
+      <div class="muted">No audit entries match your filters.</div>
+    {% else %}
+      <div class="grid" style="grid-template-columns: 1fr; gap:10px;">
+        {% for row in results %}
+          {% set ta = row.audit %}
+          {% set t = row.theme %}
+          {% set u = row.user %}
+          <div class="theme-card card rounded" style="background: var(--card); color: var(--card-text);">
+            <div class="btn-row" style="justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <div>
+                <strong>{{ t.Name if t else 'Unknown Theme' }}</strong>
+                <span class="badge">#{{ ta.AuditID }}</span>
+                <span class="badge">Theme #{{ ta.ThemeID }}</span>
+              </div>
+              <div class="muted">
+                {{ ta.ChangedAt|dtfmt }} • by {{ (u.UserID ~ ' / ' ~ u.Email) if u else 'Unknown' }} • {{ ta.ClientIP or '' }}
+              </div>
+            </div>
+            {% if row.changes_count == 0 %}
+              <div class="muted">No recorded field changes.</div>
+            {% else %}
+              <div class="grid" style="grid-template-columns: repeat(3, 1fr); gap:8px;">
+                {% for c in row.changes %}
+                  <div class="card" style="background: rgba(0,0,0,0.08);">
+                    <div style="font-weight:600; margin-bottom:6px;">{{ c.key }}</div>
+                    <div class="muted" style="font-size:12px;">from</div>
+                    <div style="word-break:break-all;">{{ c.from if c.from is not none else '∅' }}</div>
+                    <div class="muted" style="font-size:12px; margin-top:6px;">to</div>
+                    <div style="word-break:break-all;">{{ c.to if c.to is not none else '∅' }}</div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
