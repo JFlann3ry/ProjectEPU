@@ -3,13 +3,13 @@
 {% block title %}Event Photo Upload — Effortless event galleries{% endblock %}
 
 {% block content %}
-<section class="page-hero center">
+{% from 'components/macros.html' import page_hero %}
+<section class="section">
     <div class="container center">
         <div class="card" style="padding:28px;">
             <div class="grid grid-2" style="align-items:center;">
                 <div>
-                    <h1 class="hero-title">Collect event photos in minutes</h1>
-                    <p class="hero-sub">EPU makes it easy to collect, review, and share guest photos and videos from any event. No apps. No friction.</p>
+                    {{ page_hero('Collect event photos in minutes', 'EPU makes it easy to collect, review, and share guest photos and videos from any event. No apps. No friction.') }}
                     <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
                         {% if request.cookies.get('session_id') %}
                             <a class="btn primary" href="/events/create">Create an event</a>

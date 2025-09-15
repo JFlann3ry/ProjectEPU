@@ -42,6 +42,7 @@ logs/
 # User uploads and generated media
 storage/
 static/uploads/
+app/storage/
 
 # Certificates/keys (just in case any end up in repo)
 **/*.pem

@@ -3,12 +3,13 @@ from sqlalchemy.orm import Session
 from app.models.addons import AddonCatalog
 from db import SessionLocal
 
+# Seed entries for Extras (previously called add-ons)
 ADDONS = [
     {
-        "Code": "extra_event",
-        "Name": "Additional Event",
-        "Description": "Add one more event to your account",
-        "PriceCents": 1500,
+    "Code": "additional_event",
+    "Name": "Additional Event",
+    "Description": "Add one more event to your account",
+    "PriceCents": 2000,
         "Currency": "gbp",
         "AllowQuantity": True,
         "MinQuantity": 1,
@@ -66,6 +67,6 @@ if __name__ == "__main__":
     try:
         for a in ADDONS:
             upsert_addon(db, a)
-        print("Seeded addons: ", ", ".join([a["Code"] for a in ADDONS]))
+        print("Seeded extras:", ", ".join([a["Code"] for a in ADDONS]))
     finally:
         db.close()

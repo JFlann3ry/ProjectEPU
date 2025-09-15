@@ -1,3 +1,4 @@
+
 # ruff: noqa: I001
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
@@ -19,6 +20,17 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 SECRET_KEY = settings.SECRET_KEY
 serializer = URLSafeTimedSerializer(SECRET_KEY)
+
+def generate_password_reset_token(email: str) -> str:
+    token = serializer.dumps(email, salt="password-reset")
+    return str(token)
+
+def verify_password_reset_token(token: str, max_age=3600*24) -> Optional[str]:
+    try:
+        email = serializer.loads(token, salt="password-reset", max_age=max_age)
+        return str(email)
+    except Exception:
+        return None
 
 # Password hashing
 

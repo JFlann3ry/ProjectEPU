@@ -1,22 +1,17 @@
 {% extends "base.html" %}
+{% from "components/macros.html" import page_hero %}
 
 {% block title %}Edit Profile - EPU{% endblock %}
 
 {% block breadcrumbs %}
 <div class="container section profile-page center" style="padding-bottom:0;">
-    <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
-        <a href="/profile" class="crumb">Profile</a>
-        <span class="sep" aria-hidden="true">›</span>
-    <span class="crumb current" aria-current="page">Edit</span>
-    </nav>
+    {% from 'components/macros.html' import breadcrumbs %}
+    {{ breadcrumbs([{'label':'Profile','href':'/profile'}], 'Edit') }}
     </div>
 {% endblock %}
 {% block content %}
 <div class="container section profile-page center">
-    <div class="page-hero center">
-        <h1 class="hero-title">Edit Profile</h1>
-        <p class="hero-sub">Update your details, manage emails, and export your data.</p>
-    </div>
+    {{ page_hero('Edit Profile', 'Update your details, manage emails, and export your data.', True) }}
 
     <style>
         /* Consistent card inner width and alignment */
@@ -31,12 +26,13 @@
         .form .floating-field { margin-bottom: 10px; }
     </style>
 
-    {% if error %}
-    <div class="notice error" style="max-width:800px;margin:0 auto 12px;">{{ error }}</div>
-    {% endif %}
-    {% if message %}
-    <div class="notice success" style="max-width:800px;margin:0 auto 12px;">{{ message }}</div>
-    {% endif %}
+        {% from 'components/macros.html' import notice, btn_row %}
+        {% if error %}
+            {{ notice(error, kind='error', attrs='style="max-width:800px;margin:0 auto 12px;"') }}
+        {% endif %}
+        {% if message %}
+            {{ notice(message, kind='success', attrs='style="max-width:800px;margin:0 auto 12px;"') }}
+        {% endif %}
 
     <!-- Profile details -->
     <div class="card" style="max-width:800px;margin:0 auto 16px;">
@@ -69,10 +65,10 @@
                     <label for="email" class="fl-label">Email</label>
                     <input class="input-field" type="email" id="email" value="{{ user.Email }}" autocomplete="email" readonly disabled title="Email cannot be changed">
                 </div>
-                <div class="btn-row" style="margin-top:12px;">
+                {% call btn_row('style="margin-top:12px;"') %}
                     <button type="submit" class="btn primary">Save changes</button>
                     <a class="btn" href="/profile/password">Change password</a>
-                </div>
+                {% endcall %}
             </form>
         </div>
     </div>

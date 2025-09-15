@@ -4,18 +4,16 @@
 
 {% block content %}
 <div class="container section center">
-  <div class="page-hero center">
-    <h1 class="hero-title">Contact Support</h1>
-    <p class="hero-sub">We usually respond within 1 business day.</p>
-  </div>
+  {% from 'components/macros.html' import page_hero, notice %}
+  {{ page_hero('Contact Support', 'We usually respond within 1 business day.') }}
   {% if error %}
-  <div class="notice error">{{ error }}</div>
+    {{ notice(error, 'error') }}
   {% endif %}
   {% if request_id %}
-  <div class="notice info" style="text-align:left; max-width:620px; margin: 0 auto 12px;">
-    We detected a recent error on your request. Including this ID helps us debug faster:
-    <div class="muted" style="margin-top:4px;">Request ID: <code>{{ request_id }}</code></div>
-  </div>
+    {% call notice('', 'warn', 'style="text-align:left; max-width:620px; margin: 0 auto 12px;"') %}
+      We detected a recent error on your request. This is already included in your message.
+      <div class="muted" style="margin-top:4px;">Request ID: <code>{{ request_id }}</code></div>
+    {% endcall %}
   {% endif %}
   <form class="card form center" method="post" style="max-width:620px;">
       <div class="floating-field">

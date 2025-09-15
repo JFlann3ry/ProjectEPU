@@ -1,7 +1,7 @@
 import io
 import os
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, Query, Request
@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.core.settings import settings
 from app.core.templates import templates
+from app.models.album import Album, AlbumPhoto
 from app.models.event import Event, FavoriteFile, FileMetadata
 from app.services.auth import require_user
 from app.services.csrf import validate_csrf_token
@@ -86,6 +87,7 @@ def _build_gallery_files(
     favorites_only: bool = False,
     limit: int | None = None,
     offset: int | None = None,
+    album_id: int | None = None,
 ) -> tuple[list[dict], bool]:
 
     # Scope to user (and optionally an event)
@@ -112,6 +114,33 @@ def _build_gallery_files(
         except Exception:
             has_del_at = False
     q = db.query(*select_cols).filter(FileMetadata.EventID.in_(event_ids))
+    # If album_id provided, restrict to files belonging to that album
+    if album_id is not None:
+        try:
+            # Ensure album belongs to one of the scoped events
+            alb = db.query(Album).filter(Album.AlbumID == album_id).first()
+            a_eid = None
+            if alb is not None:
+                raw_eid = getattr(alb, "EventID", None)
+                try:
+                    a_eid = int(raw_eid) if raw_eid is not None else None
+                except Exception:
+                    a_eid = None
+            if not alb or a_eid not in event_ids:
+                return [], False
+            # Get FileIDs for album
+            rows_fp = db.query(AlbumPhoto.FileID).filter(AlbumPhoto.AlbumID == album_id).all()
+            file_ids = set()
+            for r in rows_fp or []:
+                try:
+                    file_ids.add(int(r[0]))
+                except Exception:
+                    continue
+            if not file_ids:
+                return [], False
+            q = q.filter(FileMetadata.FileMetadataID.in_(file_ids))
+        except Exception:
+            return [], False
     # Deleted filter: when show_deleted is true, ONLY show deleted files; otherwise only non-deleted
     if show_deleted:
         q = q.filter(FileMetadata.Deleted)
@@ -206,7 +235,7 @@ def _build_gallery_files(
         if deleted_flag:
             if has_del_at and deleted_at is not None:
                 try:
-                    delta_days = (datetime.utcnow() - deleted_at).days
+                    delta_days = (datetime.now(timezone.utc) - deleted_at).days
                     days_left = max(0, 30 - max(0, delta_days))
                 except Exception:
                     days_left = None
@@ -257,6 +286,7 @@ async def user_gallery(
     type: str | None = Query(None),
     show_deleted: bool = Query(False),
     favorites: bool = Query(False),
+    album_id: int | None = Query(None),
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
@@ -373,8 +403,9 @@ async def user_gallery(
         type_filter=type,
         show_deleted=show_deleted,
         favorites_only=favorites,
-        limit=PAGE_SIZE,
+    limit=PAGE_SIZE,
         offset=0,
+    album_id=album_id,
     )
     return templates.TemplateResponse(
         request,
@@ -405,6 +436,7 @@ async def gallery_data(
     type: str | None = Query(None),
     show_deleted: bool = Query(False),
     favorites: bool = Query(False),
+    album_id: int | None = Query(None),
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
@@ -434,8 +466,9 @@ async def gallery_data(
         type_filter=type,
         show_deleted=show_deleted,
         favorites_only=favorites,
-        limit=limit,
-        offset=offset,
+    limit=limit,
+    offset=offset,
+    album_id=album_id,
     )
     next_offset = (offset + len(files)) if has_more else None
     return JSONResponse({"ok": True, "files": files, "next_offset": next_offset})
@@ -632,11 +665,14 @@ async def gallery_delete(
         try:
             # Set soft-delete timestamp if not already set
             if has_del_at and getattr(f, "DeletedAt", None) is None:
-                setattr(
-                    f,
-                    "DeletedAt",
-                    datetime.utcnow(),
-                )
+                try:
+                    setattr(
+                        f,
+                        "DeletedAt",
+                        datetime.now(timezone.utc),
+                    )
+                except Exception:
+                    pass
         except Exception:
             pass
     if files:

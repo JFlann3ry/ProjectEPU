@@ -7,40 +7,26 @@
 
 {% block breadcrumbs %}
 <div class="breadcrumbs-container section" style="padding-bottom:0;">
-    {% if event %}
-    <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
-        <a href="/events" class="crumb">My Events</a>
-        <span class="sep" aria-hidden="true">›</span>
-    <span class="crumb current" aria-current="page">{{ event.Name or 'Event' }}</span>
-    </nav>
-    {% else %}
-    <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
-        <a href="/events" class="crumb">My Events</a>
-        <span class="sep" aria-hidden="true">›</span>
-    <span class="crumb current" aria-current="page">Event Details</span>
-    </nav>
-    {% endif %}
-</div>
+        {% from 'components/macros.html' import breadcrumbs %}
+        {{ breadcrumbs([{ 'label': 'My Events', 'href': '/events' }], (event.Name if event else 'Event Details')) }}
+    </div>
 {% endblock %}
 {% block content %}
 <div class="container section center event-details">
-    <div class="page-hero" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-                <div>
-                        <h1 class="hero-title">Event Details</h1>
-                        <p class="hero-sub">Manage your event, guest access, and sharing options.</p>
-                </div>
-        </div>
+        {% from 'components/macros.html' import page_hero, notice %}
+    {{ page_hero('Event Details', 'Manage your event, guest access, and sharing options.') }}
         {% if event %}
             {% if event.IsDateLocked or event.Published %}
-                <div class="notice error" style="margin: 8px 0 16px 0;">
-                        This event date is finalised and cannot be changed. {% if event.DateLockedAt %}Locked at: <span class="p-bold">{{ event.DateLockedAt|dtfmt }}</span>{% endif %}
-                </div>
+                                {% call notice(kind='error', attrs='style="margin: 8px 0 16px 0;"') %}
+                                        This event date is finalised and cannot be changed.
+                                        {% if event.DateLockedAt %} Locked at: <span class="p-bold">{{ event.DateLockedAt|dtfmt }}</span>{% endif %}
+                                {% endcall %}
             {% endif %}
             {% set etname = (event.EventTypeName or '') %}
             {% set etkey = etname|lower %}
         {% set etmap = {
-            'wedding':'💍', 'birthday':'🎂', 'party':'🎉', 'corporate':'🏢', 'conference':'🎤', 'sports':'🏟️',
-            'holiday':'🎄', 'baby shower':'🍼', 'graduation':'🎓', 'concert':'🎵', 'festival':'🎪', 'engagement':'💞', 'funeral':'🕊️'
+            'wedding':'💍', 'birthday':'🎂', 'party':'🥳', 'corporate':'💼', 'conference':'🗣️', 'sports':'🏟️',
+            'holiday':'🎄', 'baby shower':'🤱', 'graduation':'🎓', 'concert':'�', 'festival':'🎪', 'engagement':'💞', 'funeral':'🕊️'
         } %}
             {% set etemoji = etmap.get(etkey, '📷') %}
             {% set etimgmap = {
@@ -66,7 +52,7 @@
                                 </div>
                             </div>
                             <div class="title-right" style="position:relative; display:flex; align-items:center; gap:8px; margin-left:auto; padding-right:0; width:auto;">
-                                <button class="btn ghost share-btn" type="button" data-event-id="{{ event.EventID }}" data-code="{{ event.Code }}" data-published="{{ 1 if event.Published else 0 }}" data-title="{{ event.Name }}" title="Share options" style="position:absolute; top:6px; right:6px; bottom:6px; display:flex; align-items:center;">
+                                <button class="btn ghost share-btn" type="button" data-event-id="{{ event.EventID }}" data-code="{{ event.Code }}" data-published="{{ 1 if event.Published else 0 }}" data-title="{{ event.Name }}" data-share-template="Join %TITLE% — %URL%" title="Share options" style="position:absolute; top:6px; right:6px; bottom:6px; display:flex; align-items:center;">
                                     <svg class="icn" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 8a3 3 0 1 0-2.83-4H12A3 3 0 0 0 9 7a3 3 0 0 0 .17 1.02l-1.9 1.13A3 3 0 1 0 9 14.98l1.9-1.13A3 3 0 0 0 12 15a3 3 0 1 0 2.83-4.02l-1.9-1.13A3.01 3.01 0 0 0 12 9c0-.35.06-.68.17-1.02l1.9-1.13A3 3 0 0 0 15 8Z" stroke="currentColor" stroke-width="1.5"/></svg>
                                     <span>Share</span>
                                 </button>
@@ -127,8 +113,9 @@
                         </div>
 
                         <div class="spacer"></div>
-                        <div class="actions btn-row" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:8px;">
-                            <a class="btn accent" href="/events/{{ event.EventID }}/edit" title="Edit event" style="width:100%; justify-content:center;">
+                        {% from 'components/macros.html' import btn_row %}
+                        {% call btn_row('class="actions" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:8px;"') %}
+                            <a class="btn accent" href="/e/{{ event.Code }}/edit" title="Edit event" style="width:100%; justify-content:center;">
                                 <svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 15.5V20h4.5L19 9.5 14.5 5 4 15.5Z" stroke="currentColor" stroke-width="1.5"/></svg>
                                 <span>Edit</span>
                             </a>
@@ -142,11 +129,11 @@
                                 <span>Lock Event Date</span>
                             </button>
                             {% endif %}
-                            <a class="btn" href="/addons?event_id={{ event.EventID }}" title="Purchase extras" style="grid-column: 1 / -1; width:100%; justify-content:center;">
+                            <a class="btn" href="/extras?event_code={{ event.Code }}" title="Purchase extras" style="grid-column: 1 / -1; width:100%; justify-content:center;">
                                 <svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6h15l-1.5 9a3 3 0 0 1-3 2.5H9.5a3 3 0 0 1-3-2.5L5 4H3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="20" r="1" fill="currentColor"/><circle cx="17" cy="20" r="1" fill="currentColor"/></svg>
                                 <span>Purchase Extras</span>
                             </a>
-                        </div>
+                        {% endcall %}
                         
                     </div>
                 </section>
@@ -156,7 +143,7 @@
             <h3>Guest Upload</h3>
             <div class="qr-wrap">
                 <a href="{{ guest_url }}" target="_blank" style="display:inline-block;">
-                    <img class="qr" src="/qr?url={{ guest_url | urlencode }}&theme=classic" alt="QR Code to guest upload" style="width:140px;height:140px;border-radius:8px;display:block;">
+                    <img class="qr" src="/qr?url={{ guest_url | urlencode }}&theme=classic&fg={{ (custom.QRFillColour or custom.ButtonColour1 or '#000000')|urlencode }}&bg={{ (custom.QRBackColour or custom.BackgroundColour or '#ffffff')|urlencode }}" alt="QR Code to guest upload" style="width:140px;height:140px;border-radius:8px;display:block;">
                 </a>
             </div>
             <form class="form" style="margin-top:6px; background: transparent; border: none; padding: 0;">
@@ -167,16 +154,18 @@
                             <input id="event-code" class="input-field" type="text" value="{{ event.Code }}" readonly autocomplete="off" title="Click to copy code" style="cursor:pointer;">
                         </div>
                     </div>
-                    <div class="floating-field">
-                        <label class="fl-label" for="event-pass">Password</label>
-                        {% if event.Password %}
-                        <div class="input-with-btn" style="margin-top:6px;">
-                            <input id="event-pass" class="input-field" type="text" value="{{ event.Password }}" readonly autocomplete="off" title="Click to copy password" style="cursor:pointer;">
+                        <div class="floating-field">
+                            <label class="fl-label" for="event-pass">Password</label>
+                            {% if event.Password %}
+                            <div class="input-with-btn" style="margin-top:6px;">
+                                <input id="event-pass" class="input-field" type="text" value="{{ event.Password }}" readonly autocomplete="off" title="Click to copy password" style="cursor:pointer;">
+                            </div>
+                            {% else %}
+                            <div class="input-with-btn" style="margin-top:6px;">
+                                <input class="input-field" type="text" value="None" readonly>
+                            </div>
+                            {% endif %}
                         </div>
-                        {% else %}
-                        <input class="input-field" type="text" value="None" readonly>
-                        {% endif %}
-                    </div>
                 </div>
                 <div class="floating-field" style="margin-top:8px;">
                     <label class="fl-label" for="guest-link">Login link</label>
@@ -209,47 +198,7 @@
             </div>
         </aside>
 
-        {% if extras and extras|length > 0 %}
-        <aside class="card">
-            <h3 style="margin:0 0 8px;">Extras</h3>
-            <div class="muted small" style="margin-bottom:8px;">Enhance this event with add-ons</div>
-            <div class="grid" style="grid-template-columns: 1fr; gap:10px;">
-                {% for a in extras %}
-                    {% set c = (a.currency or 'gbp')|lower %}
-                    {% set sym = '£' if c == 'gbp' else ('$' if c == 'usd' else c|upper ~ ' ') %}
-                    {% set price = (a.price_cents or 0) / 100 %}
-                    <div class="card" style="padding:10px;">
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-                            <div>
-
-                                
-
-                                <div class="p-bold">{{ a.name }}</div>
-                                {% if a.desc %}<div class="muted small">{{ a.desc }}</div>{% endif %}
-                            </div>
-                            <div style="text-align:right;">
-                                <div class="p-bold">{{ sym }}{{ '%.2f'|format(price) }}</div>
-                                {% if a.allow_qty %}
-                                    <label class="muted small" for="ex-qty-{{ a.code }}">Qty</label>
-                                    <input id="ex-qty-{{ a.code }}" type="number" min="{{ a.min_qty }}" max="{{ a.max_qty }}" value="{{ a.min_qty }}" style="width:78px;">
-                                {% endif %}
-                            </div>
-                        </div>
-                        <div style="margin-top:8px; display:flex; justify-content:flex-end;">
-                            {% if request.cookies.get('session_id') %}
-                            <button class="btn sm" data-code="{{ a.code }}" data-allowqty="{{ '1' if a.allow_qty else '0' }}" onclick="buyEventAddon(this, {{ event.EventID }})">Buy</button>
-                            {% else %}
-                            <a class="btn sm" href="/signup">Sign up to buy</a>
-                            {% endif %}
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-            <div style="margin-top:10px;">
-                <a class="small" href="/addons">Browse all add-ons →</a>
-            </div>
-        </aside>
-        {% endif %}
+    <!-- Extras section removed from Event Details -->
     </div>
             </div>
             <div class="card" style="margin-top:14px;">
@@ -269,11 +218,12 @@
                 {% endif %}
             </div>
     {% else %}
-      <div class="notice error">Event not found.</div>
+    {% from 'components/macros.html' import notice %}
+    {{ notice('Event not found.', 'error') }}
     {% endif %}
  </div>
 <!-- Hidden form used by shared modal to submit lock action -->
-<form id="lock-date-form" method="post" action="/events/{{ event.EventID }}/lock-date" style="display:none;"></form>
+<form id="lock-date-form" method="post" action="/e/{{ event.Code }}/lock-date" style="display:none;"></form>
 <script>
     document.addEventListener('DOMContentLoaded', function(){
         // Handle Gallery open without form wrappers
@@ -297,24 +247,33 @@
 
                 // Share modal like My Events
                 function esc(s){ return (s||'').replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]) || c; }); }
-                function openShare(code, published, title){
-                        var url = new URL('/e/' + code, window.location.origin).href;
+                        function openShare(code, published, title){
+                            var url = new URL('/e/' + code, window.location.origin).href;
+                            // Share message template can be customized by adding a data attribute
+                            // e.g. <button data-share-template="Join %TITLE% at %URL%">. Falls back to a friendly default.
+                            var btn = document.querySelector('.share-btn');
+                            var tmpl = btn && btn.getAttribute('data-share-template') ? btn.getAttribute('data-share-template') : null;
+                            var defaultTitle = title || 'My event';
+                            var shareText = tmpl ? tmpl.replace(/%TITLE%/g, defaultTitle).replace(/%URL%/g, url) : (defaultTitle + ' — ' + url);
                         var encUrl = encodeURIComponent(url);
-                        var encTitle = encodeURIComponent(title || 'My event');
-                        var warn = !published ? '<div class="notice" style="margin-bottom:10px;">This event is not published. Shared links may not be viewable by others until you publish.</div>' : '';
-                        var body = warn +
-                                '<div class="btn-row" style="flex-wrap:wrap; gap:10px;">' +
-                                '<a class="btn" href="https://wa.me/?text=' + encTitle + '%20' + encUrl + '" target="_blank" rel="noopener" title="Share via WhatsApp">' +
-                                '<span>WhatsApp</span>' +
-                                '</a>' +
-                                '<a class="btn" href="fb-messenger://share/?link=' + encUrl + '" target="_blank" rel="noopener" title="Share via Messenger (mobile)">' +
-                                '<span>Messenger</span>' +
-                                '</a>' +
-                                '<a class="btn" href="mailto:?subject=' + encTitle + '&body=' + encTitle + '%0A' + encUrl + '" title="Share via Email">' +
-                                '<span>Email</span>' +
-                                '</a>' +
-                                '<button class="btn share-copy" type="button" data-url="' + esc(url) + '"><span>Copy Link</span></button>' +
-                                '</div>' +
+                            var encTitle = encodeURIComponent(defaultTitle);
+                            var encText = encodeURIComponent(shareText);
+                                                var warn = !published && window.EPU && window.EPU.ui ? window.EPU.ui.renderNotice('This event is not published. Shared links may not be viewable by others until you publish.', 'warn', 'style="margin-bottom:10px;"') : '';
+                                                var body = warn +
+                                                                (window.EPU && window.EPU.ui ? window.EPU.ui.renderBtnRow(
+                                                                    '' +
+                                                                    '<a class="btn" href="https://wa.me/?text=' + encText + '" target="_blank" rel="noopener" title="Share via WhatsApp"><span>WhatsApp</span></a>' +
+                                                                    '<a class="btn" href="fb-messenger://share/?link=' + encUrl + '" target="_blank" rel="noopener" title="Share via Messenger (mobile)"><span>Messenger</span></a>' +
+                                                                    '<a class="btn" href="mailto:?subject=' + encTitle + '&body=' + encText + '" title="Share via Email"><span>Email</span></a>' +
+                                                                    '<button class="btn share-copy" type="button" data-url="' + esc(url) + '"><span>Copy Link</span></button>',
+                                                                    'style="flex-wrap:wrap; gap:10px;"') :
+                                                                    '<div class="btn-row" style="flex-wrap:wrap; gap:10px;">' +
+                                                                    '<a class="btn" href="https://wa.me/?text=' + encTitle + '%20' + encUrl + '" target="_blank" rel="noopener" title="Share via WhatsApp"><span>WhatsApp</span></a>' +
+                                                                    '<a class="btn" href="fb-messenger://share/?link=' + encUrl + '" target="_blank" rel="noopener" title="Share via Messenger (mobile)"><span>Messenger</span></a>' +
+                                                                    '<a class="btn" href="mailto:?subject=' + encTitle + '&body=' + encTitle + '%0A' + encUrl + '" title="Share via Email"><span>Email</span></a>' +
+                                                                    '<button class="btn share-copy" type="button" data-url="' + esc(url) + '"><span>Copy Link</span></button>' +
+                                                                    '</div>'
+                                                                ) +
                                 '<div class="small muted" style="margin-top:6px;">The share page URL is ' + esc(url) + '</div>';
                         if (window.EPU && window.EPU.modal){ window.EPU.modal.show({ title: 'Share Event', body: body, fit: true, actions: [], noDefaultClose: true }); }
                 }
@@ -426,7 +385,7 @@
         const qtyEl = allowQty ? document.getElementById(`ex-qty-${code}`) : null;
         const quantity = qtyEl ? Math.max(parseInt(qtyEl.value||'1',10)||1, 1) : 1;
         try {
-            const res = await fetch('/addons/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, quantity, event_id: eventId }) });
+            const res = await fetch('/extras/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, quantity, event_code: '{{ event.Code }}' }) });
             if (res.status === 401 || res.status === 403) { window.location = '/login'; return; }
             const data = await res.json();
             if (!data.id) throw new Error('Invalid response');

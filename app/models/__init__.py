@@ -1,6 +1,11 @@
 # Package init for app.models
+from .album import Album as Album
+from .album import AlbumPhoto as AlbumPhoto
 from .billing import PaymentLog as PaymentLog
 from .billing import Purchase as Purchase
+from .event import (
+    CustomEventType as CustomEventType,
+)
 from .event import (
     Event as Event,
 )

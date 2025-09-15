@@ -1,4 +1,5 @@
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.orm import synonym
 from sqlalchemy.sql import func
 
 from app.models.user import Base
@@ -48,6 +49,9 @@ class EventCustomisation(Base):
     FontFamily = Column(String(64), nullable=True)
     TextColour = Column(String(16), nullable=True)
     AccentColour = Column(String(32), nullable=True)
+    # QR custom colours
+    QRFillColour = Column(String(16), nullable=True)
+    QRBackColour = Column(String(16), nullable=True)
     # New lightweight customization options
     ButtonStyle = Column(String(16), nullable=True)  # 'gradient' or 'solid'
     # Optional gradient parameters when ButtonStyle == 'gradient'
@@ -65,6 +69,7 @@ class Theme(Base):
     ThemeID = Column(Integer, primary_key=True, autoincrement=True)
     Name = Column(String(100), nullable=False, unique=True)
     Description = Column(String(255), nullable=True)
+    IsActive = Column(Boolean, default=True)
     ButtonColour1 = Column(String(16), nullable=True)
     ButtonColour2 = Column(String(16), nullable=True)
     ButtonStyle = Column(String(16), nullable=True)  # 'gradient' | 'solid'
@@ -96,6 +101,10 @@ class EventStorage(Base):
 class FileMetadata(Base):
     __tablename__ = "FileMetadata"
     FileMetadataID = Column(Integer, primary_key=True, autoincrement=True)
+    # Backwards-compatible alias: some code expects `FileID`
+    # Use an ORM synonym instead of reusing the Column object which triggers
+    # SQLAlchemy warnings about duplicate Column objects.
+    FileID = synonym("FileMetadataID")
     EventID = Column(Integer, ForeignKey("Event.EventID"), nullable=False)
     GuestID = Column(Integer, ForeignKey("GuestSession.GuestID"), nullable=True)
     FileName = Column(String(255), nullable=False)
@@ -166,6 +175,18 @@ class EventChecklist(Base):
     UpdatedAt = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
+class EventTask(Base):
+    __tablename__ = "EventTask"
+    EventTaskID = Column(Integer, primary_key=True, autoincrement=True)
+    EventID = Column(Integer, ForeignKey("Event.EventID"), nullable=False)
+    UserID = Column(Integer, ForeignKey("dbo.Users.UserID"), nullable=False)
+    Key = Column(String(64), nullable=False)
+    State = Column(String(32), nullable=False, default="pending")
+    CompletedAt = Column(DateTime, nullable=True)
+    CreatedAt = Column(DateTime, server_default=func.now())
+    UpdatedAt = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
 class GuestMessage(Base):
     __tablename__ = "GuestMessage"
     GuestMessageID = Column(Integer, primary_key=True, autoincrement=True)
@@ -175,3 +196,13 @@ class GuestMessage(Base):
     Message = Column(String(300), nullable=False)
     CreatedAt = Column(DateTime, server_default=func.now())
     Deleted = Column(Boolean, default=False)
+
+
+class CustomEventType(Base):
+    __tablename__ = "CustomEventType"
+    CustomEventTypeID = Column(Integer, primary_key=True, autoincrement=True)
+    EventID = Column(Integer, ForeignKey("Event.EventID"), nullable=False)
+    EventTypeID = Column(Integer, ForeignKey("EventType.EventTypeID"), nullable=True)
+    CustomEventName = Column(String(255), nullable=True)
+    CreatedAt = Column(DateTime, server_default=func.now())
+    UpdatedAt = Column(DateTime, server_default=func.now(), onupdate=func.now())

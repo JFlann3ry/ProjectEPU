@@ -4,10 +4,8 @@
 
 {% block content %}
 <div class="container section center">
-  <div class="page-hero center">
-    <h1 class="hero-title">About EPU</h1>
-    <p class="hero-sub">A simple, private way to collect photos and videos from your guests.</p>
-  </div>
+  {% from 'components/macros.html' import page_hero %}
+  {{ page_hero('About EPU', 'A simple, private way to collect photos and videos from your guests.') }}
 
   <div class="grid-2 equal-heights" style="gap: 20px; align-items: stretch;">
     <section class="card full-height">

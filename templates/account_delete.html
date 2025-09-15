@@ -4,10 +4,8 @@
 
 {% block content %}
 <div class="container section center">
-    <div class="page-hero center">
-        <h1 class="hero-title">Request Account Deletion</h1>
-        <p class="hero-sub">This action is permanent and cannot be undone.</p>
-    </div>
+    {% from 'components/macros.html' import page_hero, notice, btn_row %}
+    {{ page_hero('Request Account Deletion', 'This action is permanent and cannot be undone.') }}
     <div class="card" style="max-width:720px;margin:0 auto;">
         <div class="p-regular" style="margin-bottom:16px;">
             <p>We're sorry to see you go. Deleting your account is permanent and cannot be undone. All your events, uploads, and personal data will be removed from our system within 30 days, in accordance with our data retention policy.</p>
@@ -18,16 +16,16 @@
                 <input type="checkbox" name="confirm" required class="checkbox-field checkbox-lg">
                 <span class="p-bold" style="color:#F25F4C;">I understand this action is permanent and want to delete my account.</span>
             </label>
-            {% if error %}
-            <div class="notice error">{{ error }}</div>
-            {% endif %}
-            {% if message %}
-            <div class="notice success">{{ message }}</div>
-            {% endif %}
-            <div class="btn-row" style="margin-top:8px;">
-                <a href="/profile" class="btn">No, Go Back</a>
-                <button id="confirm-delete" type="button" class="btn danger">Delete My Account</button>
-            </div>
+                        {% if error %}
+                            {{ notice(error, kind='error') }}
+                        {% endif %}
+                        {% if message %}
+                            {{ notice(message, kind='success') }}
+                        {% endif %}
+                        {% call btn_row('style="margin-top:8px;"') %}
+                                <a href="/profile" class="btn">No, Go Back</a>
+                                <button id="confirm-delete" type="button" class="btn danger">Delete My Account</button>
+                        {% endcall %}
         </form>
     </div>
 </div>

@@ -3,18 +3,15 @@
 {% block title %}Admin Dashboard - EPU{% endblock %}
 
 {% block breadcrumbs %}
+{% from 'components/macros.html' import breadcrumbs %}
 <div class="container section" style="padding-bottom:0;">
-  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
-    <span class="crumb current">Admin</span>
-  </nav>
+  {{ breadcrumbs([], 'Admin') }}
   </div>
 {% endblock %}
 {% block content %}
 <div class="container section center">
-  <div class="page-hero center">
-    <h1 class="hero-title">Admin Dashboard</h1>
-    <p class="hero-sub">Ops overview, billing, and audit insights.</p>
-  </div>
+  {% from 'components/macros.html' import page_hero, btn_row, badge %}
+  {{ page_hero('Admin Dashboard', 'Ops overview, billing, and audit insights.') }}
 
   <form method="get" class="card" style="display:flex; gap:8px; align-items:center;">
     <div class="floating-field" style="flex:1;">
@@ -27,11 +24,11 @@
   <div class="grid grid-3 section equal-heights">
     <div class="card full-height">
       <h3>Stats</h3>
-      <p><span class="badge">Users</span> {{ stats.users }}</p>
-      <p><span class="badge">Events</span> {{ stats.events }}</p>
-      <p><span class="badge">Files</span> {{ stats.files }}</p>
-      <p><span class="badge">Purchases</span> {{ stats.purchases }}</p>
-      <p><span class="badge">Storage</span> {{ (stats.storage_bytes / (1024*1024))|round(1) }} MB</p>
+  <p>{{ badge('Users') }} {{ stats.users }}</p>
+  <p>{{ badge('Events') }} {{ stats.events }}</p>
+  <p>{{ badge('Files') }} {{ stats.files }}</p>
+  <p>{{ badge('Purchases') }} {{ stats.purchases }}</p>
+  <p>{{ badge('Storage') }} {{ (stats.storage_bytes / (1024*1024))|round(1) }} MB</p>
     </div>
   <div class="card full-height">
       <h3>Top Events</h3>
@@ -60,9 +57,9 @@
           <li class="muted">No users.</li>
         {% endfor %}
       </ul>
-      <div class="btn-row" style="margin-top:8px;">
+      {% call btn_row('style="margin-top:8px;"') %}
         <a class="btn" href="/admin/users">Manage Users</a>
-      </div>
+      {% endcall %}
     </div>
   <div class="card full-height">
       <h3>Recent Uploads</h3>

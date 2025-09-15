@@ -1,19 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container section center">
-  <div class="page-hero center">
-    <h1 class="hero-title">Something went wrong</h1>
-    <p class="hero-sub">We hit a snag processing your request.</p>
-  </div>
+  {% from 'components/macros.html' import page_hero, btn_row %}
+  {{ page_hero('Something went wrong', 'We hit a snag processing your request.') }}
   <div class="card" style="text-align:center;">
     <p class="muted">Please try again, or contact support if it persists.</p>
     {% if request_id %}
     <p class="muted" style="font-size:0.9rem;">Request ID: <code>{{ request_id }}</code></p>
     {% endif %}
-    <div class="btn-row" style="justify-content:center;">
-  <a href="/" class="btn">Return home</a>
-  <a href="/contact{% if request_id %}?request_id={{ request_id }}{% endif %}" class="btn">Contact support</a>
-    </div>
+    {% call btn_row('style="justify-content:center;"') %}
+      <a href="/" class="btn">Return home</a>
+      <a href="/contact{% if request_id %}?request_id={{ request_id }}{% endif %}" class="btn">Contact support</a>
+    {% endcall %}
   </div>
 </div>
 {% endblock %}

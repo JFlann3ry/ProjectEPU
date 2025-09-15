@@ -3,7 +3,8 @@ label {
     font-family: 'Inter', Arial, sans-serif;
     font-weight: 700;
     font-style: normal;
-    color: #0F0E17;
+    /* Use site text color so labels render correctly in dark mode */
+    color: var(--color-text, #e9eef6);
 }
 form label.p-bold {
     color: var(--color-text, #FFFFFE);
@@ -113,6 +114,7 @@ form {
     line-height: 1.2;
     color: var(--form-label);
 }
+.floating-field .fl-label { white-space: nowrap; max-width: calc(100% - 28px); overflow: hidden; text-overflow: ellipsis; }
 .floating-field:focus-within .fl-label { color: var(--form-border-focus); }
 @media (max-width: 600px) {
     .login-center-wrapper {
@@ -125,7 +127,7 @@ form {
         padding: 0 2vw;
     }
     .form {
-        padding: 18px 4px;
+                padding: 18px 8px;
         border-radius: 10px;
     }
     .login-title {
@@ -133,8 +135,14 @@ form {
     }
     .input-field, .content-btn {
         font-size: 1rem;
-        padding: 12px 8px;
+                padding: 12px 10px;
     }
+}
+/* Extra-tight mobile spacing for very narrow screens */
+@media (max-width: 480px){
+    .form { gap: 12px; padding: 14px 10px; }
+    .input-field { padding: 10px 10px; font-size: 0.95rem; }
+    label { font-size: 0.95rem; line-height: 1.2; }
 }
 .login-title {
     text-align: center;

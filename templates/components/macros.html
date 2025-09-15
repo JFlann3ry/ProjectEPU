@@ -1,0 +1,55 @@
+{% macro page_hero(title, subtitle='', center=True) -%}
+  {%- set cls = 'page-hero' + (' center' if center else '') -%}
+  <div class="{{ cls }}">
+    <h1 class="hero-title">{{ title }}</h1>
+    {%- if subtitle %}
+    <p class="hero-sub">{{ subtitle }}</p>
+    {%- endif %}
+  </div>
+{%- endmacro %}
+
+{# Notice macro supports either a simple text string or a caller() block for custom HTML #}
+{% macro notice(text='', kind='info', attrs='') -%}
+  {%- set klass = 'notice' + (' ' + kind if kind in ['success','error','warn'] else '') -%}
+  <div class="{{ klass }}" {{ attrs|safe }}>
+    {%- if caller is defined -%}
+      {{ caller() }}
+    {%- else -%}
+      {{ text|safe }}
+    {%- endif -%}
+  </div>
+{%- endmacro %}
+
+{# Reusable button row wrapper; use with call to inject buttons #}
+{% macro btn_row(attrs='') -%}
+  <div class="btn-row" {{ attrs|safe }}>
+    {%- if caller is defined -%}
+      {{ caller() }}
+    {%- endif -%}
+  </div>
+{%- endmacro %}
+
+{# Simple breadcrumbs renderer: items = [{label, href}] #}
+{% macro breadcrumbs(items=[], current_label='') -%}
+  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
+    {%- for it in items -%}
+      <a class="crumb" href="{{ it.href }}">{{ it.label }}</a>
+      {%- if not loop.last or current_label -%}
+        <span class="sep" aria-hidden="true">›</span>
+      {%- endif -%}
+    {%- endfor -%}
+    {%- if current_label -%}
+      <span class="crumb current" aria-current="page">{{ current_label }}</span>
+    {%- endif -%}
+  </nav>
+{%- endmacro %}
+
+{# Badges and chips #}
+{% macro badge(text, attrs='') -%}
+  <span class="badge" {{ attrs|safe }}>{{ text }}</span>
+{%- endmacro %}
+
+{% macro chip(text, status='', attrs='') -%}
+  {%- set cls = 'chip' + (' status-' + status if status else '') -%}
+  <span class="{{ cls }}" {{ attrs|safe }}>{{ text }}</span>
+{%- endmacro %}

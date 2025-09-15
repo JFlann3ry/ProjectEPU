@@ -100,7 +100,7 @@ def upgrade() -> None:
     op.create_table(
         "EventCustomisation",
         sa.Column("EventCustomisationID", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("EventID", sa.Integer(), sa.ForeignKey("dbo.Event.EventID"), nullable=False),
+    sa.Column("EventID", sa.Integer(), sa.ForeignKey("Event.EventID"), nullable=False),
         sa.Column("WelcomeMessage", sa.String(length=255), nullable=True),
         sa.Column("UploadInstructions", sa.String(length=255), nullable=True),
         sa.Column("ThankYouMessage", sa.String(length=255), nullable=True),
@@ -123,7 +123,7 @@ def upgrade() -> None:
     op.create_table(
         "EventStorage",
         sa.Column("EventStorageID", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("EventID", sa.Integer(), sa.ForeignKey("dbo.Event.EventID"), nullable=False),
+    sa.Column("EventID", sa.Integer(), sa.ForeignKey("Event.EventID"), nullable=False),
         sa.Column("StoragePath", sa.String(length=255), nullable=False),
         sa.Column("StorageLimitMB", sa.Integer(), nullable=False),
         sa.Column("CurrentUsageMB", sa.Integer(), nullable=False, server_default=sa.text("0")),
@@ -137,7 +137,7 @@ def upgrade() -> None:
     op.create_table(
         "GuestSession",
         sa.Column("GuestID", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("EventID", sa.Integer(), sa.ForeignKey("dbo.Event.EventID"), nullable=False),
+    sa.Column("EventID", sa.Integer(), sa.ForeignKey("Event.EventID"), nullable=False),
         sa.Column("DeviceType", sa.String(length=64), nullable=True),
         sa.Column("GuestEmail", sa.String(length=255), nullable=True),
         sa.Column("CreatedAt", sa.DateTime(), server_default=sa.func.now()),
@@ -149,7 +149,7 @@ def upgrade() -> None:
     op.create_table(
         "FileMetadata",
         sa.Column("FileMetadataID", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("EventID", sa.Integer(), sa.ForeignKey("dbo.Event.EventID"), nullable=False),
+    sa.Column("EventID", sa.Integer(), sa.ForeignKey("Event.EventID"), nullable=False),
         sa.Column(
             "GuestID", sa.Integer(), sa.ForeignKey("dbo.GuestSession.GuestID"), nullable=True
         ),

@@ -4,54 +4,52 @@
 
 {% block content %}
 <div class="container center">
-  <section class="page-hero center">
-  <h1 class="hero-title">Examples</h1>
-  <p class="hero-sub">See ways people use EPU to collect and share photos and videos at events.</p>
-  </section>
+  {% from 'components/macros.html' import page_hero, btn_row %}
+  {{ page_hero('Examples', 'See ways people use EPU to collect and share photos and videos at events.') }}
 
   <section class="section">
     <div class="grid grid-3 equal-heights">
       <div class="card full-height">
         <h3>Weddings</h3>
         <p>Give guests a simple QR to upload candid photos. Share a curated gallery the next day.</p>
-        <div class="btn-row" style="margin-top:8px;">
+        {% call btn_row('style="margin-top:8px;"') %}
           <a href="#" class="btn" onclick="exOpen(0); return false;">Preview</a>
-        </div>
+        {% endcall %}
       </div>
       <div class="card full-height">
         <h3>Corporate events</h3>
         <p>Collect booth photos and session highlights. Centralize media for marketing teams.</p>
-        <div class="btn-row" style="margin-top:8px;">
+        {% call btn_row('style="margin-top:8px;"') %}
           <a href="#" class="btn" onclick="exOpen(1); return false;">Preview</a>
-        </div>
+        {% endcall %}
       </div>
       <div class="card full-height">
         <h3>School plays</h3>
         <p>Parents upload from their seats. Easily download the best moments as a ZIP.</p>
-        <div class="btn-row" style="margin-top:8px;">
+        {% call btn_row('style="margin-top:8px;"') %}
           <a href="#" class="btn" onclick="exOpen(2); return false;">Preview</a>
-        </div>
+        {% endcall %}
       </div>
       <div class="card full-height">
         <h3>Sports</h3>
         <p>Post-match upload links for teams and fans. Quick highlights for social.</p>
-        <div class="btn-row" style="margin-top:8px;">
+        {% call btn_row('style="margin-top:8px;"') %}
           <a href="#" class="btn" onclick="exOpen(3); return false;">Preview</a>
-        </div>
+        {% endcall %}
       </div>
       <div class="card full-height">
         <h3>Conferences</h3>
         <p>Capture attendee experiences and sponsor activations across venues.</p>
-        <div class="btn-row" style="margin-top:8px;">
+        {% call btn_row('style="margin-top:8px;"') %}
           <a href="#" class="btn" onclick="exOpen(4); return false;">Preview</a>
-        </div>
+        {% endcall %}
       </div>
       <div class="card full-height">
         <h3>Community</h3>
         <p>Neighborhood events, meetups, birthdays—EPU keeps everything in one place.</p>
-        <div class="btn-row" style="margin-top:8px;">
+        {% call btn_row('style="margin-top:8px;"') %}
           <a href="#" class="btn" onclick="exOpen(5); return false;">Preview</a>
-        </div>
+        {% endcall %}
       </div>
     </div>
   </section>

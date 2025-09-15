@@ -3,22 +3,15 @@
 {% block title %}Event #{{ event.EventID }} - Admin{% endblock %}
 
 {% block breadcrumbs %}
+{% from 'components/macros.html' import breadcrumbs %}
 <div class="container section" style="padding-bottom:0;">
-  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
-    <a href="/admin" class="crumb">Admin</a>
-    <span class="sep" aria-hidden="true">›</span>
-    <a href="/admin/users" class="crumb">Users</a>
-    <span class="sep" aria-hidden="true">›</span>
-    <span class="crumb current">Event #{{ event.EventID }}</span>
-  </nav>
+  {{ breadcrumbs([{'label':'Admin','href':'/admin'},{'label':'Users','href':'/admin/users'}], 'Event #' ~ event.EventID) }}
   </div>
 {% endblock %}
 {% block content %}
 <div class="container section center">
-  <div class="page-hero center">
-    <h1 class="hero-title">Event #{{ event.EventID }}</h1>
-    <p class="hero-sub">{{ event.Name }} — Owner: {% if owner %}#{{ owner.UserID }} {{ owner.FirstName }} {{ owner.LastName }} ({{ owner.Email }}){% else %}Unknown{% endif %}</p>
-  </div>
+  {% from 'components/macros.html' import page_hero, btn_row %}
+  {{ page_hero('Event #' ~ event.EventID, (event.Name ~ ' — Owner: ' ~ ('#' ~ owner.UserID ~ ' ' ~ owner.FirstName ~ ' ' ~ owner.LastName ~ ' (' ~ owner.Email ~ ')') if owner else 'Unknown')) }}
 
   <div class="grid grid-2 section equal-heights">
     <div class="card full-height">
@@ -31,10 +24,10 @@
         <div>Created</div><div>{{ event.CreatedAt }}</div>
         <div>Updated</div><div>{{ event.LastUpdated }}</div>
       </div>
-      <div class="btn-row" style="margin-top:12px;">
-        <a class="btn" href="/events/{{ event.EventID }}">Open as owner</a>
+      {% call btn_row('style="margin-top:12px;"') %}
+        <a class="btn" href="/events/code/{{ event.Code }}">Open as owner</a>
         <a class="btn" href="/e/{{ event.Code }}">Public share</a>
-      </div>
+      {% endcall %}
     </div>
   <div class="card full-height">
       <h3>Owner</h3>
@@ -53,9 +46,9 @@
     </div>
   </div>
 
-  <div class="section">
+  {% call btn_row('class="section"') %}
     <a class="btn" href="/admin">Back to Admin</a>
     <a class="btn" href="/admin/users">Manage Users</a>
-  </div>
+  {% endcall %}
 </div>
 {% endblock %}

@@ -4,10 +4,8 @@
 
 {% block content %}
 <div class="container section center">
-  <div class="page-hero center">
-    <h1 class="hero-title">How to upload as a guest</h1>
-    <p class="hero-sub">Follow these quick steps to join an event and share your photos or videos.</p>
-  </div>
+  {% from 'components/macros.html' import page_hero %}
+  {{ page_hero('How to upload as a guest', 'Follow these quick steps to join an event and share your photos or videos.') }}
 
   <div class="card center" style="max-width:980px;">
     <ol class="steps">

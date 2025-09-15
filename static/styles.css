@@ -82,3 +82,10 @@ body {
 }
 
 
+
+/* Dim inactive items in admin lists */
+.inactive {
+    opacity: 0.45 !important;
+}
+
+

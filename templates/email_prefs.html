@@ -4,15 +4,13 @@
 
 {% block content %}
 <div class="container section">
-  <div class="page-hero">
-    <h1 class="hero-title">Email Preferences</h1>
-    <p class="hero-sub">Choose which emails you want to receive.</p>
-  </div>
+  {% from 'components/macros.html' import page_hero, btn_row, notice %}
+  {{ page_hero('Email Preferences', 'Choose which emails you want to receive.') }}
   <div class="card center" style="max-width:720px;margin:0 auto;">
   {% if notice == 'saved' %}
-      <div class="notice success" style="margin:8px 0;">Preferences saved.</div>
+      {{ notice('Preferences saved.', kind='success', attrs='style="margin:8px 0;"') }}
   {% elif notice == 'unsubscribed' %}
-      <div class="notice success" style="margin:8px 0;">You've been unsubscribed from all emails.</div>
+      {{ notice("You've been unsubscribed from all emails.", kind='success', attrs='style="margin:8px 0;"') }}
     {% endif %}
     <form method="post" action="/profile/email-preferences" class="form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}" />
@@ -28,10 +26,10 @@
         <input type="checkbox" name="reminders" value="1" {% if prefs.reminders %}checked{% endif %} />
         <span>Event reminders and notifications</span>
       </label>
-      <div class="btn-row">
+      {% call btn_row() %}
         <button class="btn primary" type="submit">Save Preferences</button>
         <a class="btn" href="/profile">Back to Profile</a>
-      </div>
+      {% endcall %}
     </form>
     <form method="post" action="/profile/email-preferences/unsubscribe" style="margin-top:16px;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}" />

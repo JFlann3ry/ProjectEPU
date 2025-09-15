@@ -1,37 +1,27 @@
 {% extends "base.html" %}
+{% from "components/macros.html" import page_hero, notice %}
 
 {% block title %}Event Gallery - EPU{% endblock %}
 
 {% block breadcrumbs %}
-    <div class="breadcrumbs-container section" style="padding-bottom:0;">
-        <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
-            <a href="/events" class="crumb">My Events</a>
+        {% from 'components/macros.html' import breadcrumbs %}
+        <div class="breadcrumbs-container section" style="padding-bottom:0;">
             {% if event_id %}
-                <span class="sep" aria-hidden="true">›</span>
-                <a href="/events/{{ event_id }}" class="crumb">{{ event_name or 'Event' }}</a>
-                <span class="sep" aria-hidden="true">›</span>
-                <span class="crumb current" aria-current="page">Gallery</span>
+                {{ breadcrumbs([{'label':'My Events','href':'/events'},{'label': event_name or 'Event','href':'/events/' ~ event_id}], 'Gallery') }}
             {% else %}
-                <span class="sep" aria-hidden="true">›</span>
-                <span class="crumb current" aria-current="page">Gallery</span>
+                {{ breadcrumbs([{'label':'My Events','href':'/events'}], 'Gallery') }}
             {% endif %}
-        </nav>
-    </div>
+        </div>
 {% endblock %}
 {% block content %}
-    <div class="container section center">
-        <div class="page-hero center">
-            <h1 class="hero-title">Event Gallery</h1>
-            <p class="hero-sub">Browse, favorite, and manage uploads.</p>
-            {% if event_id %}
-                <div class="small muted">Showing files for selected event.</div>
-            {% endif %}
-        </div>
-        {% if filters and filters.show_deleted %}
-        <div class="notice error" style="margin: 8px 0 12px;">
-            Files marked for deletion will be permanently removed after 30 days. You can restore them here until then.
-        </div>
-        {% endif %}
+        <div class="container section center">
+                {{ page_hero('Event Gallery', 'Browse, favorite, and manage uploads.', True) }}
+                {% if event_id %}
+                        <div class="small muted">Showing files for selected event.</div>
+                {% endif %}
+                {% if filters and filters.show_deleted %}
+                    {{ notice('Files marked for deletion will be permanently removed after 30 days. You can restore them here until then.', 'error', 'style="margin: 8px 0 12px;"') }}
+                {% endif %}
     <div class="card" style="margin-bottom:16px;">
             <style>
         .gallery-filters { padding: 10px 12px 8px; }
@@ -68,18 +58,27 @@
                         <button type="button" class="pill-filter" data-filter="favorites" data-toggle="1" aria-pressed="{{ 'true' if filters and filters.favorites else 'false' }}">Favorites{% if counts %}<span class="count">{{ counts.favorites }}</span>{% endif %}</button>
                     </div>
                     <div class="spacer" aria-hidden="true"></div>
+                    <div class="filter-group" style="margin-left:12px;">
+                        <label for="album-filter" class="muted small" style="margin-right:8px;">Album</label>
+                        <select id="album-filter" class="input-field" style="min-width:160px; padding:6px 8px; height:34px;">
+                            <option value="">All albums</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             <div class="gallery-toolbar">
                 <div class="toolbar-left">
                     <button id="play-slideshow" class="btn">Play Slideshow</button>
+                    <button id="new-album" class="btn" type="button">New Album</button>
                 </div>
                 <div class="toolbar-right">
                     <button id="select-all" type="button" class="btn" title="Select all visible">Select All</button>
+                    {% if not (filters and filters.show_deleted) %}
                     <form id="delete-form" method="post" action="/gallery/actions/delete" style="display:none;">
                         <input type="hidden" name="file_ids" value="">
                         <button type="submit" class="btn danger" hidden>Delete</button>
                     </form>
+                    {% endif %}
                     {% if has_deleted %}
                     <form id="restore-form" method="post" action="/gallery/actions/restore" style="display:none;">
                         <input type="hidden" name="file_ids" value="">
@@ -121,6 +120,9 @@
                     <video src="{{ file.url }}" class="gallery-video" controls preload="none" {% if file.thumb_url %}poster="{{ file.thumb_url }}"{% endif %}></video>
                 {% endif %}
                 <div class="tile-overlay"></div>
+                    <div class="tile-actions" style="position:absolute;right:8px;top:8px;display:flex;gap:6px;">
+                        <button class="btn small add-to-album" data-id="{{ file.id }}" title="Add to album">➕</button>
+                    </div>
                 {% if file.type == 'video' %}
                     <div class="tile-badge video" title="Video">▶</div>
                 {% endif %}
@@ -149,13 +151,36 @@
             <span id="bulk-count">0 selected</span>
             <div class="bulk-actions">
                 <button id="bb-clear" type="button" class="btn">Clear</button>
+                {% if not (filters and filters.show_deleted) %}
                 <button id="bb-delete" type="button" class="btn danger" disabled>Delete</button>
+                {% endif %}
                 {% if has_deleted %}<button id="bb-restore" type="button" class="btn success" disabled>Restore</button>{% endif %}
                 <button id="bb-zip" type="button" class="btn primary" disabled>Download ZIP</button>
             </div>
         </div>
     </div>
+    <!-- Create Album Modal (fallback; primary UI uses shared modal root) -->
+    <div id="create-album-modal" class="modal" role="dialog" aria-modal="true" aria-hidden="true" style="display:none;">
+        <div class="modal-content" role="document" style="max-width:480px; margin: 0 auto; padding:16px;">
+            <h3 class="p-bold">Create album</h3>
+            <form id="create-album-form">
+                <div style="margin-top:8px;">
+                    <label for="create-album-name">Album name</label>
+                    <input id="create-album-name" name="name" class="input-field" required maxlength="255">
+                </div>
+                <div style="margin-top:8px;">
+                    <label for="create-album-desc">Description (optional)</label>
+                    <textarea id="create-album-desc" name="description" class="input-field" rows="3" maxlength="1024"></textarea>
+                </div>
+                <div style="margin-top:12px; display:flex; justify-content:flex-end; gap:8px;">
+                    <button type="button" id="create-album-cancel" class="btn">Cancel</button>
+                    <button type="submit" id="create-album-submit" class="btn primary">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
     <!-- Delete confirmation modal -->
+    {% if not (filters and filters.show_deleted) %}
     <div id="delete-confirm" role="dialog" aria-modal="true" aria-labelledby="del-title" style="display:none;">
         <div class="modal-content">
             <h3 id="del-title" class="p-bold" style="margin:0 0 6px;">Delete selected files?</h3>
@@ -166,12 +191,13 @@
             </div>
         </div>
     </div>
+    {% endif %}
     <div id="lightbox" class="lightbox" style="display:none;">
-        <span class="lightbox-close" onclick="closeLightbox()">&times;</span>
+        <span id="lightbox-close" class="lightbox-close" role="button" tabindex="0" aria-label="Close">&times;</span>
         <div class="lightbox-content">
-            <span class="lightbox-prev" onclick="prevSlide()">&#10094;</span>
-            <span class="lightbox-next" onclick="nextSlide()">&#10095;</span>
-            <img id="lightbox-img" style="display:none;max-width:90vw;max-height:80vh;">
+            <span id="lightbox-prev" class="lightbox-prev" role="button" tabindex="0" aria-label="Previous">&#10094;</span>
+            <span id="lightbox-next" class="lightbox-next" role="button" tabindex="0" aria-label="Next">&#10095;</span>
+            <img id="lightbox-img" alt="" style="display:none;max-width:90vw;max-height:80vh;">
             <video id="lightbox-video" style="display:none;max-width:90vw;max-height:80vh;" controls></video>
         </div>
     </div>
@@ -184,336 +210,47 @@
 {% if filters and filters.show_deleted %}
     {% set data_files = files|sort(attribute='days_left') %}
 {% endif %}
-<script id="gallery-data" type="application/json" data-show-deleted="{{ '1' if filters and filters.show_deleted else '0' }}">{{ data_files|tojson | safe }}</script>
+<script id="gallery-data" type="application/json">{{ ({'event_id': event_id, 'files': data_files, 'show_deleted': (1 if filters and filters.show_deleted else 0)}) | tojson | safe }}</script>
 <script>
-// Pill filters behavior: update URL params and reload
+// Populate album selector for this event and wire change handler
 (function(){
-    function setParam(key, val, toggle){
-        var url = new URL(window.location.href);
-        if (toggle){
-            var cur = url.searchParams.get(key);
-            var next = (cur === '1' || cur === 'true') ? '' : '1';
-            if (next) url.searchParams.set(key, next); else url.searchParams.delete(key);
-        } else {
-            if (val) url.searchParams.set(key, val); else url.searchParams.delete(key);
-        }
-        // Reset pagination when filtering
-        url.searchParams.delete('offset');
-        window.location.href = url.toString();
-    }
-    document.querySelectorAll('.pill-filter').forEach(function(btn){
-        btn.addEventListener('click', function(){
-            var key = btn.getAttribute('data-filter');
-            var toggle = btn.hasAttribute('data-toggle');
-            var val = btn.getAttribute('data-value') || '';
-            setParam(key, val, toggle);
-        });
-    });
-})();
-try {
-    var dataEl = document.getElementById('gallery-data');
-    window.galleryFiles = dataEl ? JSON.parse(dataEl.textContent) : [];
-    window.__showDeletedMode = !!(dataEl && dataEl.dataset && dataEl.dataset.showDeleted === '1');
-} catch (e) { window.galleryFiles = []; }
-// Helper: get file meta by id from either appended JS array (files) or initial payload
-function getFileById(id){
-    try {
-        if (typeof files !== 'undefined' && Array.isArray(files)) {
-            const f = files.find(x => x && x.id === id);
-            if (f) return f;
-        }
-    } catch(_){}
-    try {
-        if (Array.isArray(window.galleryFiles)) {
-            return window.galleryFiles.find(x => x && x.id === id) || null;
-        }
-    } catch(_){}
-    return null;
-}
-// Collect selected ids into forms before submit
-function wireSelection(formId) {
-    const form = document.getElementById(formId);
-    if (!form) return;
-    form.addEventListener('submit', function(e){
-        let ids = Array.from(document.querySelectorAll('.select-chk:checked')).map(chk => chk.getAttribute('data-id'));
-        // If restoring, include only deleted files
-        if (formId === 'restore-form') {
-            ids = ids.filter(id => { const f = getFileById(parseInt(id)); return f && f.deleted; });
-        }
-        // If deleting, include only non-deleted files
-        if (formId === 'delete-form') {
-            ids = ids.filter(id => { const f = getFileById(parseInt(id)); return f && !f.deleted; });
-        }
-        if (ids.length === 0) { e.preventDefault(); return; }
-        const input = form.querySelector('input[name="file_ids"]');
-        // Create multiple inputs for FastAPI Form(list[int])
-        input.remove();
-        ids.forEach(id => {
-            const hidden = document.createElement('input');
-            hidden.type = 'hidden';
-            hidden.name = 'file_ids';
-            hidden.value = id;
-            form.appendChild(hidden);
-        });
-    });
-}
-['delete-form','restore-form','zip-form'].forEach(wireSelection);
-
-// Selection UX
-function updateSelectionUI() {
-    const chks = Array.from(document.querySelectorAll('.select-chk'));
-    const selected = chks.filter(c => c.checked);
-    // Highlight tiles
-    chks.forEach(c => {
-        const tile = c.closest('.gallery-item');
-        if (!tile) return;
-        tile.classList.toggle('selected', c.checked);
-    });
-    // Toolbar buttons
-    const count = selected.length;
-    // Determine if any selected files are deleted
-    const selectedIds = selected.map(c => parseInt(c.getAttribute('data-id')));
-    const hasDeletedSelected = selectedIds.some(id => { const f = getFileById(id); return f && f.deleted; });
-    const hasNonDeletedSelected = selectedIds.some(id => { const f = getFileById(id); return f && !f.deleted; });
-    // Toolbar restore visibility and enable
-    (function(){
-        const form = document.getElementById('restore-form');
-        if (!form) return;
-        const btn = form.querySelector('button[type="submit"]');
-        if (hasDeletedSelected) {
-            form.style.display = 'inline-block';
-            if (btn) btn.disabled = false;
-        } else {
-            form.style.display = 'none';
-            if (btn) btn.disabled = true;
-        }
-    })();
-    // Bulk bar
-    const bb = document.getElementById('bulk-bar');
-    const bc = document.getElementById('bulk-count');
-    if (bb && bc) {
-        if (count > 0) {
-            bb.style.display = 'block';
-            bc.textContent = count + ' selected';
-        } else {
-            bb.style.display = 'none';
-        }
-    }
-    // Bulk restore button visibility
-    const bbr = document.getElementById('bb-restore');
-    if (bbr) {
-        if (hasDeletedSelected) {
-            bbr.style.display = '';
-            bbr.disabled = false;
-        } else {
-            bbr.style.display = 'none';
-            bbr.disabled = true;
-        }
-    }
-    const bbd = document.getElementById('bb-delete');
-    if (bbd) {
-        bbd.disabled = !hasNonDeletedSelected;
-    }
-    // Update Select All button label
-    const sa = document.getElementById('select-all');
-    if (sa) {
-        const allSelected = chks.length > 0 && chks.every(c => c.checked);
-        sa.textContent = allSelected ? 'Deselect All' : 'Select All';
-    }
-}
-document.addEventListener('change', function(e){
-    if (e.target && e.target.classList && e.target.classList.contains('select-chk')) {
-        updateSelectionUI();
-        e.stopPropagation();
-    }
-});
-document.getElementById('select-all')?.addEventListener('click', function(){
-    const chks = Array.from(document.querySelectorAll('.select-chk'));
-    const allSelected = chks.length > 0 && chks.every(c => c.checked);
-    if (allSelected) {
-        chks.forEach(c => c.checked = false);
-    } else {
-        chks.forEach(c => c.checked = true);
-    }
-    const btn = document.getElementById('select-all');
-    if (btn) btn.textContent = allSelected ? 'Select All' : 'Deselect All';
-    updateSelectionUI();
-});
-document.getElementById('bb-clear')?.addEventListener('click', function(){
-    document.querySelectorAll('.select-chk').forEach(c => c.checked = false);
-    updateSelectionUI();
-});
-document.getElementById('bb-restore')?.addEventListener('click', function(){
-    // Route bulk restore through the main restore form
-    document.getElementById('restore-form')?.requestSubmit();
-});
-document.getElementById('bb-delete')?.addEventListener('click', function(){
-    // Open confirm modal before submitting delete
-    const modal = document.getElementById('delete-confirm');
-    if (modal) modal.style.display = 'flex';
-});
-// Modal buttons
-document.getElementById('del-cancel')?.addEventListener('click', function(){
-    const modal = document.getElementById('delete-confirm');
-    if (modal) modal.style.display = 'none';
-});
-document.getElementById('del-confirm')?.addEventListener('click', function(){
-    const modal = document.getElementById('delete-confirm');
-    if (modal) modal.style.display = 'none';
-    document.getElementById('delete-form')?.requestSubmit();
-});
-// Infinite scroll loader
-(function(){
-    const gal = document.getElementById('gallery');
-    if (!gal) return;
-    let nextOffset = gal.getAttribute('data-next-offset');
-    const pageSize = parseInt(gal.getAttribute('data-page-size') || '60');
-    let loading = false;
-    let done = !nextOffset;
-    const loader = document.getElementById('gallery-loader');
-
-    function appendFiles(items){
-        // Dedupe incoming items by id against global seen set
-        const seen = (window.__gallerySeenIds instanceof Set) ? window.__gallerySeenIds : (window.__gallerySeenIds = new Set(files.map(f=>f.id)));
-        const unique = [];
-        for (const it of items || []) {
-            if (!it || typeof it.id !== 'number') continue;
-            if (seen.has(it.id)) continue;
-            seen.add(it.id);
-            unique.push(it);
-        }
-        if (unique.length === 0) { return; }
-        const startIndex = files.length;
-        const showDeleted = !!window.__showDeletedMode;
-        // Keep a stable grouping order by days_left when in deleted mode
-        const batch = showDeleted ? [...unique].sort((a,b)=>{
-            const da = (a && typeof a.days_left === 'number') ? a.days_left : 9999;
-            const db = (b && typeof b.days_left === 'number') ? b.days_left : 9999;
-            return da - db;
-        }) : unique;
-        // Determine last group from DOM
-        let lastDays = undefined;
-        if (showDeleted) {
-            const hs = document.querySelectorAll('.group-heading[data-days]');
-            if (hs && hs.length) {
-                const v = parseInt(hs[hs.length-1].getAttribute('data-days'));
-                if (!isNaN(v)) lastDays = v;
-            }
-        }
-        batch.forEach((file, i) => {
-            files.push(file);
-            const idx = startIndex + i;
-            const days = (typeof file.days_left === 'number') ? file.days_left : 9999;
-            if (showDeleted && (lastDays === undefined || days !== lastDays)){
-                const heading = document.createElement('div');
-                heading.className = 'group-heading';
-                heading.setAttribute('data-days', String(days));
-                if (days >= 9999) {
-                    heading.textContent = 'Deletion date unknown';
-                } else {
-                    heading.textContent = days === 0 ? 'Deleting soon' : (days === 1 ? '1 day left' : `${days} days left`);
-                }
-                gal.appendChild(heading);
-                lastDays = days;
-            }
-            const tile = document.createElement('div');
-            const isVideo = file.type === 'video';
-            const cls = isVideo ? 'gallery-item gallery-large gallery-video-tile gallery-clickable' : 'gallery-item gallery-clickable';
-            tile.className = cls;
-            tile.setAttribute('data-index', String(idx));
-            tile.setAttribute('data-name', file.name || '');
-            tile.setAttribute('data-datetime', file.datetime || '');
-
-            // Checkbox
-            const chk = document.createElement('input');
-            chk.type = 'checkbox';
-            chk.className = 'select-chk';
-            chk.setAttribute('data-id', String(file.id));
-            tile.appendChild(chk);
-            
-            if (file.type === 'image') {
-                const img = document.createElement('img');
-                img.src = file.thumb_url || file.url;
-                img.className = 'gallery-img';
-                img.alt = file.name;
-                img.loading = 'lazy';
-                if (file.url) img.setAttribute('data-full', file.url);
-                if (file.srcset) {
-                    img.setAttribute('srcset', file.srcset);
-                    img.setAttribute('sizes', '(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 20vw');
-                }
-                tile.appendChild(img);
-            } else if (file.type === 'video') {
-                const v = document.createElement('video');
-                v.src = file.url;
-                v.className = 'gallery-video';
-                v.controls = true;
-                tile.appendChild(v);
-            }
-            const overlay = document.createElement('div');
-            overlay.className = 'tile-overlay';
-            tile.appendChild(overlay);
-            if (file.type === 'video'){
-                const badge = document.createElement('div');
-                badge.className = 'tile-badge video';
-                badge.title = 'Video';
-                badge.textContent = '▶';
-                tile.appendChild(badge);
-            }
-            if (file.deleted){
-                // In deleted view, do not render per-tile countdown chip; rely on group headings
-                if (!showDeleted) {
-                    const badge = document.createElement('div');
-                    badge.className = 'tile-badge deleted';
-                    badge.title = 'Deleted';
-                    badge.textContent = 'Deleted';
-                    tile.appendChild(badge);
-                }
-            }
-            const fav = document.createElement('button');
-            fav.className = 'fav-btn' + (file.favorite ? ' is-fav' : '');
-            fav.title = file.favorite ? 'Unfavorite' : 'Favorite';
-            fav.setAttribute('data-id', String(file.id));
-            fav.textContent = file.favorite ? '★' : '☆';
-            tile.appendChild(fav);
-
-            gal.appendChild(tile);
-        });
-        renderFavoritesCount();
-    }
-
-    function fetchMore(){
-        if (loading || done) return;
-        loading = true;
-        if (loader) loader.style.display = 'block';
-        const params = new URLSearchParams(window.location.search);
-        params.set('offset', String(nextOffset || 0));
-        params.set('limit', String(pageSize));
-        fetch('/gallery/data?' + params.toString(), { headers: { 'accept': 'application/json' }})
-            .then(r => r.json())
-            .then(resp => {
-                if (!resp || resp.ok !== true) return;
-                appendFiles(resp.files || []);
-                if (resp.next_offset != null) {
-                    nextOffset = resp.next_offset;
-                } else {
-                    done = true;
-                    const end = document.getElementById('gallery-end');
-                    if (end) end.style.display = 'block';
-                }
+    try{
+        var metaEl = document.getElementById('gallery-data');
+        if(!metaEl) return;
+        var meta = {};
+        try{ meta = JSON.parse(metaEl.textContent || '{}'); }catch(e){}
+        var eventId = meta.event_id || null;
+        if(!eventId) return;
+        var sel = document.getElementById('album-filter');
+        if(!sel) return;
+        fetch('/events/' + encodeURIComponent(eventId) + '/albums')
+            .then(function(r){ if(!r.ok) return null; return r.json(); })
+            .then(function(j){
+                if(!j || !Array.isArray(j.items)) return;
+                j.items.forEach(function(a){
+                    try{
+                        var opt = document.createElement('option');
+                        opt.value = a.id;
+                        opt.textContent = a.name + (a.count ? (' (' + a.count + ')') : '');
+                        sel.appendChild(opt);
+                    }catch(e){}
+                });
+                try{
+                    var u = new URL(window.location.href);
+                    var cur = u.searchParams.get('album_id');
+                    if(cur) sel.value = cur;
+                }catch(e){}
             })
-            .catch(() => {})
-            .finally(() => { loading = false; if (loader) loader.style.display = done ? 'none' : 'block'; });
-    }
-
-    // Trigger near-bottom
-    window.addEventListener('scroll', function(){
-        if (done || loading) return;
-        const scrollPos = window.scrollY + window.innerHeight;
-        const nearBottom = document.body.offsetHeight - 800;
-        if (scrollPos >= nearBottom) fetchMore();
-    });
+            .catch(function(){ /* ignore */ });
+        sel.addEventListener('change', function(){
+            var v = sel.value;
+            var u = new URL(window.location.href);
+            if(v) u.searchParams.set('album_id', v);
+            else u.searchParams.delete('album_id');
+            window.location.href = u.toString();
+        });
+    }catch(e){ }
 })();
 </script>
-<script src="{{ url_for('static', path='gallery.js') }}"></script>
+<script type="module" src="{{ url_for('static', path='js/pages/gallery.js') }}?v={{ now() if now else '' }}" defer></script>
 {% endblock %}

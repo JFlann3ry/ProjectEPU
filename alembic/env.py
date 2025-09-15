@@ -25,7 +25,7 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 from app.models.user import Base as UserBase  # noqa
 from app.models.event import Base as EventBase  # noqa
-from app.models.addons import Base as AddonsBase  # noqa
+# Extras models are part of the shared Base
 
 # If these Bases are distinct, choose one and reflect metadata; here they share same Base
 from app.models.user import Base as target_metadata  # noqa

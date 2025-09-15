@@ -4,16 +4,16 @@
 
 {% block content %}
 <div class="container section center">
-    <div class="page-hero center">
-        <h1 class="hero-title" style="color:#F25F4C;">Account Deletion Requested</h1>
-        <p class="hero-sub">Your data will be removed within 30 days.</p>
-    </div>
+        {% from 'components/macros.html' import page_hero, btn_row %}
+        {{ page_hero('Account Deletion Requested', 'Your data will be removed within 30 days.') }}
     <div class="card" style="max-width:720px;margin:0 auto;">
         <div class="p-regular" style="margin-bottom:12px;">
             <p>Your account deletion request has been received. Your data will be removed within 30 days. A confirmation email has been sent to your address.</p>
             <p>You will be redirected to the home page shortly.</p>
         </div>
-        <a class="btn" href="/">Return home now</a>
+                {% call btn_row() %}
+                    <a class="btn" href="/">Return home now</a>
+                {% endcall %}
     </div>
 </div>
 <script>

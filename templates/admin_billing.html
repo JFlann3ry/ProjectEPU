@@ -1,20 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Billing (Admin){% endblock %}
 {% block breadcrumbs %}
+{% from 'components/macros.html' import breadcrumbs %}
 <div class="container section" style="padding-bottom:0;">
-  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
-    <a href="/admin" class="crumb">Admin</a>
-    <span class="sep" aria-hidden="true">›</span>
-    <span class="crumb current">Billing</span>
-  </nav>
+  {{ breadcrumbs([{'label':'Admin','href':'/admin'}], 'Billing') }}
   </div>
 {% endblock %}
 {% block content %}
 <div class="container section center">
-  <div class="page-hero" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-    <h1 class="hero-title">Billing</h1>
-    <a href="/admin/payment-logs" class="btn">View Logs</a>
-  </div>
+  {% from 'components/macros.html' import page_hero, badge, btn_row, chip %}
+  {{ page_hero('Billing', 'Manage purchases and refunds.', False) }}
+  {% call btn_row('style="justify-content:flex-end; margin:-10px 0 10px;"') %}<a href="/admin/payment-logs" class="btn">View Logs</a>{% endcall %}
   <div class="card" style="padding:16px;">
     <table style="width:100%; border-collapse: collapse;">
       <thead>
@@ -34,7 +30,7 @@
           <td>{{ it.user_email }}</td>
           <td>{{ it.plan|upper }}</td>
           <td>{{ it.amount }}</td>
-          <td><span class="badge">{{ it.status }}</span></td>
+          <td>{{ chip(it.status|capitalize, it.status) }}</td>
           <td>
             <form method="post" action="/admin/refund" style="display:inline-block;">
               <input type="hidden" name="purchase_id" value="{{ it.purchase_id }}">

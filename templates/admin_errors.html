@@ -1,10 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="container section">
-  <div class="page-hero">
-    <h1 class="hero-title">Error Logs</h1>
-    <p class="hero-sub">Browse recent AppErrorLog entries.</p>
-  </div>
+  {% from 'components/macros.html' import page_hero, btn_row %}
+  {{ page_hero('Error Logs', 'Browse recent AppErrorLog entries.', center=False) }}
   <form class="card form" method="get" style="margin-bottom:16px;">
     <div class="grid" style="grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px;">
       <div class="floating-field">
@@ -24,10 +22,10 @@
         <input class="input-field" id="ps" name="page_size" type="number" min="1" max="200" value="{{ page_size }}">
       </div>
     </div>
-    <div class="btn-row" style="margin-top:12px;">
+    {% call btn_row('style="margin-top:12px;"') %}
       <button class="btn primary" type="submit">Filter</button>
       <a class="btn" href="/admin/errors">Reset</a>
-    </div>
+    {% endcall %}
   </form>
 
   <div class="card">
@@ -68,17 +66,17 @@
         </tbody>
       </table>
     </div>
-    <div class="btn-row" style="justify-content: flex-end; margin-top: 12px;">
+    {% call btn_row('style="justify-content: flex-end; margin-top: 12px;"') %}
       {% if page > 1 %}
         <a class="btn" href="?request_id={{ request_id | urlencode }}&since={{ since | urlencode }}&until={{ until | urlencode }}&page={{ page-1 }}&page_size={{ page_size }}">Prev</a>
       {% endif %}
       {% if (page * page_size) < total %}
         <a class="btn" href="?request_id={{ request_id | urlencode }}&since={{ since | urlencode }}&until={{ until | urlencode }}&page={{ page+1 }}&page_size={{ page_size }}">Next</a>
       {% endif %}
-    </div>
+    {% endcall %}
   </div>
-  <div class="btn-row" style="margin-top: 12px;">
+  {% call btn_row('style="margin-top: 12px;"') %}
     <a class="btn" href="/admin">Back to Admin</a>
-  </div>
+  {% endcall %}
  </div>
 {% endblock %}
