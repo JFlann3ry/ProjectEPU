@@ -2,10 +2,10 @@ import io as _io
 import logging
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from PIL import Image
 from sqlalchemy import func as _func
@@ -26,6 +26,8 @@ from app.services.auth import require_user
 from app.services.email_utils import send_event_date_locked_email
 from app.services.mime_utils import is_allowed_mime
 from db import get_db
+from fastapi import HTTPException
+
 
 router = APIRouter()
 audit = logging.getLogger("audit")
@@ -181,8 +183,7 @@ async def edit_event_page_code(
                 return bool(re.fullmatch(r"[A-Za-z0-9]{6}", str(p or '')))
 
             if not _valid_pw(pw):
-                import random
-                import string
+                import random, string
 
                 def _gen_pw(n: int = 6) -> str:
                     alphabet = string.ascii_letters + string.digits
@@ -245,8 +246,7 @@ async def edit_event_page(
                 return bool(re.fullmatch(r"[A-Za-z0-9]{6}", str(p or '')))
 
             if not _valid_pw(pw):
-                import random
-                import string
+                import random, string
 
                 def _gen_pw(n: int = 6) -> str:
                     alphabet = string.ascii_letters + string.digits
@@ -308,13 +308,8 @@ async def edit_event_submit(
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
-    from app.models.event import EventCustomisation, EventType, Theme
-    from app.services.csrf import (
-        CSRF_COOKIE,
-        issue_csrf_token,
-        set_csrf_cookie,
-        validate_csrf_token,
-    )
+    from app.services.csrf import CSRF_COOKIE, validate_csrf_token, issue_csrf_token, set_csrf_cookie
+    from app.models.event import Theme, EventCustomisation, EventType
     cookie_token = request.cookies.get(CSRF_COOKIE)
     if (
         not cookie_token
@@ -627,12 +622,7 @@ async def edit_event_submit_code(
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
-    from app.services.csrf import (
-        CSRF_COOKIE,
-        issue_csrf_token,
-        set_csrf_cookie,
-        validate_csrf_token,
-    )
+    from app.services.csrf import CSRF_COOKIE, validate_csrf_token, issue_csrf_token, set_csrf_cookie
     cookie_token = request.cookies.get(CSRF_COOKIE)
     if (
         not cookie_token
@@ -640,7 +630,7 @@ async def edit_event_submit_code(
         or not validate_csrf_token(csrf_token, request.cookies.get("session_id"))
         or cookie_token != csrf_token
     ):
-        from app.models.event import EventCustomisation, EventType, Theme
+        from app.models.event import Theme, EventCustomisation, EventType
         token = issue_csrf_token(request.cookies.get("session_id"))
         event = db.query(Event).filter(Event.Code == code).first()
         resp = templates.TemplateResponse(
@@ -740,9 +730,9 @@ async def lock_event_date(
         except Exception:
             pass
         try:
-            from datetime import datetime as _dt
+            from datetime import datetime as _dt, timezone
 
-            setattr(event, "DateLockedAt", _dt.utcnow())
+            setattr(event, "DateLockedAt", _dt.now(timezone.utc))
         except Exception:
             pass
         # Insert EventLockAudit row
@@ -829,7 +819,7 @@ async def list_albums(event_id: int, db: Session = Depends(get_db), user=Depends
     # List albums for an event (owner view)
     rows = []
     try:
-        from app.models.album import Album
+        from app.models.album import Album, AlbumPhoto
         rows = db.query(Album).filter(Album.EventID == event_id).order_by(Album.CreatedAt.desc()).all()
         res = []
         for a in rows:
@@ -847,7 +837,7 @@ async def list_albums(event_id: int, db: Session = Depends(get_db), user=Depends
 async def album_add_photo(event_id: int, album_id: int, file_id: int = Form(...), db: Session = Depends(get_db), user=Depends(require_user)):
     # Add a file to an album
     from app.models.album import Album, AlbumPhoto
-    from app.models.event import Event, FileMetadata
+    from app.models.event import FileMetadata, Event
     ev = db.query(Event).filter(Event.EventID == event_id).first()
     if not ev:
         raise HTTPException(status_code=404, detail='Event not found')
@@ -870,7 +860,7 @@ async def album_add_photo(event_id: int, album_id: int, file_id: int = Form(...)
 
 @router.post("/events/{event_id}/albums/{album_id}/remove")
 async def album_remove_photo(event_id: int, album_id: int, file_id: int = Form(...), db: Session = Depends(get_db), user=Depends(require_user)):
-    from app.models.album import AlbumPhoto
+    from app.models.album import Album, AlbumPhoto
     from app.models.event import Event
     ev = db.query(Event).filter(Event.EventID == event_id).first()
     if not ev:
