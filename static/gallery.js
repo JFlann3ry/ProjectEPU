@@ -96,6 +96,43 @@
     } catch(_){}
   }
 
+  // Attempt to fetch server-side canonical order for the current event if available
+  function applyServerOrder(eventId){
+    if (!eventId) return Promise.resolve();
+    return fetch('/events/' + encodeURIComponent(eventId) + '/gallery/order')
+      .then(function(r){ if (!r.ok) throw new Error('no-order'); return r.json(); })
+      .then(function(j){ if (!j || !j.ok || !Array.isArray(j.files)) throw new Error('bad');
+        // Replace files array and update DOM data-index to match
+        var newFiles = j.files.map(function(f){ return Object.assign({}, f, { favorite: !!f.favorite }); });
+        files = newFiles;
+        window.__gallerySeenIds = new Set(files.map(f=>f.id));
+        // Update DOM tiles order and data-index to match new order
+        try{
+          var gal = document.querySelector('.dynamic-gallery'); if (!gal) return;
+          var idToTile = new Map();
+          Array.from(gal.querySelectorAll('.gallery-item')).forEach(function(tile){
+            var chk = tile.querySelector('.select-chk');
+            var id = chk ? parseInt(chk.getAttribute('data-id')) : NaN;
+            if (!isNaN(id)) idToTile.set(id, tile);
+          });
+          // Build document fragment in server order
+          var frag = document.createDocumentFragment();
+          files.forEach(function(f, idx){
+            var tile = idToTile.get(f.id);
+            if (tile){
+              tile.setAttribute('data-index', String(idx));
+              frag.appendChild(tile);
+            }
+          });
+          // Append any leftover tiles not present in order at the end
+          idToTile.forEach(function(tile, id){ if (!files.find(function(x){ return x.id === id; })) frag.appendChild(tile); });
+          // Replace gallery children
+          while (gal.firstChild) gal.removeChild(gal.firstChild);
+          gal.appendChild(frag);
+        }catch(_){ }
+      }).catch(function(){ /* ignore and keep DOM order */ });
+  }
+
   function init(){
     initFromDOM();
     const gallery = document.querySelector('.dynamic-gallery');

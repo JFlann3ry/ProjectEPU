@@ -1,3 +1,4 @@
+import hashlib
 import io
 import os
 import zipfile
@@ -19,6 +20,7 @@ from app.core.settings import settings
 from app.core.templates import templates
 from app.models.album import Album, AlbumPhoto
 from app.models.event import Event, FavoriteFile, FileMetadata
+from app.models.photo_order import EventGalleryOrder
 from app.services.auth import require_user
 from app.services.csrf import validate_csrf_token
 from app.services.thumbs import (
@@ -472,6 +474,92 @@ async def gallery_data(
     )
     next_offset = (offset + len(files)) if has_more else None
     return JSONResponse({"ok": True, "files": files, "next_offset": next_offset})
+
+
+@router.get("/events/{event_id}/gallery/order", response_class=JSONResponse)
+async def event_gallery_order(
+    request: Request,
+    event_id: int,
+    show_deleted: bool = Query(False),
+    favorites: bool = Query(False),
+    album_id: int | None = Query(None),
+    db: Session = Depends(get_db),
+    user=Depends(require_user),
+):
+    """Return files for an event in the canonical gallery order.
+
+    Preference order:
+    1. If EventGalleryOrder rows exist for the event, use that Ordinal ordering.
+    2. Otherwise, fall back to the capture/upload chronological ordering produced by
+       _build_gallery_files (CapturedDateTime asc, NULLs last, then UploadDate asc).
+    """
+    # Ensure event belongs to user
+    owned = (
+        db.query(Event.EventID)
+        .filter(Event.EventID == event_id, Event.UserID == user.UserID)
+        .first()
+    )
+    if not owned:
+        return JSONResponse({"ok": False, "error": "not_owned"}, status_code=404)
+
+    # Use the existing builder to get the canonical list (fallback)
+    files, _ = _build_gallery_files(
+        db,
+        user_id=user.UserID,
+        event_id=event_id,
+        type_filter=None,
+        show_deleted=show_deleted,
+        favorites_only=favorites,
+        limit=0,
+        offset=0,
+        album_id=album_id,
+    )
+
+    try:
+        # Query precomputed order
+        rows = (
+            db.query(EventGalleryOrder.FileMetadataID)
+            .filter(EventGalleryOrder.EventID == event_id)
+            .order_by(EventGalleryOrder.Ordinal)
+            .all()
+        )
+        order_ids = [int(r[0]) for r in rows] if rows else []
+    except Exception:
+        order_ids = []
+
+    if order_ids:
+        by_id = {int(f["id"]): f for f in files}
+        ordered = []
+        for fid in order_ids:
+            if fid in by_id:
+                ordered.append(by_id.pop(fid))
+        # append any remaining files not present in EventGalleryOrder in their original order
+        if by_id:
+            for f in files:
+                if int(f["id"]) in by_id:
+                    ordered.append(by_id.pop(int(f["id"])))
+        files = ordered
+
+    # Build a simple ETag based on file ids + last-order hash
+    try:
+        et_src = ",".join(str(int(f.get("id", ""))) for f in files)
+        etag = hashlib.sha256(et_src.encode("utf-8")).hexdigest()
+    except Exception:
+        etag = None
+
+    # If client provided If-None-Match matching our ETag, return 304
+    try:
+        inm = request.headers.get("if-none-match") or request.headers.get("If-None-Match")
+        if inm and etag and inm.strip('"') == etag:
+            return JSONResponse({"ok": True, "files": []}, status_code=304, headers={"ETag": '"%s"' % etag})
+    except Exception:
+        pass
+
+    headers = {"Cache-Control": "private, max-age=5"}
+    if etag:
+        headers["ETag"] = '"%s"' % etag
+
+    return JSONResponse({"ok": True, "files": files}, headers=headers)
 
 
 @router.get("/thumbs/{file_id}.jpg")

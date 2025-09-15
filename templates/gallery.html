@@ -226,7 +226,7 @@
         fetch('/events/' + encodeURIComponent(eventId) + '/albums')
             .then(function(r){ if(!r.ok) return null; return r.json(); })
             .then(function(j){
-                if(!j || !Array.isArray(j.items)) return;
+                if(!j || !Array.isArray(j.items)) return null;
                 j.items.forEach(function(a){
                     try{
                         var opt = document.createElement('option');
@@ -237,11 +237,12 @@
                 });
                 try{
                     var u = new URL(window.location.href);
-                    var cur = u.searchParams.get('album_id');
-                    if(cur) sel.value = cur;
-                }catch(e){}
+                    return u.searchParams.get('album_id');
+                }catch(e){ return null; }
             })
-            .catch(function(){ /* ignore */ });
+            .then(function(cur){ if(cur) sel.value = cur; })
+            .catch(function(){ /* ignore */ })
+            .finally(function(){ try{ if (eventId && typeof applyServerOrder === 'function') applyServerOrder(eventId); }catch(e){} });
         sel.addEventListener('change', function(){
             var v = sel.value;
             var u = new URL(window.location.href);
