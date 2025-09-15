@@ -44,33 +44,43 @@
   function prevSlide(){ currentIndex = (currentIndex - 1 + files.length) % files.length; openLightbox(currentIndex); }
   function nextSlide(){ currentIndex = (currentIndex + 1) % files.length; openLightbox(currentIndex); }
 
-  function rebuildGalleryOrder(){
-    try {
+  // Reorder gallery DOM to match the canonical order in `files` without
+  // measuring element positions (which shifts while images load).
+  function stableReorderDOM(){
+    try{
       const gal = document.querySelector('.dynamic-gallery'); if (!gal) return;
-      const byId = new Map(files.map(f=>[f.id,f]));
-      const tiles = Array.from(gal.querySelectorAll('.gallery-item'));
-      const withRects = tiles.map(tile => {
+      const idToTile = new Map();
+      Array.from(gal.querySelectorAll('.gallery-item')).forEach(tile => {
         const chk = tile.querySelector('.select-chk');
         const id = chk ? parseInt(chk.getAttribute('data-id')) : NaN;
-        const r = tile.getBoundingClientRect();
-        return {tile, id, top: Math.round(r.top), left: Math.round(r.left)};
-      }).filter(x => x.id && !isNaN(x.id));
-      const rowGap = 6;
-      withRects.sort((a,b)=>{ const dt=a.top-b.top; if (Math.abs(dt)>rowGap) return dt; return a.left-b.left; });
-      const newFiles = [];
-      withRects.forEach((entry, idx) => {
-        entry.tile.setAttribute('data-index', String(idx));
-        const meta = byId.get(entry.id); if (meta) newFiles.push({...meta});
+        if (!isNaN(id)) idToTile.set(id, tile);
       });
-      if (newFiles.length){ files = newFiles; window.__gallerySeenIds = new Set(files.map(f=>f.id)); }
-    } catch(_){}
+      // Build fragment in files order
+      const frag = document.createDocumentFragment();
+      files.forEach((f, idx) => {
+        const tile = idToTile.get(f.id);
+        if (tile) {
+          tile.setAttribute('data-index', String(idx));
+          frag.appendChild(tile);
+          idToTile.delete(f.id);
+        }
+      });
+      // Append any leftover tiles (not present in `files`) at the end
+      idToTile.forEach((tile, id) => {
+        frag.appendChild(tile);
+      });
+      // Replace gallery children preserving nodes
+      while (gal.firstChild) gal.removeChild(gal.firstChild);
+      gal.appendChild(frag);
+    }catch(_){ }
   }
 
   function initFromDOM(){
-    try {
+    try{
       const gal = document.querySelector('.dynamic-gallery'); if (!gal) return;
       const byId = new Map((Array.isArray(window.galleryFiles)?window.galleryFiles:[]).map(f=>[f.id,f]));
       const seenIds = new Set();
+      // Remove duplicate tiles while preserving first occurrence
       Array.from(gal.querySelectorAll('.gallery-item')).forEach(tile => {
         const chk = tile.querySelector('.select-chk');
         const id = chk ? parseInt(chk.getAttribute('data-id')) : NaN;
@@ -93,7 +103,7 @@
         }
       });
       if (newFiles.length){ files = newFiles; window.__gallerySeenIds = new Set(files.map(f=>f.id)); }
-    } catch(_){}
+    }catch(_){ }
   }
 
   // Attempt to fetch server-side canonical order for the current event if available
@@ -106,30 +116,8 @@
         var newFiles = j.files.map(function(f){ return Object.assign({}, f, { favorite: !!f.favorite }); });
         files = newFiles;
         window.__gallerySeenIds = new Set(files.map(f=>f.id));
-        // Update DOM tiles order and data-index to match new order
-        try{
-          var gal = document.querySelector('.dynamic-gallery'); if (!gal) return;
-          var idToTile = new Map();
-          Array.from(gal.querySelectorAll('.gallery-item')).forEach(function(tile){
-            var chk = tile.querySelector('.select-chk');
-            var id = chk ? parseInt(chk.getAttribute('data-id')) : NaN;
-            if (!isNaN(id)) idToTile.set(id, tile);
-          });
-          // Build document fragment in server order
-          var frag = document.createDocumentFragment();
-          files.forEach(function(f, idx){
-            var tile = idToTile.get(f.id);
-            if (tile){
-              tile.setAttribute('data-index', String(idx));
-              frag.appendChild(tile);
-            }
-          });
-          // Append any leftover tiles not present in order at the end
-          idToTile.forEach(function(tile, id){ if (!files.find(function(x){ return x.id === id; })) frag.appendChild(tile); });
-          // Replace gallery children
-          while (gal.firstChild) gal.removeChild(gal.firstChild);
-          gal.appendChild(frag);
-        }catch(_){ }
+    // Update DOM tiles order and data-index to match new order using stableReorderDOM
+    try{ stableReorderDOM(); }catch(_){ }
       }).catch(function(){ /* ignore and keep DOM order */ });
   }
 
