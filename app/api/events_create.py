@@ -44,7 +44,8 @@ async def create_event_page(
         try:
             from app.models.billing import Purchase as _Purchase
 
-            extra_entitlement = (
+            # Check for any zero-amount paid purchases (entitlements) -- not used here
+            _ = (
                 db.query(_Purchase)
                 .filter(
                     _Purchase.UserID == getattr(user, "UserID", None),
@@ -64,7 +65,10 @@ async def create_event_page(
                 request,
                 "create_event.html",
                 context={
-                    "error": 'Your plan allows only 1 event. Purchase an <a href="/extras?code=additional_event">additional event for £20</a> to create more.',
+                    "error": (
+                        'Your plan allows only 1 event. '
+                        'Purchase an additional event to create more.'
+                    ),
                     "event_types": event_types,
                 },
             )
@@ -123,7 +127,8 @@ async def create_event_submit(
                 .order_by(_Purchase.CreatedAt.asc())
                 .first()
             )
-        except Exception:
+        except Exception as e:
+            logging.exception("Error fetching entitlement: %s", e)
             entitlement = None
 
         if count >= 1:
