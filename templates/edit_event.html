@@ -331,7 +331,10 @@
         </div>
         {% else %}
         <div style="grid-column: span 6; display:flex; align-items:center; gap:12px; justify-content:flex-end;">
-          <a class="btn sm outline primary" href="/billing/upgrade" role="button" aria-label="Upgrade to Ultimate">Upgrade to Ultimate</a>
+          <div class="upgrade-ultimate">
+            <p class="muted small" style="margin:0 0 6px 0">Upgrade to fully customise your event theme (colors, fonts, and layout) and unlock premium options.</p>
+            <a class="btn sm outline primary" href="/billing/upgrade" role="button" aria-label="Upgrade to Ultimate - customise theme and unlock premium options">Upgrade to Ultimate</a>
+          </div>
           <a class="small muted" href="/pricing" style="text-decoration:underline; margin-left:8px;">See pricing</a>
         </div>
         {% endif %}
