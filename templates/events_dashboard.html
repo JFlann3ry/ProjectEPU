@@ -150,7 +150,7 @@
                                     <span class="label">Publish event</span>
                                 </a>
                                 {% endif %}
-                                <a class="task {% if e.SharedOnce %}done{% else %}pending{% endif %} share-btn" href="/e/{{ e.Code }}" data-event-id="{{ e.EventID }}" data-code="{{ e.Code }}" data-published="{{ 1 if e.Published else 0 }}" data-title="{{ e.Name }}" title="Share options">
+                                <a class="task {% if e.SharedOnce %}done{% else %}pending{% endif %} share-btn" href="/e/{{ e.Code }}" data-event-id="{{ e.EventID }}" data-code="{{ e.Code }}" data-published="{{ 1 if e.Published else 0 }}" data-title="{{ e.Name }}" data-share-template="Join %TITLE% — %URL%" title="Share options">
                                     <svg class="ck" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                     <span class="label">Share event</span>
                                 </a>
@@ -213,55 +213,16 @@
             }
         });
         function esc(s){ return (s||'').replace(/[&<>"];/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',';':'&#59;'}[c]) || c; }); }
-        function openShare(code, published, title, eid){
-            var url = new URL('/e/' + code, window.location.origin).href;
-            var encUrl = encodeURIComponent(url);
-            var encTitle = encodeURIComponent(title || 'My event');
-                        var warn = '';
-                        if (!published && window.EPU && window.EPU.ui) {
-                            // Make the notice itself a link to the edit page so users can publish
-                            var linkHtml = '<a href="/e/' + code + '/edit" style="color:inherit; text-decoration:underline;">Publish this event</a>';
-                            warn = window.EPU.ui.renderNotice('This event is not published. Shared links will not be viewable by others until you publish. ' + linkHtml, 'warn', 'style="margin-bottom:10px;"');
-                        }
-                        var body = warn +
-                                (window.EPU && window.EPU.ui ? window.EPU.ui.renderBtnRow(
-                                    '' +
-            '<a class="btn share-via" data-eid="' + (eid||'') + '" href="https://wa.me/?text=' + encTitle + '%20' + encUrl + '" target="_blank" rel="noopener" title="Share via WhatsApp">' +
-                        '<svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20.5 3.5C18.9 2 16.8 1 14.5 1 8 1 2.9 6.1 2.9 12.6c0 2 0.5 3.9 1.4 5.6L1 23l4.9-1.3c1.5 0.8 3.2 1.2 4.9 1.2 6.5 0 11.6-5.1 11.6-11.6 0-2.3-0.9-4.4-2.9-6z" stroke="currentColor" stroke-width="0"/></svg>' +
-                        '<span>WhatsApp</span>' +
-                    '</a>' +
-            '<a class="btn share-via" data-eid="' + (eid||'') + '" href="fb-messenger://share/?link=' + encUrl + '" target="_blank" rel="noopener" title="Share via Messenger (mobile)">' +
-                        '<svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2C6.5 2 2 6.2 2 11.5c0 3 1.5 5.7 3.9 7.4V22l3.1-1.7c0.9 0.2 1.8 0.3 2.8 0.3 5.5 0 10-4.2 10-9.5S17.5 2 12 2z" stroke="currentColor" stroke-width="0"/></svg>' +
-                        '<span>Messenger</span>' +
-                    '</a>' +
-            '<a class="btn share-via" data-eid="' + (eid||'') + '" href="mailto:?subject=' + encTitle + '&body=' + encTitle + '%0A' + encUrl + '" title="Share via Email">' +
-                        '<svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 5.5v13c0 1 0.9 1.5 1.9 1.5h13.2c1 0 1.9-0.5 1.9-1.5v-13c0-1-0.9-1.5-1.9-1.5H4.9C3.9 4 3 4.5 3 5.5zM12 13l9-6H3l9 6z" stroke="currentColor" stroke-width="0"/></svg>' +
-                        '<span>Email</span>' +
-                    '</a>' +
-            '<a class="btn share-via" data-eid="' + (eid||'') + '" href="https://twitter.com/intent/tweet?text=' + encTitle + '%20' + encUrl + '" target="_blank" rel="noopener" title="Share on Twitter">' +
-                        '<svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M22 5.9c-0.6 0.3-1.2 0.5-1.9 0.6 0.7-0.4 1.2-1 1.4-1.7-0.7 0.4-1.5 0.7-2.3 0.9C18.7 4.9 17.8 4.5 16.8 4.5c-1.7 0-3 1.5-2.6 3.1C12.3 7.3 10 6.5 8.2 5c-1.1 1.9-0.1 4.4 2 5.1-0.5 0-1.1-0.2-1.6-0.4 0 1.8 1.3 3.3 3 3.6-0.4 0.1-0.9 0.1-1.3 0.1-0.3 0-0.6 0-0.9-0.1 0.6 1.9 2.4 3.2 4.5 3.2C7.1 19.8 4.1 20.9 1.7 21.3c2.8 1.7 6.2 2.7 9.8 2.7 11.8 0 18.3-9.8 18.3-18.3v-0.8C21.5 7.2 21.8 6.6 22 5.9z" stroke="currentColor" stroke-width="0"/></svg>' +
-                        '<span>Twitter</span>' +
-                    '</a>' +
-            '<a class="btn share-via" data-eid="' + (eid||'') + '" href="https://www.linkedin.com/sharing/share-offsite/?url=' + encUrl + '" target="_blank" rel="noopener" title="Share on LinkedIn">' +
-                        '<svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 3C3 3 2 4 2 5v14c0 1 1 2 2 2h16c1 0 2-1 2-2V5c0-1-1-2-2-2H4zM8.3 17H5.5V10.7h2.8V17zM7 9.5c-0.9 0-1.6-0.8-1.6-1.6S6.1 6.3 7 6.3s1.6 0.8 1.6 1.6S7.9 9.5 7 9.5zM18.5 17h-2.8v-3.3c0-0.8 0-1.9-1.2-1.9-1.2 0-1.4 1-1.4 1.9V17h-2.8V10.7h2.7v0.9h0c0.4-0.7 1.5-1.4 2.9-1.4 3.1 0 3.7 2 3.7 4.6V17z" stroke="currentColor" stroke-width="0"/></svg>' +
-                        '<span>LinkedIn</span>' +
-                    '</a>' +
-                        '<button class="btn share-copy" type="button" data-url="' + esc(url) + '" data-eid="' + (eid||'') + '"><svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 7h8v10H8zM5 4h8v2H7v10H5z" stroke="currentColor" stroke-width="0"/></svg><span>Copy Link</span></button>' +
-                        '<button class="btn share-more" type="button" data-eid="' + (eid||'') + '" data-url="' + esc(url) + '"><svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>More...</span></button>',
-                                    'style="flex-wrap:wrap; gap:10px;"') :
-                                    '<div class="btn-row" style="flex-wrap:wrap; gap:10px;">' +
-                                    '<a class="btn share-via" data-eid="' + (eid||'') + '" href="https://wa.me/?text=' + encTitle + '%20' + encUrl + '" target="_blank" rel="noopener" title="Share via WhatsApp"><svg class="icn" viewBox="0 0 24 24" fill="none"><path d="M20.5 3.5C18.9 2 16.8 1 14.5 1 8 1 2.9 6.1 2.9 12.6c0 2 0.5 3.9 1.4 5.6L1 23l4.9-1.3c1.5 0.8 3.2 1.2 4.9 1.2 6.5 0 11.6-5.1 11.6-11.6 0-2.3-0.9-4.4-2.9-6z"/></svg><span>WhatsApp</span></a>' +
-                                    '<a class="btn share-via" data-eid="' + (eid||'') + '" href="fb-messenger://share/?link=' + encUrl + '" target="_blank" rel="noopener" title="Share via Messenger (mobile)"><svg class="icn" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.5 2 2 6.2 2 11.5c0 3 1.5 5.7 3.9 7.4V22l3.1-1.7c0.9 0.2 1.8 0.3 2.8 0.3 5.5 0 10-4.2 10-9.5S17.5 2 12 2z"/></svg><span>Messenger</span></a>' +
-                                    '<a class="btn share-via" data-eid="' + (eid||'') + '" href="mailto:?subject=' + encTitle + '&body=' + encTitle + '%0A' + encUrl + '" title="Share via Email"><svg class="icn" viewBox="0 0 24 24" fill="none"><path d="M3 5.5v13c0 1 0.9 1.5 1.9 1.5h13.2c1 0 1.9-0.5 1.9-1.5v-13c0-1-0.9-1.5-1.9-1.5H4.9C3.9 4 3 4.5 3 5.5zM12 13l9-6H3l9 6z"/></svg><span>Email</span></a>' +
-                                    '<a class="btn share-via" data-eid="' + (eid||'') + '" href="https://twitter.com/intent/tweet?text=' + encTitle + '%20' + encUrl + '" target="_blank" rel="noopener" title="Share on Twitter"><svg class="icn" viewBox="0 0 24 24" fill="none"><path d="M22 5.9c-0.6 0.3-1.2 0.5-1.9 0.6 0.7-0.4 1.2-1 1.4-1.7-0.7 0.4-1.5 0.7-2.3 0.9C18.7 4.9 17.8 4.5 16.8 4.5c-1.7 0-3 1.5-2.6 3.1C12.3 7.3 10 6.5 8.2 5c-1.1 1.9-0.1 4.4 2 5.1-0.5 0-1.1-0.2-1.6-0.4 0 1.8 1.3 3.3 3 3.6-0.4 0.1-0.9 0.1-1.3 0.1-0.3 0-0.6 0-0.9-0.1 0.6 1.9 2.4 3.2 4.5 3.2C7.1 19.8 4.1 20.9 1.7 21.3c2.8 1.7 6.2 2.7 9.8 2.7 11.8 0 18.3-9.8 18.3-18.3v-0.8C21.5 7.2 21.8 6.6 22 5.9z"/></svg><span>Twitter</span></a>' +
-                                    '<a class="btn share-via" data-eid="' + (eid||'') + '" href="https://www.linkedin.com/sharing/share-offsite/?url=' + encUrl + '" target="_blank" rel="noopener" title="Share on LinkedIn"><svg class="icn" viewBox="0 0 24 24" fill="none"><path d="M4 3C3 3 2 4 2 5v14c0 1 1 2 2 2h16c1 0 2-1 2-2V5c0-1-1-2-2-2H4zM8.3 17H5.5V10.7h2.8V17zM7 9.5c-0.9 0-1.6-0.8-1.6-1.6S6.1 6.3 7 6.3s1.6 0.8 1.6 1.6S7.9 9.5 7 9.5zM18.5 17h-2.8v-3.3c0-0.8 0-1.9-1.2-1.9-1.2 0-1.4 1-1.4 1.9V17h-2.8V10.7h2.7v0.9h0c0.4-0.7 1.5-1.4 2.9-1.4 3.1 0 3.7 2 3.7 4.6V17z"/></svg><span>LinkedIn</span></a>' +
-                                    '<button class="btn share-copy" type="button" data-url="' + esc(url) + '" data-eid="' + (eid||'') + '"><svg class="icn" viewBox="0 0 24 24" fill="none"><path d="M8 7h8v10H8zM5 4h8v2H7v10H5z"/></svg><span>Copy Link</span></button>' +
-                                    '<button class="btn share-more" type="button" data-eid="' + (eid||'') + '" data-url="' + esc(url) + '"><svg class="icn" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>More...</span></button>' +
-                                    '</div>'
-                                ) +
-                '<div class="small muted" style="margin-top:6px;">The share page URL is ' + esc(url) + '</div>';
-            if (window.EPU && window.EPU.modal){ window.EPU.modal.show({ title: 'Share Event', body: body, fit: true, actions: [], noDefaultClose: true }); }
+        function openShare(code, published, title, eid, tmpl){
+            if (window.EPU && window.EPU.share && window.EPU.share.open){
+                window.EPU.share.open({ code: code, published: !!published, title: title || '', tmpl: tmpl || null, eid: eid || null });
+            }
         }
+
+        // Listen for the shared event emitted by the global share modal and mark the event as shared server-side
+        document.addEventListener('epu:shared', function(ev){
+            try{ var eid = ev && ev.detail && ev.detail.eid; if (eid) { markShared(eid); } }catch(_e){}
+        });
         async function copyToClipboard(text){
             try { if (navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(text); return true; } } catch(e){}
             try { var ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); return true; } catch(e){ return false; }

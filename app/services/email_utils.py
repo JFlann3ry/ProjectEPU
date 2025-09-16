@@ -93,6 +93,35 @@ If you have any questions, reply to this email.
     )
 
 
+async def send_email_change_notification(old_email: str, new_email: str, reversal_url: str):
+    """Notify the old email address that a change was requested and include a reversal link."""
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD or not old_email:
+        return
+    msg = EmailMessage()
+    msg["From"] = GMAIL_USER
+    msg["To"] = old_email
+    msg["Subject"] = "Your email address was changed on EPU"
+    body = (
+        f"Hello,\n\nWe received a request to change your account email "
+        f"from {old_email} to {new_email}.\n\n"
+        "If you made this change, no action is required.\n"
+        "If you did not make this change, click the link below to reverse the "
+        "update and keep your old address:\n"
+        f"{reversal_url}\n\n"
+        "If the new email has not yet been verified, clicking the reversal link "
+        "will deactivate the new verification link."
+    )
+    msg.set_content(body)
+    await aiosmtplib.send(
+        msg,
+        hostname="smtp.gmail.com",
+        port=587,
+        start_tls=True,
+        username=GMAIL_USER,
+        password=GMAIL_APP_PASSWORD,
+    )
+
+
 async def send_event_date_locked_email(
     to_email: str, event_name: str, event_date: str, dashboard_url: str
 ):

@@ -48,7 +48,7 @@
                                     {% else %}
                                         <span class="pill warn" title="Not published">Unpublished</span>
                                     {% endif %}
-                                    {% if event.IsDateLocked %}<span class="pill warn" title="Date is locked">Locked</span>{% endif %}
+                                    {# 'Locked' pill removed per request: the big red notice already indicates locking; keep Published/Unpublished pills #}
                                 </div>
                             </div>
                             <div class="title-right" style="position:relative; display:flex; align-items:center; gap:8px; margin-left:auto; padding-right:0; width:auto;">
@@ -168,7 +168,7 @@
                         </div>
                 </div>
                 <div class="floating-field" style="margin-top:8px;">
-                    <label class="fl-label" for="guest-link">Login link</label>
+                    <label class="fl-label" for="guest-link">Upload link</label>
                     <div class="input-with-btn" style="margin-top:6px;">
                         <input id="guest-link" class="input-field" type="text" value="{{ request.base_url }}guest/upload/{{ event.Code }}" readonly autocomplete="off" title="Click to copy link" style="cursor:pointer;">
                     </div>
@@ -207,11 +207,17 @@
                 {% if not has_messages %}
                     <div class="muted">No messages yet.</div>
                 {% else %}
-                    <ul class="list" style="list-style:none; padding:0; margin:0; display:grid; gap:10px;">
+                    {% set multi = (messages|length > 1) %}
+                    <style>
+                        .gb-row { position:relative; border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px; background: rgba(255,255,255,0.02); }
+                        .gb-row.multi + .gb-row { margin-top:12px; }
+                        .gb-sig { position:absolute; right:12px; bottom:12px; background:#0b0b10; padding:2px 8px; border:1px solid rgba(255,255,255,0.12); border-radius:8px; font-style:italic; font-weight:600; font-size:0.95em; }
+                    </style>
+                    <ul class="list" style="list-style:none; padding:0; margin:0; display:block;">
                         {% for m in messages %}
-                            <li class="gb-row" style="position:relative; border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px; background: rgba(255,255,255,0.02);">
+                            <li class="gb-row {% if multi %}multi{% endif %}">
                                 <div class="gb-msg" style="white-space: pre-wrap;">{{ m.Message }}</div>
-                                <div class="gb-sig" style="position:absolute; right:12px; bottom:-10px; background:#0b0b10; padding:2px 8px; border:1px solid rgba(255,255,255,0.12); border-radius:8px; font-style:italic; font-weight:600; font-size:0.95em;">&mdash; {{ m.DisplayName or 'Guest' }}</div>
+                                <div class="gb-sig">&mdash; {{ m.DisplayName or 'Guest' }}</div>
                             </li>
                         {% endfor %}
                     </ul>
@@ -245,52 +251,12 @@
             }
         });
 
-                // Share modal like My Events
-                function esc(s){ return (s||'').replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]) || c; }); }
-                        function openShare(code, published, title){
-                            var url = new URL('/e/' + code, window.location.origin).href;
-                            // Share message template can be customized by adding a data attribute
-                            // e.g. <button data-share-template="Join %TITLE% at %URL%">. Falls back to a friendly default.
-                            var btn = document.querySelector('.share-btn');
-                            var tmpl = btn && btn.getAttribute('data-share-template') ? btn.getAttribute('data-share-template') : null;
-                            var defaultTitle = title || 'My event';
-                            var shareText = tmpl ? tmpl.replace(/%TITLE%/g, defaultTitle).replace(/%URL%/g, url) : (defaultTitle + ' — ' + url);
-                        var encUrl = encodeURIComponent(url);
-                            var encTitle = encodeURIComponent(defaultTitle);
-                            var encText = encodeURIComponent(shareText);
-                                                var warn = !published && window.EPU && window.EPU.ui ? window.EPU.ui.renderNotice('This event is not published. Shared links may not be viewable by others until you publish.', 'warn', 'style="margin-bottom:10px;"') : '';
-                                                var body = warn +
-                                                                (window.EPU && window.EPU.ui ? window.EPU.ui.renderBtnRow(
-                                                                    '' +
-                                                                    '<a class="btn" href="https://wa.me/?text=' + encText + '" target="_blank" rel="noopener" title="Share via WhatsApp"><span>WhatsApp</span></a>' +
-                                                                    '<a class="btn" href="fb-messenger://share/?link=' + encUrl + '" target="_blank" rel="noopener" title="Share via Messenger (mobile)"><span>Messenger</span></a>' +
-                                                                    '<a class="btn" href="mailto:?subject=' + encTitle + '&body=' + encText + '" title="Share via Email"><span>Email</span></a>' +
-                                                                    '<button class="btn share-copy" type="button" data-url="' + esc(url) + '"><span>Copy Link</span></button>',
-                                                                    'style="flex-wrap:wrap; gap:10px;"') :
-                                                                    '<div class="btn-row" style="flex-wrap:wrap; gap:10px;">' +
-                                                                    '<a class="btn" href="https://wa.me/?text=' + encTitle + '%20' + encUrl + '" target="_blank" rel="noopener" title="Share via WhatsApp"><span>WhatsApp</span></a>' +
-                                                                    '<a class="btn" href="fb-messenger://share/?link=' + encUrl + '" target="_blank" rel="noopener" title="Share via Messenger (mobile)"><span>Messenger</span></a>' +
-                                                                    '<a class="btn" href="mailto:?subject=' + encTitle + '&body=' + encTitle + '%0A' + encUrl + '" title="Share via Email"><span>Email</span></a>' +
-                                                                    '<button class="btn share-copy" type="button" data-url="' + esc(url) + '"><span>Copy Link</span></button>' +
-                                                                    '</div>'
-                                                                ) +
-                                '<div class="small muted" style="margin-top:6px;">The share page URL is ' + esc(url) + '</div>';
-                        if (window.EPU && window.EPU.modal){ window.EPU.modal.show({ title: 'Share Event', body: body, fit: true, actions: [], noDefaultClose: true }); }
-                }
+                // Share handling delegated globally via base.html (window.EPU.share)
                 async function copyToClipboard(text){
                         try { if (navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(text); return true; } } catch(e){}
                         try { var ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); return true; } catch(e){ return false; }
                 }
     document.addEventListener('click', function(e){
-                        var shareBtn = e.target.closest('.share-btn');
-                        if (shareBtn){
-                                e.preventDefault();
-                                var code = shareBtn.getAttribute('data-code');
-                                var pub = shareBtn.getAttribute('data-published') === '1';
-                                var title = shareBtn.getAttribute('data-title') || 'My event';
-                                openShare(code, pub, title);
-                                return;
-                        }
             var copyBtn = e.target.closest('.share-copy');
             if (copyBtn){
                 var u = copyBtn.getAttribute('data-url');

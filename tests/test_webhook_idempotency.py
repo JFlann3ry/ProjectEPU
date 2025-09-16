@@ -17,17 +17,29 @@ def test_webhook_idempotent(db_session):
     # Reuse an existing 'single' plan if present (test DB may be pre-seeded), otherwise create it
     plan = db.query(EventPlan).filter(EventPlan.Code == "single").first()
     if not plan:
-        plan = EventPlan(Code="single", Name="Basic", PriceCents=2500, Currency="GBP", IsActive=True)
+        plan = EventPlan(
+            Code="single",
+            Name="Basic",
+            PriceCents=2500,
+            Currency="GBP",
+            IsActive=True,
+        )
         db.add(plan)
         db.commit()
         db.refresh(plan)
 
-    # Ensure a user exists to satisfy foreign key constraints; create a lightweight user in the test DB
+    # Ensure a user exists to satisfy foreign key constraints; create a lightweight
+    # user in the test DB
     from app.models.user import User
 
     user = db.query(User).first()
     if not user:
-        user = User(FirstName='T', LastName='User', Email='webhook@example.test', HashedPassword='x')
+        user = User(
+            FirstName='T',
+            LastName='User',
+            Email='webhook@example.test',
+            HashedPassword='x',
+        )
         db.add(user)
         db.commit()
         db.refresh(user)
@@ -75,6 +87,11 @@ def test_webhook_idempotent(db_session):
     r2 = client.post("/stripe/webhook", json=event, headers=headers)
     assert r2.status_code == 200
 
-    # Ensure no duplicate handling: PaymentLog with same StripeEventID should still be one (or unchanged count)
-    logs2 = db.query(PaymentLog).filter(PaymentLog.StripeEventID == "evt_test_123").all()
+    # Ensure no duplicate handling: PaymentLog with the same StripeEventID
+    # should remain unchanged (no duplicate created)
+    logs2 = (
+        db.query(PaymentLog)
+        .filter(PaymentLog.StripeEventID == "evt_test_123")
+        .all()
+    )
     assert len(logs2) == len(logs)

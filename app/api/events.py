@@ -5,7 +5,15 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from fastapi.responses import HTMLResponse, RedirectResponse
 from PIL import Image
 from sqlalchemy import func as _func
@@ -170,8 +178,12 @@ async def edit_event_page_code(
     themes = db.query(Theme).all()
     event_types = db.query(EventType).order_by(EventType.Name.asc()).all()
     guest_url = f"/guest/upload/{event.Code}" if event else None
-    from app.services.csrf import issue_csrf_token, set_csrf_cookie
-    # Ensure event has a password for display/editing; generate/repair a 6-char alphanumeric one if missing or invalid
+    from app.services.csrf import (
+        issue_csrf_token,
+        set_csrf_cookie,
+    )
+    # Ensure event has a password for display/editing; generate/repair a
+    # 6-char alphanumeric one if missing or invalid
     try:
         if event:
             pw = getattr(event, "Password", None) or ''
@@ -235,7 +247,8 @@ async def edit_event_page(
     themes = db.query(Theme).all()
     event_types = db.query(EventType).order_by(EventType.Name.asc()).all()
     guest_url = f"/guest/upload/{event.Code}" if event else None
-    # Ensure event has a password for display/editing; generate/repair a 6-char alphanumeric one if missing or invalid
+    # Ensure event has a password for display/editing; generate/repair a
+    # 6-char alphanumeric one if missing or invalid
     try:
         if event:
             pw = getattr(event, "Password", None) or ''
@@ -308,7 +321,11 @@ async def edit_event_submit(
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
-    from app.models.event import EventCustomisation, EventType, Theme
+    from app.models.event import (
+        EventCustomisation,
+        EventType,
+        Theme,
+    )
     from app.services.csrf import (
         CSRF_COOKIE,
         issue_csrf_token,
@@ -741,7 +758,6 @@ async def lock_event_date(
             pass
         try:
             from datetime import datetime as _dt
-            from datetime import timezone
 
             setattr(event, "DateLockedAt", _dt.now(timezone.utc))
         except Exception:
@@ -807,7 +823,13 @@ async def lock_event_date(
 
 
 @router.post("/events/{event_id}/albums/create")
-async def create_album(request: Request, event_id: int, name: str = Form(...), db: Session = Depends(get_db), user=Depends(require_user)):
+async def create_album(
+    request: Request,
+    event_id: int,
+    name: str = Form(...),
+    db: Session = Depends(get_db),
+    user=Depends(require_user),
+):
     # Create a named album for an event (owner only)
     ev = db.query(Event).filter(Event.EventID == event_id).first()
     if not ev:
@@ -831,7 +853,12 @@ async def list_albums(event_id: int, db: Session = Depends(get_db), user=Depends
     rows = []
     try:
         from app.models.album import Album
-        rows = db.query(Album).filter(Album.EventID == event_id).order_by(Album.CreatedAt.desc()).all()
+        rows = (
+            db.query(Album)
+            .filter(Album.EventID == event_id)
+            .order_by(Album.CreatedAt.desc())
+            .all()
+        )
         res = []
         for a in rows:
             res.append({
@@ -845,7 +872,13 @@ async def list_albums(event_id: int, db: Session = Depends(get_db), user=Depends
 
 
 @router.post("/events/{event_id}/albums/{album_id}/add")
-async def album_add_photo(event_id: int, album_id: int, file_id: int = Form(...), db: Session = Depends(get_db), user=Depends(require_user)):
+async def album_add_photo(
+    event_id: int,
+    album_id: int,
+    file_id: int = Form(...),
+    db: Session = Depends(get_db),
+    user=Depends(require_user),
+):
     # Add a file to an album
     from app.models.album import Album, AlbumPhoto
     from app.models.event import Event, FileMetadata
@@ -870,7 +903,13 @@ async def album_add_photo(event_id: int, album_id: int, file_id: int = Form(...)
 
 
 @router.post("/events/{event_id}/albums/{album_id}/remove")
-async def album_remove_photo(event_id: int, album_id: int, file_id: int = Form(...), db: Session = Depends(get_db), user=Depends(require_user)):
+async def album_remove_photo(
+    event_id: int,
+    album_id: int,
+    file_id: int = Form(...),
+    db: Session = Depends(get_db),
+    user=Depends(require_user),
+):
     from app.models.album import AlbumPhoto
     from app.models.event import Event
     ev = db.query(Event).filter(Event.EventID == event_id).first()
@@ -881,7 +920,14 @@ async def album_remove_photo(event_id: int, album_id: int, file_id: int = Form(.
             raise HTTPException(status_code=403, detail='Forbidden')
     except Exception:
         pass
-    ap = db.query(AlbumPhoto).filter(AlbumPhoto.AlbumID == album_id, AlbumPhoto.FileID == int(file_id)).first()
+    ap = (
+        db.query(AlbumPhoto)
+        .filter(
+            AlbumPhoto.AlbumID == album_id,
+            AlbumPhoto.FileID == int(file_id),
+        )
+        .first()
+    )
     if not ap:
         return {"ok": False, "error": "not found"}
     db.delete(ap)
@@ -1253,7 +1299,11 @@ async def upload_banner_ajax(
     try:
         audit.info(
             "events.edit.asset.banner_updated",
-            extra={"event_id": event_id, "file_name": getattr(file, "filename", None), "request_id": getattr(request.state, "request_id", None)},
+            extra={
+                "event_id": event_id,
+                "file_name": getattr(file, "filename", None),
+                "request_id": getattr(request.state, "request_id", None),
+            },
         )
     except Exception:
         pass
@@ -1489,7 +1539,12 @@ async def events_dashboard(
     try:
         from app.models.event import EventTask as ET
 
-        rows = db.query(ET).filter(ET.EventID.in_([e.EventID for e in events]), ET.UserID == getattr(user, "UserID")).all()
+        event_ids = [e.EventID for e in events]
+        rows = (
+            db.query(ET)
+            .filter(ET.EventID.in_(event_ids), ET.UserID == getattr(user, "UserID"))
+            .all()
+        )
         done_map = {(r.EventID, getattr(r, "Key", None)): True for r in rows}
         for e in events:
             e_purchase = bool(done_map.get((getattr(e, "EventID"), "purchase_extras"), False))

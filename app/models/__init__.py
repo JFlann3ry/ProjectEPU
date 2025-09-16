@@ -45,3 +45,4 @@ from .user import Base as Base  # explicit re-export
 from .user import User as User
 from .user import UserSession as UserSession
 from .user_prefs import UserEmailPreference as UserEmailPreference
+from .email_change import EmailChangeRequest as EmailChangeRequest

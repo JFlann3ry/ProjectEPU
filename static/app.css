@@ -418,6 +418,24 @@ button.btn, input[type="submit"].btn, input[type="button"].btn {
 .share-btn span { transition: opacity 120ms ease, transform 120ms ease; }
 .share-btn:hover span { opacity: 0.9; transform: translateX(2px); }
 
+/* Share modal: center actions and platform-specific buttons */
+.modal .share-actions { display:flex; gap:10px; justify-content:center; align-items:center; margin-top:12px; flex-wrap:wrap; }
+.modal .share-actions .share-action { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); color: var(--color-text); cursor:pointer; min-width:120px; justify-content:center; }
+.modal .share-actions .share-action .s-icn { width:18px; height:18px; display:inline-block; }
+.modal .share-actions .share-action.whatsapp { background:#25D366; color:#fff; border-color: rgba(0,0,0,0.06); }
+.modal .share-actions .share-action.whatsapp:hover { filter: brightness(0.95); }
+.modal .share-actions .share-action.messenger { background: linear-gradient(90deg,#0084FF,#2D8CFF); color:#fff; border-color: rgba(0,0,0,0.06); }
+.modal .share-actions .share-action.messenger:hover { filter: brightness(0.95); }
+.modal .share-actions .share-action.email { background: #444; color:#fff; }
+.modal .share-actions .share-action.copy { background: #2b2f43; color:#fff; }
+.modal .share-actions .share-action svg { display:inline-block; vertical-align:middle; }
+
+@media (max-width:520px){ .modal .share-actions .share-action { min-width: 100%; } }
+
+/* Ensure share SVG icons are sized consistently */
+.modal .share-actions .s-icn { width:18px; height:18px; display:inline-block; flex:0 0 18px; }
+.modal .share-actions .share-action span { display:inline-block; vertical-align:middle; }
+
 /* Make other to-do task items animate the same as the share button */
 .task { transition: color 120ms ease; }
 .task .ck { transition: transform 160ms ease, opacity 160ms ease; opacity: 0.9; }

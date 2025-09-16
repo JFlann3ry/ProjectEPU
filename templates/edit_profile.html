@@ -1,26 +1,44 @@
 {% extends "base.html" %}
-{% from "components/macros.html" import page_hero %}
+{% from "components/macros.html" import page_hero, icon %}
 
 {% block title %}Edit Profile - EPU{% endblock %}
 
 {% block breadcrumbs %}
-<div class="container section profile-page center" style="padding-bottom:0;">
+<div class="breadcrumbs-container section" style="padding-bottom:0;">
     {% from 'components/macros.html' import breadcrumbs %}
     {{ breadcrumbs([{'label':'Profile','href':'/profile'}], 'Edit') }}
-    </div>
+</div>
 {% endblock %}
 {% block content %}
-<div class="container section profile-page center">
+<div class="container profile-page center">
     {{ page_hero('Edit Profile', 'Update your details, manage emails, and export your data.', True) }}
 
     <style>
-        /* Consistent card inner width and alignment */
-        .profile-page .card-body { max-width: 560px; margin: 0 auto; padding: 16px 20px; text-align: left; }
+        /* Card inner padding and alignment - allow full width on desktop so grid uses available space */
+        .profile-page .card-body { padding: 16px 20px; text-align: left; }
         .profile-page .h4 { margin: 0 0 8px; }
         .profile-page .btn-row { display: flex; gap: 10px; align-items: center; }
         /* Shared small layout helpers */
         .grid-2 { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
-        @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
++        @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+        .row-inline { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+        .muted { opacity:.9; }
+        .form .floating-field { margin-bottom: 10px; }
+    </style>
+    <style>
+        /* Two-column page like Event Details: main content + sidebar stack */
+        .profile-page .page-grid { display: grid; grid-template-columns: minmax(360px, 1.6fr) minmax(260px, 1fr); gap:14px; }
+        @media (max-width: 900px) { .profile-page .page-grid { grid-template-columns: 1fr; } }
+        /* Card bodies inherit padding; we limit inner width only for very large screens */
+        .profile-page .card { max-width: none; }
+        .profile-page .card-body { padding: 16px 20px; text-align: left; }
+        .profile-page .h4 { margin: 0 0 8px; }
+        .profile-page .btn-row { display: flex; gap: 10px; align-items: center; }
+        /* Shared small layout helpers */
+        .grid-2 { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+        @media (max-width: 640px) {
+            .grid-2 { grid-template-columns: 1fr; }
+        }
         .row-inline { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
         .muted { opacity:.9; }
         .form .floating-field { margin-bottom: 10px; }
@@ -34,142 +52,146 @@
             {{ notice(message, kind='success', attrs='style="max-width:800px;margin:0 auto 12px;"') }}
         {% endif %}
 
-    <!-- Profile details -->
-    <div class="card" style="max-width:800px;margin:0 auto 16px;">
-        <div class="card-body">
-            <form class="form" method="post" action="/profile/edit">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}" />
-                <style>
-                    /* Email prefs UI bits used later */
-                    .prefs-box { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 12px; }
-                    .prefs-list { display: grid; gap: 8px; }
-                    .checkbox-row { display:flex; align-items:center; gap: 10px; }
-                    .checkbox-row span { display:inline-block; }
-                    .prefs-meta { display:flex; justify-content: space-between; align-items:center; margin-top: 8px; gap: 10px; }
-                    .prefs-meta .muted { font-size: .95rem; }
-                    .prefs-actions { display:flex; justify-content:flex-end; }
-                    .btn.primary.compact { padding: 8px 12px; font-size: .95rem; }
-                    .prefs-box legend { display:none; }
-                </style>
-                <div class="grid-2">
-                    <div class="floating-field">
-                        <label for="first_name" class="fl-label">First name</label>
-                        <input class="input-field" type="text" id="first_name" name="first_name" value="{{ user.FirstName }}" required autocomplete="given-name">
-                    </div>
-                    <div class="floating-field">
-                        <label for="last_name" class="fl-label">Last name</label>
-                        <input class="input-field" type="text" id="last_name" name="last_name" value="{{ user.LastName }}" required autocomplete="family-name">
-                    </div>
+    <!-- Profile details arranged as a two-column grid of small cards -->
+        <style>
+            .profile-page .cards-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:14px; }
+            @media (max-width: 900px) { .profile-page .cards-grid { grid-template-columns: 1fr; } }
+            .profile-page .card.small { padding:0; }
+            .profile-page .card.small .card-body { padding:12px 16px; }
+            /* Unified checkbox sizing moved to central stylesheet */
+            /* Removed per-template checkbox sizing to rely on `static/theme.css` */
+            /* Card small tweaks: font + spacing + button alignment */
+            .profile-page .card.small h3.h4 { display:flex; align-items:center; gap:8px; font-size:1.02rem; margin:0 0 6px; }
+            .profile-page .card.small p.muted { font-size:0.92rem; margin-bottom:8px; }
+            .profile-page .card.small .btn { font-size:0.94rem; padding:6px 10px; }
+            .profile-page .card.small .btn.primary { padding:6px 12px; }
+            .profile-page .card.small .card-body { display:flex; flex-direction:column; }
+            .profile-page .card.small .card-actions { margin-top:auto; display:flex; justify-content:flex-end; }
+            /* Icon helper */
+            .card-icon { width:18px; height:18px; display:inline-block; vertical-align:middle; }
+        </style>
+        <div class="cards-grid">
+            <!-- Profile card -->
+            <div class="card small" style="margin:0;">
+                <div class="card-body">
+                     <h3 class="h4">{{ icon('user') }} Personal Details</h3>
+                        <p class="muted" style="margin:0 0 8px;">First name, last name and email.</p>
+                    <form class="form" method="post" action="/profile/edit">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}" />
+                       
+                        <div class="grid-2">
+                            <div class="floating-field">
+                                <label for="first_name" class="fl-label">First name</label>
+                                <input class="input-field" type="text" id="first_name" name="first_name" value="{{ user.FirstName }}" required autocomplete="given-name">
+                            </div>
+                            <div class="floating-field">
+                                <label for="last_name" class="fl-label">Last name</label>
+                                <input class="input-field" type="text" id="last_name" name="last_name" value="{{ user.LastName }}" required autocomplete="family-name">
+                            </div>
+                        </div>
+                        <div class="floating-field email-row" style="margin-top:8px; display:flex; gap:8px; align-items:flex-start;">
+                            <div style="flex:1 1 auto;">
+                                <label for="email" class="fl-label">Email</label>
+                                <input class="input-field" type="email" id="email" name="email" value="{{ user.Email }}" required autocomplete="email">
+                            </div>
+                            <div style="flex:0 0 auto; display:flex; align-items:flex-end;">
+                                <button type="submit" class="btn primary">Save</button>
+                            </div>
+                        </div>
+                    </form>
                 </div>
-                <div class="floating-field" style="margin-top:8px;">
-                    <label for="email" class="fl-label">Email</label>
-                    <input class="input-field" type="email" id="email" value="{{ user.Email }}" autocomplete="email" readonly disabled title="Email cannot be changed">
-                </div>
-                {% call btn_row('style="margin-top:12px;"') %}
-                    <button type="submit" class="btn primary">Save changes</button>
-                    <a class="btn" href="/profile/password">Change password</a>
-                {% endcall %}
-            </form>
-        </div>
-    </div>
+            </div>
 
-    <!-- Email preferences -->
-    <div class="card" style="max-width:800px;margin:0 auto 16px;">
-        <div class="card-body">
-            <h3 class="h4" id="email-prefs-heading">Email preferences</h3>
-            <p class="muted" style="margin:0 0 10px;">Choose which emails you&rsquo;d like to receive.</p>
-            <form id="email-prefs-form" method="post" action="/profile/email-preferences" class="form" style="margin:0 0 10px;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}" />
-                <div class="prefs-box" role="group" aria-labelledby="email-prefs-heading">
-                <style>
-                    /* Ensure strong readable text inside the box */
-                    .prefs-box { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.18); color: var(--text-strong, #e8e8ea); }
-                    .prefs-box .checkbox-row span { color: var(--text-strong, #e8e8ea); font-weight: 500; }
-                    .prefs-box .checkbox-field { transform: translateY(1px); }
-                    .prefs-box .btn { box-shadow: none; }
-                </style>
-                <div id="prefs-help" class="muted" style="margin-bottom:6px;">Tick to opt in. You can change these anytime.</div>
-                <div class="prefs-list">
-                    <label class="checkbox-row">
-                        <input class="checkbox-field" type="checkbox" name="marketing" value="1" {% if email_prefs and email_prefs.marketing %}checked{% endif %} />
-                        <span>Marketing emails (occasional offers and tips)</span>
-                    </label>
-                    <label class="checkbox-row">
-                        <input class="checkbox-field" type="checkbox" name="product" value="1" {% if email_prefs and email_prefs.product %}checked{% endif %} />
-                        <span>Product updates (new features and improvements)</span>
-                    </label>
-                    <label class="checkbox-row">
-                        <input class="checkbox-field" type="checkbox" name="reminders" value="1" {% if email_prefs and email_prefs.reminders %}checked{% endif %} />
-                        <span>Event reminders and notifications</span>
-                    </label>
+            <!-- Email preferences card -->
+            <div class="card small" style="margin:0;">
+                <div class="card-body">
+                    <h3 class="h4" id="email-prefs-heading">{{ icon('email') }} Email preferences</h3>
+                    <p class="muted" style="margin:0 0 8px;">Choose which emails you&rsquo;d like to receive. Tick to opt in.</p>
+                        <form id="email-prefs-form" method="post" action="/profile/email-preferences">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}" />
+                        
+                            <div class="prefs-box prefs-box--transparent">
+                                <div class="prefs-list">
+                                <label class="checkbox-row">
+                                    <input class="checkbox-field" type="checkbox" name="marketing" value="1" {% if email_prefs and email_prefs.marketing %}checked{% endif %} />
+                                    <p>Marketing emails (occasional offers and tips)</p>
+                                </label>
+                                <label class="checkbox-row">
+                                    <input class="checkbox-field" type="checkbox" name="product" value="1" {% if email_prefs and email_prefs.product %}checked{% endif %} />
+                                    <p>Product updates (new features and improvements)</p>
+                                </label>
+                                <label class="checkbox-row">
+                                    <input class="checkbox-field" type="checkbox" name="reminders" value="1" {% if email_prefs and email_prefs.reminders %}checked{% endif %} />
+                                    <p>Event reminders and notifications</p>
+                                </label>
+                                </div>
+                                <div class="prefs-meta">
+                                <!-- status moved to snackbar; removed inline status element -->
+                                <div class="prefs-actions" style="gap:8px;">
+                                    <button id="prefs-save" class="btn primary compact" type="submit" disabled>Save</button>
+                                    <button id="prefs-unsub" class="btn danger compact" type="button">Unsubscribe From All</button>
+                                </div>
+                            </div>
+                            </div>
+                        
+                    </form>
                 </div>
-                <div class="prefs-meta">
-                    <div>
-                        <div id="prefs-status" class="muted" aria-live="polite" style="min-height:18px;"></div>
-                    </div>
-                    <div class="prefs-actions" style="gap:8px;">
-                        <button id="prefs-save" class="btn primary compact" type="submit" disabled>Save preferences</button>
-                        <button id="prefs-unsub" class="btn danger compact" type="button">Unsubscribe from all</button>
-                    </div>
-                </div>
-                </div>
-            </form>
-        </div>
+            </div>
 
-    <!-- Data export -->
-    <div class="card" style="max-width:800px;margin:0 auto 16px;">
-        <div class="card-body">
-            <h3 class="h4">Data export</h3>
-            <p class="muted" style="margin:0 0 10px;">Request a copy of your data as a downloadable ZIP.</p>
-            <form id="export-form" method="post" action="/profile/export/request" class="form" style="margin:0;" data-cooldown-seconds="{{ export_cooldown_seconds or 0 }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}" />
-                <div class="prefs-box" style="padding:12px;">
-                <div class="row-inline" style="justify-content:space-between; gap:10px; align-items:center;">
-                    <div>
-                        {% if export_job and export_job.Status == 'completed' %}
-                            <div class="muted">Generated: <strong>{{ export_job.CompletedAt.strftime('%Y-%m-%d %H:%M UTC') if export_job.CompletedAt }}</strong></div>
-                            {% if export_expired %}
-                                <div class="muted" style="color:#ffb454;">Expired. Please request a new export.</div>
-                            {% else %}
-                                <div class="muted">Expires: {{ export_job.ExpiresAt.strftime('%Y-%m-%d %H:%M UTC') if export_job.ExpiresAt }}</div>
+            <!-- Data export card -->
+            <div class="card small" style="margin:0;">
+                <div class="card-body">
+                    <h3 class="h4">{{ icon('download') }} Data export</h3>
+                    <p class="muted" style="margin:0 0 8px;">Request a copy of your data as a downloadable ZIP.</p>
+                    <form id="export-form" method="post" action="/profile/export/request" class="form" style="margin:0;" data-cooldown-seconds="{{ export_cooldown_seconds or 0 }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}" />
+                        <div class="prefs-box prefs-box--transparent">
+                            <div class="row-inline" style="justify-content:space-between; gap:10px; align-items:center;">
+                                <div>
+                                    {% if export_job and export_job.Status == 'completed' %}
+                                        <div class="muted">Generated: <strong>{{ export_job.CompletedAt.strftime('%Y-%m-%d %H:%M UTC') if export_job.CompletedAt }}</strong></div>
+                                        {% if export_expired %}
+                                            <div class="muted" style="color:#ffb454;">Expired. Please request a new export.</div>
+                                        {% else %}
+                                            <div class="muted">Expires: {{ export_job.ExpiresAt.strftime('%Y-%m-%d %H:%M UTC') if export_job.ExpiresAt }}</div>
+                                        {% endif %}
+                                    {% elif export_job and export_job.Status in ['queued','running'] %}
+                                        <div class="muted">Your export is being prepared. This may take a minute.</div>
+                                    {% else %}
+                                        <div class="muted">No export generated yet.</div>
+                                    {% endif %}
+                                </div>
+                                <div class="row-inline" style="gap:8px;">
+                                    {% if export_ready %}
+                                        <a id="btn-download-export" class="btn primary" href="/profile/export/download">Download ZIP</a>
+                                    {% endif %}
+                                    {% set cooldown = export_cooldown_seconds or 0 %}
+                                    <button id="btn-request-export" type="submit" class="btn" {% if cooldown > 0 %}disabled{% endif %}>
+                                        {% if cooldown > 0 %}Request export (cooldown){% else %}Request export{% endif %}
+                                    </button>
+                                </div>
+                            </div>
+                            {% if export_job and export_job.Status == 'failed' %}
+                                <div class="muted" style="margin-top:6px;color:#ff6b6b;">Export failed. Please try again or contact support.</div>
                             {% endif %}
-                        {% elif export_job and export_job.Status in ['queued','running'] %}
-                            <div class="muted">Your export is being prepared. This may take a minute.</div>
-                        {% else %}
-                            <div class="muted">No export generated yet.</div>
-                        {% endif %}
-                    </div>
-                    <div class="row-inline" style="gap:8px;">
-                        {% if export_ready %}
-                            <a id="btn-download-export" class="btn primary" href="/profile/export/download">Download ZIP</a>
-                        {% endif %}
-                        {% set cooldown = export_cooldown_seconds or 0 %}
-                        <button id="btn-request-export" type="submit" class="btn" {% if cooldown > 0 %}disabled{% endif %}>
-                            {% if cooldown > 0 %}Request export (cooldown){% else %}Request export{% endif %}
-                        </button>
-                    </div>
+                            {% if cooldown > 0 %}
+                                <div id="export-cooldown" class="muted" aria-live="polite" style="margin-top:6px;">You can request another export in <span id="cooldown-timer"></span>.</div>
+                            {% endif %}
+                            <div class="muted" style="margin-top:6px;">Need help? <a href="/contact?topic=Data%20export">Contact support</a>.</div>
+                        </div>
+                    </form>
                 </div>
-                {% if export_job and export_job.Status == 'failed' %}
-                    <div class="muted" style="margin-top:6px;color:#ff6b6b;">Export failed. Please try again or contact support.</div>
-                {% endif %}
-                {% if cooldown > 0 %}
-                    <div id="export-cooldown" class="muted" aria-live="polite" style="margin-top:6px;">You can request another export in <span id="cooldown-timer"></span>.</div>
-                {% endif %}
-                    <div class="muted" style="margin-top:6px;">Need help? <a href="/contact?topic=Data%20export">Contact support</a>.</div>
-                </div>
-            </form>
-        </div>
-    </div>
+            </div>
 
-    <!-- Danger zone -->
-    <div class="card" style="max-width:800px;margin:0 auto;">
-        <div class="card-body">
-            <h3 class="h4">Danger zone</h3>
-            <p class="muted" style="margin:0 0 10px;">Permanently delete your account and all associated data. This action cannot be undone.</p>
-            <button type="button" class="btn danger" id="btn-delete-account">Delete account</button>
+            <!-- Danger zone card -->
+            <div class="card small" style="margin:0;">
+                <div class="card-body">
+                    <h3 class="h4">{{ icon('trash') }} Danger zone</h3>
+                    <p class="muted" style="margin:0 0 8px;">Permanently delete your account and all associated data. This action cannot be undone.</p>
+                    <button type="button" class="btn danger" id="btn-delete-account">Delete account</button>
+                </div>
+            </div>
         </div>
-    </div>
-</div>
 {% block extra_js %}
 <script>
 (function(){
@@ -193,6 +215,12 @@
         }
     })();
     const liveRegion = document.getElementById('aria-live-toast');
+    // Insert snackbar container
+    if (!document.getElementById('site-snackbar')){
+        const sb = document.createElement('div');
+        sb.id = 'site-snackbar';
+        document.body.appendChild(sb);
+    }
     const delBtn = document.getElementById('btn-delete-account');
     if (!delBtn) return;
     delBtn.addEventListener('click', function(){
@@ -221,10 +249,23 @@
         saveBtn.disabled = !enabled;
     }
     function setStatus(msg, type) {
-        if (!statusEl) return;
-        statusEl.textContent = msg || '';
-        statusEl.style.color = type === 'error' ? '#ff6b6b' : 'var(--text-strong, #e8e8ea)';
+        // Update screen-reader live region
         if (liveRegion) liveRegion.textContent = msg || '';
+        // Show transient snackbar for visual confirmation
+        if (msg) {
+            const kind = type === 'error' ? 'error' : 'success';
+            try { showSnackbar(msg, kind); } catch (e) { /* no-op if snackbar missing */ }
+        }
+    }
+    function showSnackbar(msg, type, ms){
+        const el = document.getElementById('site-snackbar');
+        if (!el) return;
+        el.className = '';
+        el.textContent = msg;
+        if (type) el.classList.add(type);
+        el.classList.add('show');
+        const timeout = ms || 3500;
+        setTimeout(()=>{ el.classList.remove('show'); el.className = ''; }, timeout);
     }
     async function postFormData(url, formData) {
         // Let fetch follow redirects; we just care about ok/not ok
@@ -271,20 +312,7 @@
     }
     if (unsubBtn && prefsForm) {
         unsubBtn.addEventListener('click', async () => {
-            const msg = 'Are you sure you want to unsubscribe from all emails? You can re-subscribe later.';
-            const proceed = (window.EPU && window.EPU.modal)
-                ? await new Promise((resolve) => {
-                    window.EPU.modal.show({
-                        title: 'Unsubscribe from all?',
-                        body: '<div class="preview-body"><p>'+msg+'</p></div>',
-                        actions: [
-                            { label: 'Cancel', role: 'cancel', onClick: () => resolve(false) },
-                            { label: 'Unsubscribe', danger: true, onClick: () => resolve(true) }
-                        ]
-                    });
-                })
-                : confirm(msg);
-            if (!proceed) return;
+            // Immediately send unsubscribe request and show transient snackbar
             setStatus('Unsubscribing…');
             unsubBtn.disabled = true;
             const fd = new FormData();
@@ -296,8 +324,10 @@
                 original = Array.from(prefsForm.querySelectorAll('input[type="checkbox"]')).map(b => (b.name+':0')).join('|');
                 setSaveEnabled(false);
                 setStatus('You have been unsubscribed from all emails');
+                showSnackbar('You have been unsubscribed', 'success');
             } else {
                 setStatus('Unsubscribe failed. Please try again.', 'error');
+                showSnackbar('Unsubscribe failed', 'error');
             }
             unsubBtn.disabled = false;
         });

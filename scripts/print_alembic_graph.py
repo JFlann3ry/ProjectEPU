@@ -7,7 +7,17 @@ script = ScriptDirectory.from_config(cfg)
 print("Alembic revision graph dump:\n")
 for rev in script.walk_revisions(base='base', head='heads'):
     # rev.down_revision may be a tuple or a string or None
-    print(f"revision: {rev.revision}\n  down_revision: {rev.down_revision}\n  message: {rev.doc}\n  path: {getattr(rev, 'path', None)}\n")
+    print(
+        (
+            "revision: %s\n  down_revision: %s\n  message: %s\n  path: %s\n"
+            % (
+                rev.revision,
+                rev.down_revision,
+                rev.doc,
+                getattr(rev, 'path', None),
+            )
+        )
+    )
 
 # Also produce a mapping of which revisions reference the problematic ones
 targets = ['20250911_0020_add_custom_event_type', '20250911_0022_add_theme_isactive']

@@ -12,7 +12,13 @@ if __name__ == "__main__":
     args = sys.argv[1:] or ["upgrade", "head"]
     cmd = [sys.executable, "-m", "alembic"] + args
     print("Running:", " ".join(cmd))
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True)
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        bufsize=1,
+        universal_newlines=True,
+    )
     try:
         if proc.stdout is not None:
             for line in iter(proc.stdout.readline, ""):

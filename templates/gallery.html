@@ -16,9 +16,7 @@
 {% block content %}
         <div class="container section center">
                 {{ page_hero('Event Gallery', 'Browse, favorite, and manage uploads.', True) }}
-                {% if event_id %}
-                        <div class="small muted">Showing files for selected event.</div>
-                {% endif %}
+
                 {% if filters and filters.show_deleted %}
                     {{ notice('Files marked for deletion will be permanently removed after 30 days. You can restore them here until then.', 'error', 'style="margin: 8px 0 12px;"') }}
                 {% endif %}
@@ -43,6 +41,10 @@
     #delete-confirm { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); z-index: 1002; }
     #delete-confirm .modal-content { width: min(520px, 92vw); border-radius: 12px; border: 1px solid var(--color-border); background: rgba(0,0,0,0.8); padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.45); }
     #delete-confirm .modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+    /* Ordinal badge on tiles - place top-right above checkbox */
+    .gallery-item { position: relative; }
+    .tile-ordinal { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.7); color: white; font-size: 12px; line-height: 1; padding: 2px 6px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.4); z-index: 30; pointer-events: none; }
+    /* Ensure select checkbox sits beneath ordinal (checkbox already in DOM near left) */
             </style>
             <div class="gallery-filters">
                 <div class="filters-row">
@@ -68,7 +70,12 @@
             </div>
             <div class="gallery-toolbar">
                 <div class="toolbar-left">
-                    <button id="play-slideshow" class="btn">Play Slideshow</button>
+                    <button id="play-slideshow" class="btn" type="button">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:middle; margin-right:6px;">
+                            <path fill="currentColor" d="M8 5v14l11-7z"></path>
+                        </svg>
+                        Play Slideshow
+                    </button>
                     <button id="new-album" class="btn" type="button">New Album</button>
                 </div>
                 <div class="toolbar-right">
@@ -95,7 +102,7 @@
         {# Sorted by days_left; backend now guarantees an int for deleted files (or 9999 for unknown) #}
         {% set sorted_files = files|sort(attribute='days_left') %}
     {% endif %}
-    <div class="dynamic-gallery" id="gallery" data-next-offset="{{ next_offset if next_offset is not none else '' }}" data-page-size="{{ page_size }}">
+    <div class="dynamic-gallery masonry-row-first" id="gallery" data-next-offset="{{ next_offset if next_offset is not none else '' }}" data-page-size="{{ page_size }}">
             {% if filters and filters.show_deleted %}{% set ns = namespace(last_days=None) %}{% endif %}
             {% for file in sorted_files %}
             {% set days = file.days_left if file.days_left is number else 9999 %}
@@ -120,9 +127,6 @@
                     <video src="{{ file.url }}" class="gallery-video" controls preload="none" {% if file.thumb_url %}poster="{{ file.thumb_url }}"{% endif %}></video>
                 {% endif %}
                 <div class="tile-overlay"></div>
-                    <div class="tile-actions" style="position:absolute;right:8px;top:8px;display:flex;gap:6px;">
-                        <button class="btn small add-to-album" data-id="{{ file.id }}" title="Add to album">➕</button>
-                    </div>
                 {% if file.type == 'video' %}
                     <div class="tile-badge video" title="Video">▶</div>
                 {% endif %}
@@ -136,6 +140,10 @@
                     <button class="fav-btn is-fav" title="Unfavorite" data-id="{{ file.id }}">★</button>
                 {% else %}
                     <button class="fav-btn" title="Favorite" data-id="{{ file.id }}">☆</button>
+                {% endif %}
+                {# Ordinal badge (small persistent corner) #}
+                {% if file.ordinal is defined %}
+                    <div class="tile-ordinal" aria-hidden="true">{{ file.ordinal }}</div>
                 {% endif %}
             </div>
             {% endfor %}
@@ -156,6 +164,7 @@
                 {% endif %}
                 {% if has_deleted %}<button id="bb-restore" type="button" class="btn success" disabled>Restore</button>{% endif %}
                 <button id="bb-zip" type="button" class="btn primary" disabled>Download ZIP</button>
+                <button id="bb-add-to-album" type="button" class="btn" disabled>Add to album</button>
             </div>
         </div>
     </div>

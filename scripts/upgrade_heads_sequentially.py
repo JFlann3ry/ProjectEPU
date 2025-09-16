@@ -1,14 +1,16 @@
 import subprocess
 import sys
+from collections import deque
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
-PYTHON = r"e:\ProjectEPU\venv\Scripts\python.exe"
+PYTHON = r"e:\\ProjectEPU\\venv\\Scripts\\python.exe"
 ALEMBIC = [PYTHON, '-m', 'alembic']
 
 cfg = Config('alembic.ini')
 script = ScriptDirectory.from_config(cfg)
+
 
 # helper to get current DB revision via alembic current
 def get_current():
@@ -39,8 +41,6 @@ for rev in script.walk_revisions(base='base', head='heads'):
         children.setdefault(p, []).append(rev.revision)
 
 # find path from current to target via DFS
-from collections import deque
-
 
 def find_path(cur, target):
     # BFS from cur forward using children mapping
@@ -59,7 +59,11 @@ def find_path(cur, target):
     return None
 
 if __name__ == '__main__':
-    targets = ['20250912_0021_merge_plan_revision','20250912_0023_merge_11','20250912_0024_final_merge']
+    targets = [
+        '20250912_0021_merge_plan_revision',
+        '20250912_0023_merge_11',
+        '20250912_0024_final_merge',
+    ]
     cur = get_current()
     print('current DB revision:', cur)
     if cur is None:

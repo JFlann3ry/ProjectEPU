@@ -131,7 +131,8 @@ def ensure_test_user(db_session):
         existing = db_session.query(Users).filter(Users.UserID == 1).first()
         if not existing:
             u = Users(Email='testuser@example.com', PasswordHash='x', CreatedAt=None)
-            # If Users.UserID is autoincrement, we can't force ID reliably across DBs; try to insert and leave it.
+            # If Users.UserID is autoincrement, we can't force ID reliably across DBs;
+            # try to insert and leave it.
             db_session.add(u)
             db_session.flush()
     except Exception:

@@ -1052,7 +1052,10 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                             .filter(AddonCatalog.AddonID == getattr(eap, "AddonID"))
                             .first()
                         )
-                        if addon and (str(getattr(addon, "Code", "")).lower() == "additional_event"):
+                        if (
+                            addon
+                            and (str(getattr(addon, "Code", "")).lower() == "additional_event")
+                        ):
                             # Ensure we have a PlanID to satisfy DB NOT NULL / FK constraints.
                             # Create or reuse a zero-cost EventPlan reserved for entitlements.
                             try:
@@ -1097,9 +1100,13 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                                 with db.begin_nested():
                                     db.add(ent)
                                     _safe_commit()
+                                user_id = getattr(eap, "UserID", None)
                                 audit.debug(
-                                    "[stripe_webhook] created entitlement Purchase for user=%s session=%s",
-                                    getattr(eap, "UserID", None),
+                                    (
+                                        "[stripe_webhook] created entitlement Purchase for "
+                                        "user=%s session=%s"
+                                    ),
+                                    user_id,
                                     session_id,
                                 )
                             except Exception:
@@ -1147,7 +1154,10 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                                         _safe_commit()
                                 except Exception:
                                     audit.exception(
-                                        "[stripe_webhook] failed to upsert EventTask for addon entitlement session=%s",
+                                        (
+                                            "[stripe_webhook] failed to upsert EventTask for addon "
+                                            "entitlement session=%s"
+                                        ),
                                         session_id,
                                     )
                         except Exception:
@@ -1253,7 +1263,9 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                         UserID=None,
                         EventType=str(etype or "unknown"),
                         StripeEventID=(
-                            event.get("id") if isinstance(event, dict) else getattr(event, "id", None)
+                            event.get("id")
+                            if isinstance(event, dict)
+                            else getattr(event, "id", None)
                         ),
                         Payload=payload.decode("utf-8"),
                     )

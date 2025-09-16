@@ -246,3 +246,12 @@ form {
     margin: 10px 0;
     text-align: left;
 }
+
+/* Remove padding from forms on the profile page (override default form/.form padding) */
+.profile-page form,
+.profile-page .form {
+    padding: 0 !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    max-width: none !important;
+}

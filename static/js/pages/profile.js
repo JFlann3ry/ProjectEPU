@@ -30,20 +30,13 @@
   };
   const csrf = dataRoot ? dataRoot.dataset.csrf : '';
   function esc(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
-  function openShare(code, published, title){
+  function openShare(code, published, title, eid, tmpl){
+    // Remember the current event id and delegate to the centralized share modal
     var url = window.location.origin + '/e/' + (code || '');
-    var encUrl = encodeURIComponent(url);
-    var encTitle = encodeURIComponent(title || 'My event');
-    var warn = !published ? '<div class="notice" style="margin-bottom:10px;">This event is not published. Shared links may not be viewable by others until you publish.</div>' : '';
-    var body = warn +
-      '<div class="btn-row" style="flex-wrap:wrap; gap:8px;">' +
-      '<a class="btn share-link" href="https://wa.me/?text=' + encTitle + '%20' + encUrl + '" target="_blank" rel="noopener" title="Share via WhatsApp"><span>WhatsApp</span></a>' +
-      '<a class="btn share-link" href="fb-messenger://share/?link=' + encUrl + '" target="_blank" rel="noopener" title="Share via Messenger (mobile)"><span>Messenger</span></a>' +
-      '<a class="btn share-link" href="mailto:?subject=' + encTitle + '&body=' + encTitle + '%0A' + encUrl + '" title="Share via Email"><span>Email</span></a>' +
-      '<button class="btn share-copy" type="button" data-url="' + esc(url) + '"><span>Copy Link</span></button>' +
-      '</div>' +
-      '<div class="small muted" style="margin-top:6px;">The share page URL is ' + esc(url) + '</div>';
-    if (window.EPU && window.EPU.modal){ window.EPU.modal.show({ title: 'Share Event', body: body, fit: true, actions: [], noDefaultClose: true }); }
+    currentShareEventId = eid || null;
+    if (window.EPU && window.EPU.share && window.EPU.share.open){
+      window.EPU.share.open({ code: code, published: !!published, title: title || '', tmpl: tmpl || null, eid: eid || null });
+    }
   }
   document.addEventListener('click', function(e){
     var shareBtn = e.target.closest('.share-btn');
@@ -70,6 +63,14 @@
     if (shareLink){
       if (currentShareEventId) { try { fetch('/events/' + currentShareEventId + '/mark-shared', { method: 'POST', headers: { 'X-Requested-With':'fetch' } }); } catch(_e){} }
   }
+  });
+
+  // When the centralized share modal emits an event, mark the event as shared server-side
+  document.addEventListener('epu:shared', function(ev){
+    var eid = (ev && ev.detail && ev.detail.eid) || currentShareEventId;
+    if (eid){
+      try { fetch('/events/' + eid + '/mark-shared', { method: 'POST', headers: { 'X-Requested-With':'fetch' } }); } catch(_e){}
+    }
   });
 
   if (logoutBtn){

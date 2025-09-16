@@ -15,14 +15,27 @@ def test_toggle_task_happy_path(db_session):
 
     u = db.query(User).filter(User.Email == "task_test@example.com").first()
     if not u:
-        u = User(FirstName="Task", LastName="Tester", Email="task_test@example.com", HashedPassword="x", IsActive=True)
+        u = User(
+            FirstName="Task",
+            LastName="Tester",
+            Email="task_test@example.com",
+            HashedPassword="x",
+            IsActive=True,
+        )
         db.add(u)
         db.commit()
         db.refresh(u)
 
     e = db.query(Event).filter(Event.Code == "TASK1").first()
     if not e:
-        e = Event(EventTypeID=None, UserID=u.UserID, Name="Task Event", Code="TASK1", Password="pw", TermsChecked=True)
+        e = Event(
+            EventTypeID=None,
+            UserID=u.UserID,
+            Name="Task Event",
+            Code="TASK1",
+            Password="pw",
+            TermsChecked=True,
+        )
         db.add(e)
         db.commit()
         db.refresh(e)
@@ -35,7 +48,13 @@ def test_toggle_task_happy_path(db_session):
 
     # Toggle the task (should create)
     e_id_val = int(getattr(e, 'EventID'))
-    res = client.post('/events/task/toggle', data={'event_id': str(e_id_val), 'task_key': 'purchase_extras'})
+    res = client.post(
+        '/events/task/toggle',
+        data={
+            'event_id': str(e_id_val),
+            'task_key': 'purchase_extras',
+        },
+    )
     assert res.status_code == 200
     j = res.json()
     assert j.get('ok') is True

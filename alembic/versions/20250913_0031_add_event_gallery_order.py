@@ -21,10 +21,21 @@ def upgrade() -> None:
         sa.Column("EventID", sa.Integer(), nullable=False),
         sa.Column("FileMetadataID", sa.Integer(), nullable=False),
         sa.Column("Ordinal", sa.Integer(), nullable=False),
-        sa.Column("UpdatedAt", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=True),
+        sa.Column(
+            "UpdatedAt",
+            sa.DateTime(),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=True,
+        ),
     )
     # Add foreign key constraints to ensure referential integrity
-    op.create_foreign_key("fk_eventgalleryorder_event", "EventGalleryOrder", "Event", ["EventID"], ["EventID"])
+    op.create_foreign_key(
+        "fk_eventgalleryorder_event",
+        "EventGalleryOrder",
+        "Event",
+        ["EventID"],
+        ["EventID"],
+    )
     op.create_foreign_key(
         "fk_eventgalleryorder_filemetadata",
         "EventGalleryOrder",
@@ -35,7 +46,11 @@ def upgrade() -> None:
 
     op.create_unique_constraint("uq_event_ordinal", "EventGalleryOrder", ["EventID", "Ordinal"])
     op.create_unique_constraint("uq_event_file", "EventGalleryOrder", ["EventID", "FileMetadataID"])
-    op.create_index("ix_event_gallery_order_event_file", "EventGalleryOrder", ["EventID", "FileMetadataID"])
+    op.create_index(
+        "ix_event_gallery_order_event_file",
+        "EventGalleryOrder",
+        ["EventID", "FileMetadataID"],
+    )
 
 
 def downgrade() -> None:

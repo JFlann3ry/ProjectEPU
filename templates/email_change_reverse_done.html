@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Email change reversal{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card">
+    <div class="card-body">
+      {% if ok %}
+        <h3 class="h4">Email change reversed</h3>
+        <p class="muted">The email change request has been cancelled.</p>
+      {% else %}
+        <h3 class="h4">Unable to reverse</h3>
+        <p class="muted">The reversal link is invalid or expired.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

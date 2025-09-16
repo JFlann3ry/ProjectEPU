@@ -15,9 +15,18 @@ def main() -> None:
     # Drop the primary key constraint that references the version_num column
     # then alter the column to NVARCHAR(255) and recreate the PK. This is
     # necessary on SQL Server when the PK depends on the column being altered.
-    drop_pk = "IF EXISTS (SELECT 1 FROM sys.objects WHERE name = 'alembic_version_pkc') BEGIN ALTER TABLE dbo.alembic_version DROP CONSTRAINT alembic_version_pkc END"
-    alter_col = "ALTER TABLE dbo.alembic_version ALTER COLUMN version_num NVARCHAR(255) NOT NULL;"
-    create_pk = "ALTER TABLE dbo.alembic_version ADD CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num);"
+    drop_pk = (
+        "IF EXISTS (SELECT 1 FROM sys.objects WHERE name = 'alembic_version_pkc') "
+        "BEGIN ALTER TABLE dbo.alembic_version DROP CONSTRAINT "
+        "alembic_version_pkc END"
+    )
+    alter_col = (
+        "ALTER TABLE dbo.alembic_version ALTER COLUMN version_num NVARCHAR(255) NOT NULL;"
+    )
+    create_pk = (
+        "ALTER TABLE dbo.alembic_version ADD CONSTRAINT "
+        "alembic_version_pkc PRIMARY KEY (version_num);"
+    )
 
     with engine.connect() as conn:
         trans = conn.begin()

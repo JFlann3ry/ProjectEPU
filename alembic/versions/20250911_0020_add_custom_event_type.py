@@ -22,12 +22,32 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         "CustomEventType",
-        sa.Column("CustomEventTypeID", sa.Integer(), primary_key=True, autoincrement=True),
-    sa.Column("EventID", sa.Integer(), sa.ForeignKey("Event.EventID"), nullable=False),
-        sa.Column("EventTypeID", sa.Integer(), sa.ForeignKey("dbo.EventType.EventTypeID"), nullable=True),
+        sa.Column(
+            "CustomEventTypeID",
+            sa.Integer(),
+            primary_key=True,
+            autoincrement=True,
+        ),
+        sa.Column(
+            "EventID",
+            sa.Integer(),
+            sa.ForeignKey("Event.EventID"),
+            nullable=False,
+        ),
+        sa.Column(
+            "EventTypeID",
+            sa.Integer(),
+            sa.ForeignKey("dbo.EventType.EventTypeID"),
+            nullable=True,
+        ),
         sa.Column("CustomEventName", sa.String(length=255), nullable=True),
         sa.Column("CreatedAt", sa.DateTime(), server_default=sa.func.now()),
-        sa.Column("UpdatedAt", sa.DateTime(), server_default=sa.func.now(), onupdate=sa.func.now()),
+        sa.Column(
+            "UpdatedAt",
+            sa.DateTime(),
+            server_default=sa.func.now(),
+            onupdate=sa.func.now(),
+        ),
         schema="dbo",
     )
 

@@ -93,6 +93,15 @@ function updateSelectionUI() {
   if (bbd) {
     bbd.disabled = !hasNonDeletedSelected;
   }
+  const bba = document.getElementById('bb-add-to-album');
+  if (bba) {
+    // Only allow adding non-deleted files to albums
+    if (hasNonDeletedSelected && selected.length > 0) {
+      bba.disabled = false;
+    } else {
+      bba.disabled = true;
+    }
+  }
   const sa = document.getElementById('select-all');
   if (sa) {
     const allSelected = chks.length > 0 && chks.every(c => c.checked);
@@ -152,6 +161,10 @@ function initBulkBar(){
       if (modal) modal.style.display = 'flex';
     });
   }
+  // Bulk add-to-album handler
+  document.getElementById('bb-add-to-album')?.addEventListener('click', function(){
+    openAddToAlbumDialogBulk();
+  });
   document.getElementById('del-cancel')?.addEventListener('click', function(){
     const modal = document.getElementById('delete-confirm');
     if (modal) modal.style.display = 'none';
@@ -161,6 +174,45 @@ function initBulkBar(){
     if (modal) modal.style.display = 'none';
     document.getElementById('delete-form')?.requestSubmit();
   });
+}
+
+function openAddToAlbumDialogBulk(){
+  const meta = (document.getElementById('gallery-data') ? JSON.parse(document.getElementById('gallery-data').textContent || '{}') : {});
+  const eventId = meta.event_id || '';
+  const ids = Array.from(document.querySelectorAll('.select-chk:checked')).map(c => parseInt(c.getAttribute('data-id'))).filter(x => !isNaN(x));
+  if (!ids.length) return; // nothing selected
+  fetch('/events/' + encodeURIComponent(eventId) + '/albums').then(r => r.json()).then(j => {
+    if(!j || !Array.isArray(j.items) || j.items.length === 0){
+      if(window.confirm('No albums found. Create one now?')) openCreateAlbumDialog();
+      return;
+    }
+    // Use global modal picker when available
+    const items = j.items.slice();
+    const bodyHtml = ['<div style="max-height:50vh; overflow:auto;">', '<ul style="list-style:none;padding:0;margin:0;">'];
+    items.forEach(function(a){ bodyHtml.push('<li style="padding:6px 8px; border-bottom:1px solid var(--color-border);"><label><input type="radio" name="__album_pick" value="'+String(a.id)+'" style="margin-right:8px;">'+ (a.name||'Untitled') + (a.count ? (' ('+a.count+')') : '') +'</label></li>'); });
+    bodyHtml.push('</ul></div>');
+    const html = bodyHtml.join('');
+    if (window.EPU && window.EPU.modal){
+      window.EPU.modal.show({ title: 'Add to album', raw: true, body: html, actions: [ { label: 'Cancel', role: 'cancel' }, { label: 'Add', onClick: function(hide){
+            const sel = document.querySelector('input[name="__album_pick"]:checked');
+            if(!sel){ if(window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Please select an album'); return; }
+            const albumId = sel.value;
+            const body = new URLSearchParams(); ids.forEach(i => body.append('file_ids', String(i)));
+            fetch('/events/' + encodeURIComponent(eventId) + '/albums/' + encodeURIComponent(albumId) + '/add', { method: 'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body: body })
+              .then(r => r.json()).then(resp => { if(resp && resp.ok){ if(window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Added to album'); if(window.EPU && window.EPU.modal) window.EPU.modal.hide(); } else { if(window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Could not add to album'); } }).catch(()=>{ if(window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Could not add to album'); });
+          } } ] });
+    } else {
+      // fallback: prompt list
+      const names = items.map(a => a.id + ': ' + a.name + (a.count ? (' ('+a.count+')') : '') ).join('\n');
+      const pick = window.prompt('Choose album id to add to:\n' + names);
+      if(!pick) return;
+      const albumId = parseInt(pick.replace(/[^0-9]/g,''));
+      if(isNaN(albumId)) return alert('Invalid album id');
+      const body = new URLSearchParams(); ids.forEach(i => body.append('file_ids', String(i)));
+      fetch('/events/' + encodeURIComponent(eventId) + '/albums/' + encodeURIComponent(albumId) + '/add', { method: 'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body: body })
+        .then(r => r.json()).then(resp => { if(resp && resp.ok){ alert('Added to album'); } else alert('Could not add to album'); }).catch(()=>alert('Could not add to album'));
+    }
+  }).catch(()=>{ if(window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Could not fetch albums'); else alert('Could not fetch albums'); });
 }
 
 function initInfiniteScroll(){
@@ -182,6 +234,15 @@ function initInfiniteScroll(){
       unique.push(it);
     }
     if (unique.length === 0) { return; }
+    // If server provided ordinal values, prefer server ordering within this batch
+    const hasOrdinal = unique.some(u => typeof u.ordinal === 'number');
+    if (hasOrdinal) {
+      unique.sort((a,b) => {
+        const oa = (typeof a.ordinal === 'number') ? a.ordinal : Number.MAX_SAFE_INTEGER;
+        const ob = (typeof b.ordinal === 'number') ? b.ordinal : Number.MAX_SAFE_INTEGER;
+        return oa - ob;
+      });
+    }
     const startIndex = files.length;
     const showDeleted = !!window.__showDeletedMode;
     const batch = showDeleted ? [...unique].sort((a,b)=>{
@@ -246,12 +307,16 @@ function initInfiniteScroll(){
         v.src = file.url; v.className = 'gallery-video'; v.controls = true;
         tile.appendChild(v);
       }
-      const overlay = document.createElement('div'); overlay.className = 'tile-overlay'; tile.appendChild(overlay);
       if (file.type === 'video'){
         const badge = document.createElement('div'); badge.className = 'tile-badge video'; badge.title = 'Video'; badge.textContent = '▶'; tile.appendChild(badge);
       }
       if (file.deleted && !showDeleted){ const badge = document.createElement('div'); badge.className = 'tile-badge deleted'; badge.title = 'Deleted'; badge.textContent = 'Deleted'; tile.appendChild(badge); }
       const fav = document.createElement('button'); fav.className = 'fav-btn' + (file.favorite ? ' is-fav' : ''); fav.title = file.favorite ? 'Unfavorite' : 'Favorite'; fav.setAttribute('data-id', String(file.id)); fav.textContent = file.favorite ? '★' : '☆'; tile.appendChild(fav);
+      // Ordinal badge
+      if (typeof file.ordinal === 'number'){
+        const ord = document.createElement('div'); ord.className = 'tile-ordinal'; ord.setAttribute('aria-hidden','true'); ord.textContent = String(file.ordinal);
+        tile.appendChild(ord);
+      }
       // Click to open lightbox
       tile.addEventListener('click', (ev) => {
         // Ignore clicks on controls (checkboxes, buttons)
@@ -262,6 +327,27 @@ function initInfiniteScroll(){
       gal.appendChild(tile);
     });
     if (typeof renderFavoritesCount === 'function') renderFavoritesCount();
+    // After appending, run row-first masonry reflow if enabled
+    try { reflowGalleryMasonry(); } catch(_){ }
+    // Also wait for images in the appended batch to load and reflow again for accurate heights
+    try {
+      const imgs = Array.from(gal.querySelectorAll('.gallery-item img')).slice(-batch.length);
+      if (imgs.length) {
+        const promises = imgs.map((img) => {
+          return new Promise((res) => {
+            if (img.complete && img.naturalHeight) return res();
+            img.addEventListener('load', () => res(), { once: true });
+            img.addEventListener('error', () => res(), { once: true });
+          });
+        });
+        Promise.all(promises).then(()=>{
+          try{
+            // Colspan/span-2 logic disabled per user request: preserve server-side
+            // DOM order (ordinal) and do not enlarge images in the client.
+          } catch (_) { }
+        });
+      }
+    } catch(_) { }
   }
 
   function fetchMore(){
@@ -300,6 +386,18 @@ function initInfiniteScroll(){
     if (scrollPos >= nearBottom) fetchMore();
   });
 }
+
+// Row-first masonry reflow: absolutely position tiles into columns while preserving DOM order
+function reflowGalleryMasonry(){
+  // Masonry reflow disabled: preserve DOM order (server-provided ordinal) and
+  // avoid resizing/repositioning tiles in JS. Keeping this function as a
+  // no-op makes calls safe from templates that may still invoke it.
+  return;
+}
+
+// Reflow on resize with debounce
+let __reflowTimeout = null;
+window.addEventListener('resize', function(){ if(__reflowTimeout) clearTimeout(__reflowTimeout); __reflowTimeout = setTimeout(()=>{ try{ reflowGalleryMasonry(); }catch(_){} }, 120); });
 
 function openLightbox(index){
   const lb = document.getElementById('lightbox');
@@ -364,20 +462,33 @@ function boot(){
     });
   } catch(_){ }
 
+  // Initial scan: detect naturally-landscape images already in DOM and mark colspan
+  try {
+    const imgs = Array.from(document.querySelectorAll('.gallery-item img'));
+    if (imgs.length) {
+      const promises = imgs.map((img) => new Promise((res) => {
+        if (img.complete && img.naturalHeight) return res();
+        img.addEventListener('load', () => res(), { once: true });
+        img.addEventListener('error', () => res(), { once: true });
+      }));
+      Promise.all(promises).then(() => {
+        try {
+          // Colspan/span-2 logic disabled per user request: preserve server-side
+          // DOM order (ordinal) and do not enlarge images in the client.
+        } catch (_) { }
+      });
+    } else {
+      try{ reflowGalleryMasonry(); }catch(_){}
+    }
+  } catch(_) {}
+
   // Wire lightbox controls (no inline handlers)
   document.getElementById('lightbox-close')?.addEventListener('click', closeLightbox);
   document.getElementById('lightbox-next')?.addEventListener('click', nextSlide);
   document.getElementById('lightbox-prev')?.addEventListener('click', prevSlide);
   // New album button opens modal
   document.getElementById('new-album')?.addEventListener('click', function(){ openCreateAlbumModal(); });
-  // Wire per-tile add-to-album buttons (for tiles already present)
-  document.querySelectorAll('.add-to-album').forEach(btn => {
-    btn.addEventListener('click', function(ev){
-      ev.stopPropagation();
-      const fid = parseInt(btn.getAttribute('data-id'));
-      openAddToAlbumDialog(fid);
-    });
-  });
+  // per-tile add-to-album buttons removed — use selection + "Add to album" flow instead
   // Keyboard navigation
   document.addEventListener('keydown', (e)=>{
     const lb = document.getElementById('lightbox');
@@ -472,16 +583,18 @@ function openAddToAlbumDialog(fileId){
       if(window.confirm('No albums found. Create one now?')) openCreateAlbumDialog();
       return;
     }
-    const names = j.items.map(a => a.id + ': ' + a.name + (a.count ? (' ('+a.count+')') : '') ).join('\n');
-    const pick = window.prompt('Choose album id to add to:\n' + names);
-    if(!pick) return;
-    const albumId = parseInt(pick.replace(/[^0-9]/g,''));
-    if(isNaN(albumId)) return alert('Invalid album id');
-    const body = new URLSearchParams({ file_id: String(fileId) });
-    fetch('/events/' + encodeURIComponent(eventId) + '/albums/' + encodeURIComponent(albumId) + '/add', { method: 'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body: body })
-      .then(r => r.json()).then(resp => {
-        if(resp && resp.ok){ alert('Added to album'); }
-        else alert('Could not add to album');
-      }).catch(()=>alert('Could not add to album'));
-  }).catch(()=>alert('Could not fetch albums'));
+    const items = j.items.slice();
+    const html = '<div style="max-height:40vh; overflow:auto;"><ul style="list-style:none;padding:0;margin:0;">' + items.map(a => '<li style="padding:6px 8px;border-bottom:1px solid var(--color-border);"><label><input type="radio" name="__album_pick_single" value="'+String(a.id)+'" style="margin-right:8px;">'+ (a.name||'Untitled') + (a.count ? (' ('+a.count+')') : '') +'</label></li>').join('') + '</ul></div>';
+    if (window.EPU && window.EPU.modal){
+      window.EPU.modal.show({ title: 'Add to album', raw: true, body: html, actions: [ { label: 'Cancel', role: 'cancel' }, { label: 'Add', onClick: function(hide){ const sel = document.querySelector('input[name="__album_pick_single"]:checked'); if(!sel){ if(window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Please select an album'); return; } const albumId = sel.value; const body = new URLSearchParams({ file_id: String(fileId) }); fetch('/events/' + encodeURIComponent(eventId) + '/albums/' + encodeURIComponent(albumId) + '/add', { method: 'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body: body }).then(r => r.json()).then(resp => { if(resp && resp.ok){ if(window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Added to album'); if(window.EPU && window.EPU.modal) window.EPU.modal.hide(); } else { if(window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Could not add to album'); } }).catch(()=>{ if(window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Could not add to album'); }); } } ] });
+    } else {
+      const names = items.map(a => a.id + ': ' + a.name + (a.count ? (' ('+a.count+')') : '') ).join('\n');
+      const pick = window.prompt('Choose album id to add to:\n' + names);
+      if(!pick) return;
+      const albumId = parseInt(pick.replace(/[^0-9]/g,''));
+      if(isNaN(albumId)) return alert('Invalid album id');
+      const body = new URLSearchParams({ file_id: String(fileId) });
+      fetch('/events/' + encodeURIComponent(eventId) + '/albums/' + encodeURIComponent(albumId) + '/add', { method: 'POST', headers:{ 'content-type':'application/x-www-form-urlencoded' }, body: body }).then(r => r.json()).then(resp => { if(resp && resp.ok){ alert('Added to album'); } else alert('Could not add to album'); }).catch(()=>alert('Could not add to album'));
+    }
+  }).catch(()=>{ if(window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Could not fetch albums'); else alert('Could not fetch albums'); });
 }

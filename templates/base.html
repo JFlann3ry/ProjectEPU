@@ -7,6 +7,7 @@
     <link rel="icon" type="image/png" href="{{ url_for('static', path='favicon.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}?v={{ now() if now else '' }}">
   <link rel="stylesheet" href="{{ url_for('static', path='form.css') }}?v={{ now() if now else '' }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='theme.css') }}?v={{ now() if now else '' }}">
   {% if canonical_url %}
     <link rel="canonical" href="{{ canonical_url }}">
   {% endif %}
@@ -225,6 +226,118 @@
             document.addEventListener('focusout', function(e){ const t = e.target.closest('.tip'); if (t && !t.contains(e.relatedTarget)){ toggleTip(t, false); } });
           })();
         </script>
+  <script>
+    (function(){
+      // Global share handler: opens a modal with editable message and share targets.
+      function esc(s){ return (s||'').replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]) || c; }); }
+      async function openShareModal(opts){
+        if (!window.EPU || !window.EPU.modal) return;
+        const { code, published=false, title='' , tmpl=null } = opts || {};
+        const url = new URL('/e/' + (code||''), window.location.origin).href;
+        const defaultTitle = title || 'My event';
+        const rawTemplate = tmpl || (defaultTitle + ' — %URL%');
+        const initial = rawTemplate.replace(/%TITLE%/g, defaultTitle).replace(/%URL%/g, url);
+  const enc = s => encodeURIComponent(s||'');
+  const sprite = '{{ url_for("static", path="images/share-icons.svg") }}';
+        const body =
+          '<div class="form">' +
+            '<label for="share-message">Message</label>' +
+            '<textarea id="share-message" rows="5" style="width:100%; margin-top:8px; font-size:14px;">' + esc(initial) + '</textarea>' +
+            '<div class="share-actions" style="margin-top:10px;">' +
+              '<button type="button" id="share-wa" class="share-action whatsapp" title="Share via WhatsApp" aria-label="Share via WhatsApp">' +
+                '<svg class="s-icn" aria-hidden="true" focusable="false"><use xlink:href="' + sprite + '#whatsapp"></use></svg>' +
+                '<span>WhatsApp</span>' +
+              '</button>' +
+              '<button type="button" id="share-messenger" class="share-action messenger" title="Share via Messenger" aria-label="Share via Messenger">' +
+                '<svg class="s-icn" aria-hidden="true" focusable="false"><use xlink:href="' + sprite + '#messenger"></use></svg>' +
+                '<span>Messenger</span>' +
+              '</button>' +
+              '<button type="button" id="share-sms" class="share-action sms" title="Share via SMS" aria-label="Share via SMS" style="display:none;">' +
+                '<svg class="s-icn" aria-hidden="true" focusable="false"><use xlink:href="' + sprite + '#sms"></use></svg>' +
+                '<span>SMS</span>' +
+              '</button>' +
+              '<button type="button" id="share-email" class="share-action email" title="Share via Email" aria-label="Share via Email">' +
+                '<svg class="s-icn" aria-hidden="true" focusable="false"><use xlink:href="' + sprite + '#email"></use></svg>' +
+                '<span>Email</span>' +
+              '</button>' +
+              '<button type="button" id="share-copy" class="share-action copy" title="Copy message + link" aria-label="Copy message and link">' +
+                '<svg class="s-icn" aria-hidden="true" focusable="false"><use xlink:href="' + sprite + '#copy"></use></svg>' +
+                '<span>Copy link</span>' +
+              '</button>' +
+            '</div>' +
+            '<div class="small muted" style="margin-top:8px;">Share URL: ' + esc(url) + '</div>' +
+          '</div>';
+        window.EPU.modal.show({ title: 'Share Event', body: body, fit: true, actions: [], noDefaultClose: true, raw: true });
+        // Hook buttons and dispatch a lightweight shared event so page scripts can record the share
+        setTimeout(function(){
+          const ta = document.getElementById('share-message');
+          const wa = document.getElementById('share-wa');
+          const ms = document.getElementById('share-messenger');
+          const em = document.getElementById('share-email');
+          const cp = document.getElementById('share-copy');
+          function getMsg(){ return ta ? ta.value : initial; }
+          function notifyShared(){ try{ document.dispatchEvent(new CustomEvent('epu:shared', { detail: { eid: (opts && opts.eid) || null } })); }catch(e){} }
+          // Simple mobile detection: treat as mobile if navigator.userAgent looks like a phone/tablet
+          const isMobile = (function(){ try{ return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent); }catch(e){ return false; } })();
+          // Show SMS button only on mobile devices
+          const smsBtn = document.getElementById('share-sms');
+          if (smsBtn){ if (isMobile){ smsBtn.style.display = ''; } else { try{ smsBtn.remove(); }catch(e){} } }
+          if (wa) wa.addEventListener('click', function(){ const txt = getMsg(); window.open('https://wa.me/?text=' + enc(txt), '_blank'); notifyShared(); });
+          if (ms) ms.addEventListener('click', function(){
+            const urlOnly = url;
+            const txt = getMsg();
+            const encUrl = enc(urlOnly);
+            // Try Messenger app/URI first
+            try {
+              window.open('fb-messenger://share/?link=' + encUrl, '_blank');
+              notifyShared();
+              return;
+            } catch(e){}
+            // If Web Share API available, prefer that
+            if (navigator.share){
+              navigator.share({ title: defaultTitle, text: txt, url: urlOnly })
+                .then(()=> notifyShared())
+                .catch(function(){ window.open('https://www.messenger.com/t/?link=' + encUrl, '_blank'); });
+            } else {
+              // Final fallback: messenger.com share flow
+              window.open('https://www.messenger.com/t/?link=' + encUrl, '_blank');
+            }
+          });
+          // Only enable the Email button on mobile devices (desktop mailto is unreliable)
+          if (em){
+            if (isMobile){
+              em.addEventListener('click', function(){ const subj = defaultTitle; const bodyText = getMsg(); const bodyEnc = encodeURIComponent((bodyText||'').replace(/\r?\n/g,'\r\n')); window.location.href = 'mailto:?subject=' + enc(subj) + '&body=' + bodyEnc; notifyShared(); });
+            } else {
+              // Remove the button entirely on desktop if present
+              try{ em.remove(); }catch(e){}
+            }
+          }
+          if (smsBtn){
+            smsBtn.addEventListener('click', function(){ const bodyText = getMsg(); const smsBody = encodeURIComponent(bodyText + '\n\n' + url); // sms: URI
+              try { window.location.href = 'sms:?&body=' + smsBody; notifyShared(); } catch(e){ window.EPU.snackbar && window.EPU.snackbar.show('SMS not available'); }
+            });
+          }
+          if (cp) cp.addEventListener('click', function(){ const txt = getMsg(); const toCopy = txt + '\r\n\r\n' + url; if (navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(toCopy).then(function(){ window.EPU.snackbar && window.EPU.snackbar.show('Message + link copied'); notifyShared(); }); } else { window.EPU.snackbar && window.EPU.snackbar.show('Copy not supported'); } });
+        }, 30);
+      }
+      // Delegate clicks on .share-btn
+      document.addEventListener('click', function(e){
+        const btn = e.target.closest && e.target.closest('.share-btn');
+        if (!btn) return;
+        e.preventDefault();
+        const code = btn.getAttribute('data-code');
+        const published = btn.getAttribute('data-published') === '1';
+        const title = btn.getAttribute('data-title') || '';
+        const tmpl = btn.getAttribute('data-share-template') || null;
+        openShareModal({ code, published, title, tmpl });
+      }, true);
+      window.EPU = window.EPU || {}; window.EPU.share = { open: openShareModal };
+    })();
+  </script>
+  <script src="{{ url_for('static', path='js/components/share-button.js') }}?v={{ now() if now else '' }}"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function(){ if (window.EPU && window.EPU.shareButton && window.EPU.shareButton.upgradeAll){ window.EPU.shareButton.upgradeAll(); } });
+  </script>
   <script src="{{ url_for('static', path='js/ui-helpers.js') }}?v={{ now() if now else '' }}"></script>
   {% block extra_js %}{% endblock %}
         <!-- Cookie Consent Banner -->

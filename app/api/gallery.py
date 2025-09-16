@@ -257,7 +257,9 @@ def _build_gallery_files(
                     elif days_left == 1:
                         days_label = "1 day left"
                     else:
-                        days_label = f"{days_left} days left"
+                        days_label = (
+                            f"{days_left} days left"
+                        )
             except Exception:
                 days_label = None
         files.append(
@@ -409,6 +411,56 @@ async def user_gallery(
         offset=0,
     album_id=album_id,
     )
+    # Attach ordinal values from EventGalleryOrder for server-rendered files when possible
+    try:
+        if selected_event_id is not None and files:
+            file_ids = []
+            for f in files:
+                try:
+                    v = f.get("id")
+                    if v is None:
+                        continue
+                    file_ids.append(int(v))
+                except Exception:
+                    continue
+            if file_ids:
+                rows = (
+                    db.query(
+                        EventGalleryOrder.FileMetadataID,
+                        EventGalleryOrder.Ordinal,
+                    )
+                    .filter(
+                        EventGalleryOrder.EventID == selected_event_id,
+                        EventGalleryOrder.FileMetadataID.in_(file_ids),
+                    )
+                    .all()
+                )
+                ord_map = {}
+                for r in rows or []:
+                    try:
+                        fid = int(r[0])
+                        ordv = getattr(r, "Ordinal", None)
+                        if ordv is None:
+                            try:
+                                ordv = int(r[1])
+                            except Exception:
+                                ordv = None
+                        if ordv is not None:
+                            ord_map[fid] = int(ordv)
+                    except Exception:
+                        continue
+                for f in files:
+                    try:
+                        fidv = f.get("id")
+                        if fidv is None:
+                            continue
+                        fid = int(fidv)
+                        if fid in ord_map:
+                            f["ordinal"] = ord_map[fid]
+                    except Exception:
+                        continue
+    except Exception:
+        pass
     return templates.TemplateResponse(
         request,
         "gallery.html",
@@ -472,6 +524,57 @@ async def gallery_data(
     offset=offset,
     album_id=album_id,
     )
+    # Attach ordinal values from EventGalleryOrder when available for the scoped event
+    try:
+        if selected_event_id is not None and files:
+            file_ids = []
+            for f in files:
+                try:
+                    v = f.get("id")
+                    if v is None:
+                        continue
+                    file_ids.append(int(v))
+                except Exception:
+                    continue
+            if file_ids:
+                rows = (
+                    db.query(
+                        EventGalleryOrder.FileMetadataID,
+                        EventGalleryOrder.Ordinal,
+                    )
+                    .filter(
+                        EventGalleryOrder.EventID == selected_event_id,
+                        EventGalleryOrder.FileMetadataID.in_(file_ids),
+                    )
+                    .all()
+                )
+                ord_map = {}
+                for r in rows or []:
+                    try:
+                        fid = int(r[0])
+                        # r may be a Row object; attempt attribute then index
+                        ordv = getattr(r, "Ordinal", None)
+                        if ordv is None:
+                            try:
+                                ordv = int(r[1])
+                            except Exception:
+                                ordv = None
+                        if ordv is not None:
+                            ord_map[fid] = int(ordv)
+                    except Exception:
+                        continue
+                for f in files:
+                    try:
+                        fidv = f.get("id")
+                        if fidv is None:
+                            continue
+                        fid = int(fidv)
+                        if fid in ord_map:
+                            f["ordinal"] = ord_map[fid]
+                    except Exception:
+                        continue
+    except Exception:
+        pass
     next_offset = (offset + len(files)) if has_more else None
     return JSONResponse({"ok": True, "files": files, "next_offset": next_offset})
 
@@ -516,14 +619,26 @@ async def event_gallery_order(
     )
 
     try:
-        # Query precomputed order
-        rows = (
-            db.query(EventGalleryOrder.FileMetadataID)
-            .filter(EventGalleryOrder.EventID == event_id)
-            .order_by(EventGalleryOrder.Ordinal)
-            .all()
-        )
-        order_ids = [int(r[0]) for r in rows] if rows else []
+        order_ids = []
+        # Prefer stored procedure if available (SQL Server). This keeps ordering logic
+        # close to the DB and avoids extra ORM work for large galleries.
+        try:
+            from sqlalchemy import text
+
+            # Try calling dbo.GetEventGalleryOrder(@EventID)
+            sql = text("EXEC dbo.GetEventGalleryOrder :eid")
+            res = db.execute(sql.bindparams(eid=event_id))
+            rows = res.fetchall()
+            order_ids = [int(r[0]) for r in rows] if rows else []
+        except Exception:
+            # Fallback to ORM query if SP call failed / not available
+            rows = (
+                db.query(EventGalleryOrder.FileMetadataID)
+                .filter(EventGalleryOrder.EventID == event_id)
+                .order_by(EventGalleryOrder.Ordinal)
+                .all()
+            )
+            order_ids = [int(r[0]) for r in rows] if rows else []
     except Exception:
         order_ids = []
 
@@ -540,6 +655,57 @@ async def event_gallery_order(
                     ordered.append(by_id.pop(int(f["id"])))
         files = ordered
 
+    # Attach ordinal values to each file object when EventGalleryOrder rows exist
+    try:
+        if files:
+            file_ids = []
+            for f in files:
+                try:
+                    v = f.get("id")
+                    if v is None:
+                        continue
+                    file_ids.append(int(v))
+                except Exception:
+                    continue
+            if file_ids:
+                rows = (
+                    db.query(
+                        EventGalleryOrder.FileMetadataID,
+                        EventGalleryOrder.Ordinal,
+                    )
+                    .filter(
+                        EventGalleryOrder.EventID == event_id,
+                        EventGalleryOrder.FileMetadataID.in_(file_ids),
+                    )
+                    .all()
+                )
+                ord_map = {}
+                for r in rows or []:
+                    try:
+                        fid = int(r[0])
+                        ordv = getattr(r, "Ordinal", None)
+                        if ordv is None:
+                            try:
+                                ordv = int(r[1])
+                            except Exception:
+                                ordv = None
+                        if ordv is not None:
+                            ord_map[fid] = int(ordv)
+                    except Exception:
+                        continue
+                for f in files:
+                    try:
+                        fidv = f.get("id")
+                        if fidv is None:
+                            continue
+                        fid = int(fidv)
+                        if fid in ord_map:
+                            f["ordinal"] = ord_map[fid]
+                    except Exception:
+                        continue
+    except Exception:
+        pass
+
     # Build a simple ETag based on file ids + last-order hash
     try:
         et_src = ",".join(str(int(f.get("id", ""))) for f in files)
@@ -551,13 +717,37 @@ async def event_gallery_order(
     try:
         inm = request.headers.get("if-none-match") or request.headers.get("If-None-Match")
         if inm and etag and inm.strip('"') == etag:
-            return JSONResponse({"ok": True, "files": []}, status_code=304, headers={"ETag": '"%s"' % etag})
+            headers = {"ETag": '"%s"' % etag}
+            return JSONResponse({"ok": True, "files": []}, status_code=304, headers=headers)
     except Exception:
         pass
 
-    headers = {"Cache-Control": "private, max-age=5"}
+    # Attempt to set Last-Modified based on EventGalleryOrder updated timestamp when available
+    last_modified = None
+    try:
+        if order_ids:
+            last_row = (
+                db.query(EventGalleryOrder.UpdatedAt)
+                .filter(EventGalleryOrder.EventID == event_id)
+                .order_by(EventGalleryOrder.UpdatedAt.desc())
+                .first()
+            )
+            if last_row and getattr(last_row, "UpdatedAt", None):
+                last_modified = last_row.UpdatedAt
+    except Exception:
+        last_modified = None
+
+    headers = {"Cache-Control": "private, max-age=30"}
     if etag:
         headers["ETag"] = '"%s"' % etag
+    if last_modified:
+        try:
+            # Format as RFC1123 GMT
+            from email.utils import format_datetime
+
+            headers["Last-Modified"] = format_datetime(last_modified)
+        except Exception:
+            pass
 
     return JSONResponse({"ok": True, "files": files}, headers=headers)
 

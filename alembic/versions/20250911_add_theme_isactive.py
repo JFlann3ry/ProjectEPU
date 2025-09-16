@@ -17,7 +17,15 @@ depends_on = None
 
 def upgrade():
     # Add IsActive boolean with default True for existing rows
-    op.add_column('Theme', sa.Column('IsActive', sa.Boolean(), nullable=False, server_default=sa.text('1')))
+    op.add_column(
+        'Theme',
+        sa.Column(
+            'IsActive',
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text('1'),
+        ),
+    )
 
 
 def downgrade():

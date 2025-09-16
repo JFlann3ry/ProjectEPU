@@ -113,3 +113,221 @@
 .theme-card.radius-rounded .progress-bar .progress-fill { border-radius: 12px; }
 .theme-card.radius-sharp .progress-bar,
 .theme-card.radius-sharp .progress-bar .progress-fill { border-radius: 0; }
+
+/* --- Project-specific small-card and form helpers --- */
+.profile-page .cards-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:14px; }
+@media (max-width: 900px) { .profile-page .cards-grid { grid-template-columns: 1fr; } }
+.profile-page .card.small { padding:0; }
+.profile-page .card.small .card-body { padding:12px 16px; display:flex; flex-direction:column; }
+.profile-page .card.small h3.h4 { display:flex; align-items:center; gap:8px; font-size:1.02rem; margin:0 0 6px; }
+.profile-page .card.small p.muted { font-size:0.92rem; margin-bottom:8px; }
+.profile-page .card.small .btn { font-size:0.94rem; padding:6px 10px; }
+.profile-page .card.small .btn.primary { padding:6px 12px; }
+.profile-page .card.small .card-actions { margin-top:auto; display:flex; justify-content:flex-end; }
+
+/* Unified checkbox sizing and layout (with fallbacks) */
+.profile-page input[type="checkbox"], .profile-page input[type="checkbox"].checkbox-field {
+	/* target consistent visual size across browsers: 18x18 */
+	width: 18px;
+	height: 18px;
+	min-width: 18px;
+	min-height: 18px;
+	margin: 0;
+	vertical-align: middle;
+	box-sizing: border-box;
+	accent-color: var(--accent, #6ea8fe);
+	/* transform/zoom provide a reasonable fallback on platforms that ignore explicit sizing */
+	transform-origin: center;
+	-webkit-transform-origin: center;
+	transform: scale(1);
+	-webkit-transform: scale(1);
+	zoom: 1;
+	/* Keep native appearance to retain platform-specific checkmark; styling should be minimal here */
+}
+
+.profile-page .checkbox-row { display: flex; gap: 10px; align-items: center; }
+
+/* Prefer a subtle overlay for prefs to avoid looking like a full-width dark panel */
+.profile-page .prefs-box {
+	background: rgba(255,255,255,0.02);
+	border: 1px solid var(--accent, rgba(255,255,255,0.12));
+	border-radius: 10px;
+	padding: 12px;
+	background-clip: padding-box;
+}
+.profile-page .prefs-box--transparent {
+	background: transparent !important;
+	border: 0 !important;
+	padding: 0 !important;
+}
+
+/* Email prefs: ensure each option is on its own row and text wraps to up to 3 lines */
+.profile-page .prefs-box .prefs-list {
+	display:flex;
+	flex-direction:column;
+	gap:10px;
+	align-items: stretch; /* stretch rows to the card width */
+}
+.profile-page .prefs-box .checkbox-row {
+	display:flex;
+	gap:10px;
+	align-items:flex-start;
+	width: 100%; /* make rows full width so checkboxes/labels align left */
+	justify-content: flex-start;
+}
+.profile-page .prefs-box .checkbox-row .checkbox-field { flex:0 0 auto; margin-top:4px; }
+.profile-page .prefs-box .checkbox-row p {
+	margin: 0;
+	flex: 1 1 auto;
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: 1.25;
+}
+
+/* Ensure prefs meta (buttons/status) aligns to the right on wide screens and stacks on small screens */
+.profile-page .prefs-box .prefs-meta { display:flex; justify-content:center; align-items:center; gap:12px; margin-top:12px; }
+@media (max-width:600px) {
+	.profile-page .prefs-box .prefs-meta { flex-direction:column; align-items:flex-start; }
+}
+.profile-page .prefs-box .muted { font-size: 0.95rem; }
+
+/* Keep checkbox label lines left-aligned for readability */
+.profile-page .prefs-box .checkbox-row p { text-align: left; }
+
+/* Center header and description inside the prefs box */
+.profile-page .prefs-box h3.h4,
+.profile-page .prefs-box p.muted { text-align: center; }
+
+/* Snackbar for transient confirmations (save/unsubscribe) */
+#site-snackbar {
+	position: fixed;
+	left: 50%;
+	bottom: 20px;
+	transform: translateX(-50%) translateY(8px);
+	background: rgba(0,0,0,0.85);
+	color: #fff;
+	padding: 10px 16px;
+	border-radius: 10px;
+	box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+	z-index: 1100;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 180ms ease, transform 180ms ease;
+	font-size: 0.95rem;
+}
+#site-snackbar.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+#site-snackbar.success { background: #0b7a3e; }
+#site-snackbar.error { background: #8a1f2b; }
+
+/* Personal details: keep email and Save button inline on wide screens */
+.profile-page .email-row { align-items: flex-end; }
+.profile-page .email-row .input-field { min-width: 240px; }
+@media (max-width:700px) {
+	.profile-page .email-row { flex-direction: column; align-items: stretch; }
+	.profile-page .email-row > div:last-child { display:flex; justify-content:flex-end; }
+}
+
+/* Center the Save and Unsubscribe buttons within the prefs-actions area */
+.profile-page .prefs-box .prefs-actions { display:flex; justify-content:center; gap:8px; }
+.profile-page .prefs-box .prefs-actions .btn { min-width: 64px; padding: 6px 12px; text-align: center; }
+
+/* Center text inside the delete account button */
+#btn-delete-account { display:inline-flex; align-items:center; justify-content:center; text-align:center; }
+
+/* Clamp checkbox labels to two lines and use lighter weight for better hierarchy */
+.profile-page .checkbox-row span {
+	/* use normal paragraph size and normal weight; still clamp to 2 lines */
+	font-size: 1rem;
+	font-weight: 400;
+	line-height: 1.3;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-height: 2.6em;
+}
+
+/* Card icon helper size */
+.card-icon { width: 18px; height: 18px; display: inline-block; vertical-align: middle; }
+
+/* High-specificity override to ensure checkboxes and labels appear consistently across templates */
+.profile-page .prefs-box .checkbox-row input[type="checkbox"],
+.profile-page .checkbox-row > input[type="checkbox"],
+.profile-page input[type="checkbox"].checkbox-field {
+	width: 18px !important;
+	height: 18px !important;
+	min-width: 18px !important;
+	min-height: 18px !important;
+	margin: 0 !important;
+	vertical-align: middle !important;
+	box-sizing: border-box !important;
+	accent-color: var(--accent, #6ea8fe) !important;
+}
+
+.profile-page .checkbox-row span {
+	font-size: 1rem !important;
+	font-weight: 400 !important;
+}
+
+/* Global override: ensure any checkbox variant across templates is visually 18x18.
+   Targets: native checkboxes, .checkbox-field, .ck, .select, .select-chk and inline-styled boxes.
+   Use high specificity and !important to beat template-level rules. */
+html body input[type="checkbox"],
+html body .checkbox-field,
+html body .ck,
+html body input.select,
+html body .select,
+html body .select-chk,
+html body input[type="checkbox"][style],
+html body input[type="checkbox"].checkbox-field[style]
+{
+	width: 18px !important;
+	height: 18px !important;
+	min-width: 18px !important;
+	min-height: 18px !important;
+	box-sizing: border-box !important;
+	margin: 0 !important;
+	vertical-align: middle !important;
+	transform: none !important;
+	-webkit-transform: none !important;
+	zoom: 1 !important;
+	accent-color: var(--accent, #6ea8fe) !important;
+}
+
+/* Extra-strict: force native checkbox appearance and ensure any custom backgrounds scale to 18px.
+   This targets any remaining template-level or inline rules that shrink or override checkbox visuals. */
+html body input[type="checkbox"],
+html body input[type="checkbox"].checkbox-field,
+html body .checkbox-field,
+html body .ck,
+html body .select,
+html body .select-chk
+{
+	-webkit-appearance: checkbox !important;
+	appearance: checkbox !important;
+	width: 18px !important;
+	height: 18px !important;
+	min-width: 18px !important;
+	min-height: 18px !important;
+	box-sizing: border-box !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	vertical-align: middle !important;
+	transform: none !important;
+	-webkit-transform: none !important;
+	zoom: 1 !important;
+	background-size: 18px 18px !important;
+	background-repeat: no-repeat !important;
+}
+
+/* Some cards use very small .ck or task icons — ensure those remain visual checkboxes where used */
+.task .ck, .event-card.v5 .setup .task .ck { width: 18px !important; height: 18px !important; }
+
+/* Force inline positioned checkboxes inside tiles to keep 18x18 */
+.tile input[type="checkbox"], .tile .select { width: 18px !important; height: 18px !important; }

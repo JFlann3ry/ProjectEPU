@@ -1,3 +1,5 @@
+from collections import deque
+
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
@@ -14,9 +16,6 @@ for rev in script.walk_revisions(base='base', head='heads'):
         parents[rev.revision] = list(dr)
     else:
         parents[rev.revision] = [dr]
-
-# helper to check if x is an ancestor of y
-from collections import deque
 
 
 def is_ancestor(x, y):
@@ -49,8 +48,14 @@ for rev in script.walk_revisions(base='base', head='heads'):
                 if a is None or b is None:
                     continue
                 if is_ancestor(a, b):
-                    print(f"{rev.revision}: {a} is ancestor of {b} -> recommend down_revision = '{b}'")
+                    print(
+                        f"{rev.revision}: {a} is ancestor of {b} "
+                        "-> recommend down_revision = '" + b + "'"
+                    )
                 elif is_ancestor(b, a):
-                    print(f"{rev.revision}: {b} is ancestor of {a} -> recommend down_revision = '{a}'")
+                    print(
+                        f"{rev.revision}: {b} is ancestor of {a} "
+                        "-> recommend down_revision = '" + a + "'"
+                    )
 
 print('\nDone')

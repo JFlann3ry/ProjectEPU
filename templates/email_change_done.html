@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Email change{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="card">
+    <div class="card-body">
+      {% if ok %}
+        <h3 class="h4">Email confirmed</h3>
+        <p class="muted">Your email has been updated and verified.</p>
+      {% else %}
+        <h3 class="h4">Verification failed</h3>
+        <p class="muted">The verification link is invalid or expired.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

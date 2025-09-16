@@ -14,7 +14,8 @@ def test_list_albums_unauthenticated():
 
 def test_create_album_missing_event():
     r = client.post('/events/999999/albums/create', data={'name': 'X'})
-    # In some test setups unauthenticated POSTs may return login page or redirect. Accept common auth-related responses.
+    # In some test setups unauthenticated POSTs may return login page or redirect.
+    # Accept common auth-related responses.
     assert r.status_code in (200, 404, 401, 403, 302)
 
 # Integration-style smoke test for endpoint shape

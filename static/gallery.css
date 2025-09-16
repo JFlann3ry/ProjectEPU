@@ -1,25 +1,38 @@
 /* Gallery Page CSS - Enhanced */
 /* Masonry layout using CSS columns */
 .dynamic-gallery {
-    column-count: 5;
-    column-gap: 1.2rem;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1.2rem;
     margin-top: 1rem;
 }
-@media (max-width: 1400px) { .dynamic-gallery { column-count: 4; } }
-@media (max-width: 1100px) { .dynamic-gallery { column-count: 3; } }
-@media (max-width: 900px)  { .dynamic-gallery { column-count: 2; } }
-@media (max-width: 600px)  { .dynamic-gallery { column-count: 1; } }
+@media (max-width: 1400px) { .dynamic-gallery { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 1100px) { .dynamic-gallery { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 900px)  { .dynamic-gallery { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px)  { .dynamic-gallery { grid-template-columns: repeat(1, 1fr); } }
 
 .gallery-item {
     position: relative;
-    break-inside: avoid;
     background: #0f0f10;
     border: 1px solid rgba(255,255,255,0.06);
     border-radius: 12px;
     overflow: hidden;
     cursor: pointer;
-    margin: 0 0 1rem 0;
     transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Support for items that span multiple columns when using JS row-first masonry
+   The JS will set width/left/top for absolute positioned tiles. Provide a
+   fallback CSS rule for when JS hasn't run yet: a two-column span class. */
+.gallery-item.span-2 {
+    grid-column: span 2;
+}
+
+/* Attribute selector to allow server-side hints before JS runs */
+[data-colspan="2"] {
+    /* Ensure the media content stretches visually in CSS grid before JS reflow */
 }
 
 /* Skeleton loader state */
@@ -37,13 +50,7 @@
 
 /* Group heading inside masonry: span full width (new row) */
 .group-heading {
-    /* Span across all columns in the multicol layout */
-    column-span: all;
-    -webkit-column-span: all;
-    /* Avoid splitting or being confined within a single column */
-    break-inside: avoid;
-    -webkit-column-break-inside: avoid;
-    -moz-column-break-inside: avoid;
+    grid-column: 1 / -1;
     width: 100%;
     display: block;
     margin: 18px 0 8px;

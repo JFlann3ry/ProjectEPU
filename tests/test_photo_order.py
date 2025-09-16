@@ -2,7 +2,9 @@ from datetime import datetime, timedelta, timezone
 
 from app.models.event import Event, FileMetadata
 from app.models.photo_order import EventGalleryOrder
-from app.services.photo_order_service import rebuild_event_gallery_order
+from app.services.photo_order_service import (
+    rebuild_event_gallery_order,
+)
 
 
 def make_dt(offset_seconds: int):
@@ -20,9 +22,30 @@ def test_rebuild_event_gallery_order_basic(db_session):
     db_session.flush()
 
     # Create files: two with captured times, one without (should sort last)
-    f1 = FileMetadata(EventID=ev.EventID, FileName="a.jpg", FileType="image/jpeg", FileSize=100, CapturedDateTime=make_dt(-30), UploadDate=make_dt(-20))
-    f2 = FileMetadata(EventID=ev.EventID, FileName="b.jpg", FileType="image/jpeg", FileSize=100, CapturedDateTime=make_dt(-10), UploadDate=make_dt(-5))
-    f3 = FileMetadata(EventID=ev.EventID, FileName="c.jpg", FileType="image/jpeg", FileSize=100, CapturedDateTime=None, UploadDate=make_dt(-1))
+    f1 = FileMetadata(
+        EventID=ev.EventID,
+        FileName="a.jpg",
+        FileType="image/jpeg",
+        FileSize=100,
+        CapturedDateTime=make_dt(-30),
+        UploadDate=make_dt(-20),
+    )
+    f2 = FileMetadata(
+        EventID=ev.EventID,
+        FileName="b.jpg",
+        FileType="image/jpeg",
+        FileSize=100,
+        CapturedDateTime=make_dt(-10),
+        UploadDate=make_dt(-5),
+    )
+    f3 = FileMetadata(
+        EventID=ev.EventID,
+        FileName="c.jpg",
+        FileType="image/jpeg",
+        FileSize=100,
+        CapturedDateTime=None,
+        UploadDate=make_dt(-1),
+    )
     db_session.add_all([f1, f2, f3])
     db_session.flush()
 
@@ -44,6 +67,11 @@ def test_rebuild_event_gallery_order_basic(db_session):
     f3_id = inspect(f3).identity[0]
 
     # Query back and assert ordinals
-    rows = db_session.query(EventGalleryOrder).filter(EventGalleryOrder.EventID == ev.EventID).order_by(EventGalleryOrder.Ordinal).all()
+    rows = (
+        db_session.query(EventGalleryOrder)
+        .filter(EventGalleryOrder.EventID == ev.EventID)
+        .order_by(EventGalleryOrder.Ordinal)
+        .all()
+    )
     assert [r.FileMetadataID for r in rows] == [f1_id, f2_id, f3_id]
     assert [r.Ordinal for r in rows] == [1, 2, 3]

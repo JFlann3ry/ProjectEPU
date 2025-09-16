@@ -16,7 +16,8 @@
   <div class="card" style="max-width:760px;margin:0 auto;">
     <style>
   /* Use a single grid on the table so column widths are consistent across rows. */
-  .table { display: grid; grid-template-columns: 2fr 1.2fr 0.9fr auto; width:100%; }
+  /* Spread columns a bit more evenly and reduce Purchase column width */
+  .table { display: grid; grid-template-columns: 1.6fr 1fr 0.8fr 0.8fr; width:100%; }
   /* Each logical row becomes "contents" so its cells participate in the parent grid
      (keeps visual grouping while ensuring columns line up). */
   .row { display: contents; }
@@ -24,7 +25,8 @@
   .cell { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:8px 6px; border-bottom:1px solid rgba(255,255,255,0.08); align-items:center; display:flex; }
   /* Do not shorten the purchase summary; allow wrapping */
   .cell.purchase { white-space: normal; overflow: visible; text-overflow: clip; word-break: break-word; }
-  .cell.amount { text-align: right; justify-content:flex-end; font-variant-numeric: tabular-nums; }
+  /* Left-align amounts to match the column and avoid excessive right padding */
+  .cell.amount { text-align: left; justify-content:flex-start; font-variant-numeric: tabular-nums; padding-left:6px; }
     </style>
     {% if items and items|length > 0 %}
       <div class="table" role="table" aria-label="Recent purchases">
@@ -64,7 +66,7 @@
     {% else %}
       {{ notice('No purchases yet.', 'info', 'style="margin:12px 0;"') }}
     {% endif %}
-    {% call btn_row('style="margin-top:12px;"') %}
+    {% call btn_row('style="margin-top:12px; display:flex; justify-content:center; gap:8px;"') %}
       <a class="btn" href="/pricing">Choose a package</a>
       <a class="btn" href="/profile">Back to Profile</a>
     {% endcall %}
