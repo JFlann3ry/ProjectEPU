@@ -2,10 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>{% block title %}EPU Home{% endblock %}</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', path='favicon.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}?v={{ now() if now else '' }}">
   <link rel="stylesheet" href="{{ url_for('static', path='form.css') }}?v={{ now() if now else '' }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='theme.css') }}?v={{ now() if now else '' }}">
   {% if canonical_url %}
     <link rel="canonical" href="{{ canonical_url }}">
   {% endif %}
@@ -27,10 +29,9 @@
         <nav id="site-nav" class="nav" role="navigation" aria-label="Main navigation">
           <a href="/examples" {% if request and request.url and request.url.path.startswith('/examples') %}aria-current="page" class="active"{% endif %}>Examples</a>
           <a href="/pricing" {% if request and request.url and (request.url.path.startswith('/pricing') or request.url.path.startswith('/plans')) %}aria-current="page" class="active"{% endif %}>Pricing</a>
-          <a href="/guest/login" {% if request and request.url and request.url.path.startswith('/guest') %}aria-current="page" class="active"{% endif %}>Guest</a>
+          <a href="/extras" {% if request and request.url and request.url.path.startswith('/extras') %}aria-current="page" class="active"{% endif %}>Extras</a>
+          <a href="/guest/login" {% if request and request.url and request.url.path.startswith('/guest') %}aria-current="page" class="active"{% endif %}>Guest Upload</a>
           {% if request.cookies.get('session_id') %}
-            <a href="/events" {% if request and request.url and request.url.path.startswith('/events') %}aria-current="page" class="active"{% endif %}>My events</a>
-            <a href="/events/create" {% if request and request.url and request.url.path.startswith('/events/create') %}aria-current="page" class="active"{% endif %}>Create event</a>
             <div class="user-menu">
               <button class="avatar-btn" id="avatar-btn" aria-haspopup="menu" aria-expanded="false" aria-label="User menu">
                 <!-- Person icon instead of initial letter -->
@@ -40,8 +41,10 @@
               </button>
               <div class="dropdown" id="user-dropdown" role="menu" aria-labelledby="avatar-btn">
                 <a href="/profile" role="menuitem">Profile</a>
+                <a href="/events" role="menuitem">My events</a>
+                <a href="/events/create" role="menuitem">Create event</a>
                 <a href="/billing/summary" role="menuitem">Billing</a>
-                <a href="/logout" role="menuitem">Logout</a>
+                <a href="/logout" role="menuitem" class="btn danger">Logout</a>
               </div>
             </div>
           {% else %}
@@ -93,7 +96,14 @@
           /* Fit-to-content modal variant */
           .modal[data-fit="true"] { width: auto; max-width: 92vw; }
           .modal-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
+          @media (max-width: 520px){
+            .modal-actions { flex-wrap: wrap; }
+            .modal-actions .btn { width: 100%; justify-content: center; min-height: 44px; }
+          }
           .preview-body { display:flex; align-items:center; justify-content:center; }
+          /* Lightbox sizing on mobile */
+          .lightbox .lightbox-content { max-width: 96vw; max-height: 88vh; overflow: auto; }
+          @media (max-width: 520px){ .lightbox-close { top: 12px; right: 12px; } }
           /* Snackbar */
           .snackbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 1001; }
           .snackbar .snack-inner { display:flex; align-items:center; gap:8px; background: rgba(17,18,26,0.95); border:1px solid rgba(255,255,255,0.12); color:#fff; padding: 10px 12px; border-radius: 999px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
@@ -216,7 +226,120 @@
             document.addEventListener('focusout', function(e){ const t = e.target.closest('.tip'); if (t && !t.contains(e.relatedTarget)){ toggleTip(t, false); } });
           })();
         </script>
-        {% block extra_js %}{% endblock %}
+  <script>
+    (function(){
+      // Global share handler: opens a modal with editable message and share targets.
+      function esc(s){ return (s||'').replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]) || c; }); }
+      async function openShareModal(opts){
+        if (!window.EPU || !window.EPU.modal) return;
+        const { code, published=false, title='' , tmpl=null } = opts || {};
+        const url = new URL('/e/' + (code||''), window.location.origin).href;
+        const defaultTitle = title || 'My event';
+        const rawTemplate = tmpl || (defaultTitle + ' — %URL%');
+        const initial = rawTemplate.replace(/%TITLE%/g, defaultTitle).replace(/%URL%/g, url);
+  const enc = s => encodeURIComponent(s||'');
+  const sprite = '{{ url_for("static", path="images/share-icons.svg") }}';
+        const body =
+          '<div class="form">' +
+            '<label for="share-message">Message</label>' +
+            '<textarea id="share-message" rows="5" style="width:100%; margin-top:8px; font-size:14px;">' + esc(initial) + '</textarea>' +
+            '<div class="share-actions" style="margin-top:10px;">' +
+              '<button type="button" id="share-wa" class="share-action whatsapp" title="Share via WhatsApp" aria-label="Share via WhatsApp">' +
+                '<svg class="s-icn" aria-hidden="true" focusable="false"><use xlink:href="' + sprite + '#whatsapp"></use></svg>' +
+                '<span>WhatsApp</span>' +
+              '</button>' +
+              '<button type="button" id="share-messenger" class="share-action messenger" title="Share via Messenger" aria-label="Share via Messenger">' +
+                '<svg class="s-icn" aria-hidden="true" focusable="false"><use xlink:href="' + sprite + '#messenger"></use></svg>' +
+                '<span>Messenger</span>' +
+              '</button>' +
+              '<button type="button" id="share-sms" class="share-action sms" title="Share via SMS" aria-label="Share via SMS" style="display:none;">' +
+                '<svg class="s-icn" aria-hidden="true" focusable="false"><use xlink:href="' + sprite + '#sms"></use></svg>' +
+                '<span>SMS</span>' +
+              '</button>' +
+              '<button type="button" id="share-email" class="share-action email" title="Share via Email" aria-label="Share via Email">' +
+                '<svg class="s-icn" aria-hidden="true" focusable="false"><use xlink:href="' + sprite + '#email"></use></svg>' +
+                '<span>Email</span>' +
+              '</button>' +
+              '<button type="button" id="share-copy" class="share-action copy" title="Copy message + link" aria-label="Copy message and link">' +
+                '<svg class="s-icn" aria-hidden="true" focusable="false"><use xlink:href="' + sprite + '#copy"></use></svg>' +
+                '<span>Copy link</span>' +
+              '</button>' +
+            '</div>' +
+            '<div class="small muted" style="margin-top:8px;">Share URL: ' + esc(url) + '</div>' +
+          '</div>';
+        window.EPU.modal.show({ title: 'Share Event', body: body, fit: true, actions: [], noDefaultClose: true, raw: true });
+        // Hook buttons and dispatch a lightweight shared event so page scripts can record the share
+        setTimeout(function(){
+          const ta = document.getElementById('share-message');
+          const wa = document.getElementById('share-wa');
+          const ms = document.getElementById('share-messenger');
+          const em = document.getElementById('share-email');
+          const cp = document.getElementById('share-copy');
+          function getMsg(){ return ta ? ta.value : initial; }
+          function notifyShared(){ try{ document.dispatchEvent(new CustomEvent('epu:shared', { detail: { eid: (opts && opts.eid) || null } })); }catch(e){} }
+          // Simple mobile detection: treat as mobile if navigator.userAgent looks like a phone/tablet
+          const isMobile = (function(){ try{ return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent); }catch(e){ return false; } })();
+          // Show SMS button only on mobile devices
+          const smsBtn = document.getElementById('share-sms');
+          if (smsBtn){ if (isMobile){ smsBtn.style.display = ''; } else { try{ smsBtn.remove(); }catch(e){} } }
+          if (wa) wa.addEventListener('click', function(){ const txt = getMsg(); window.open('https://wa.me/?text=' + enc(txt), '_blank'); notifyShared(); });
+          if (ms) ms.addEventListener('click', function(){
+            const urlOnly = url;
+            const txt = getMsg();
+            const encUrl = enc(urlOnly);
+            // Try Messenger app/URI first
+            try {
+              window.open('fb-messenger://share/?link=' + encUrl, '_blank');
+              notifyShared();
+              return;
+            } catch(e){}
+            // If Web Share API available, prefer that
+            if (navigator.share){
+              navigator.share({ title: defaultTitle, text: txt, url: urlOnly })
+                .then(()=> notifyShared())
+                .catch(function(){ window.open('https://www.messenger.com/t/?link=' + encUrl, '_blank'); });
+            } else {
+              // Final fallback: messenger.com share flow
+              window.open('https://www.messenger.com/t/?link=' + encUrl, '_blank');
+            }
+          });
+          // Only enable the Email button on mobile devices (desktop mailto is unreliable)
+          if (em){
+            if (isMobile){
+              em.addEventListener('click', function(){ const subj = defaultTitle; const bodyText = getMsg(); const bodyEnc = encodeURIComponent((bodyText||'').replace(/\r?\n/g,'\r\n')); window.location.href = 'mailto:?subject=' + enc(subj) + '&body=' + bodyEnc; notifyShared(); });
+            } else {
+              // Remove the button entirely on desktop if present
+              try{ em.remove(); }catch(e){}
+            }
+          }
+          if (smsBtn){
+            smsBtn.addEventListener('click', function(){ const bodyText = getMsg(); const smsBody = encodeURIComponent(bodyText + '\n\n' + url); // sms: URI
+              try { window.location.href = 'sms:?&body=' + smsBody; notifyShared(); } catch(e){ window.EPU.snackbar && window.EPU.snackbar.show('SMS not available'); }
+            });
+          }
+          if (cp) cp.addEventListener('click', function(){ const txt = getMsg(); const toCopy = txt + '\r\n\r\n' + url; if (navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(toCopy).then(function(){ window.EPU.snackbar && window.EPU.snackbar.show('Message + link copied'); notifyShared(); }); } else { window.EPU.snackbar && window.EPU.snackbar.show('Copy not supported'); } });
+        }, 30);
+      }
+      // Delegate clicks on .share-btn
+      document.addEventListener('click', function(e){
+        const btn = e.target.closest && e.target.closest('.share-btn');
+        if (!btn) return;
+        e.preventDefault();
+        const code = btn.getAttribute('data-code');
+        const published = btn.getAttribute('data-published') === '1';
+        const title = btn.getAttribute('data-title') || '';
+        const tmpl = btn.getAttribute('data-share-template') || null;
+        openShareModal({ code, published, title, tmpl });
+      }, true);
+      window.EPU = window.EPU || {}; window.EPU.share = { open: openShareModal };
+    })();
+  </script>
+  <script src="{{ url_for('static', path='js/components/share-button.js') }}?v={{ now() if now else '' }}"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function(){ if (window.EPU && window.EPU.shareButton && window.EPU.shareButton.upgradeAll){ window.EPU.shareButton.upgradeAll(); } });
+  </script>
+  <script src="{{ url_for('static', path='js/ui-helpers.js') }}?v={{ now() if now else '' }}"></script>
+  {% block extra_js %}{% endblock %}
         <!-- Cookie Consent Banner -->
         <div id="cookie-banner" class="cookie-banner" role="dialog" aria-live="polite" aria-label="Cookie consent" style="display:none;">
           <div class="cookie-inner">
@@ -235,8 +358,23 @@
           .cookie-inner { margin: 12px; padding: 12px 14px; border-radius: 12px; background: rgba(17,18,26,0.95); color: #fff; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 8px 24px rgba(0,0,0,0.35); display: flex; gap: 12px; align-items: center; justify-content: space-between; }
           .cookie-text { font-size: 14px; opacity: 0.95; }
           .cookie-actions { display: flex; gap: 8px; }
+          @media (max-width: 560px){
+            .cookie-inner { flex-direction: column; align-items: stretch; gap: 10px; }
+            .cookie-actions { justify-content: flex-end; }
+            .cookie-actions .btn { width: 100%; justify-content: center; }
+          }
         </style>
         <script src="{{ url_for('static', path='cookie-consent.js') }}?v={{ now() if now else '' }}"></script>
+        <script>
+          // Fallback: ensure footer cookie settings link opens the cookie settings modal when cookie-consent.js hasn't attached yet
+          document.addEventListener('DOMContentLoaded', function(){
+            var f = document.getElementById('footer-cookie-settings');
+            if (f && !f.dataset.cookieBound){
+              f.addEventListener('click', function(e){ e.preventDefault(); var btn = document.getElementById('cookie-settings'); if (btn) btn.click(); else { /* if cookie-consent not available, show simple modal */ window.EPU && window.EPU.modal && window.EPU.modal.show({ title: 'Cookie settings', body: '<p>Cookie settings are not available.</p>' }); } });
+              f.dataset.cookieBound = '1';
+            }
+          });
+        </script>
     </main>
   <footer class="footer">
       <div class="inner">

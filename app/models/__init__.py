@@ -1,6 +1,11 @@
 # Package init for app.models
+from .album import Album as Album
+from .album import AlbumPhoto as AlbumPhoto
 from .billing import PaymentLog as PaymentLog
 from .billing import Purchase as Purchase
+from .event import (
+    CustomEventType as CustomEventType,
+)
 from .event import (
     Event as Event,
 )
@@ -40,3 +45,4 @@ from .user import Base as Base  # explicit re-export
 from .user import User as User
 from .user import UserSession as UserSession
 from .user_prefs import UserEmailPreference as UserEmailPreference
+from .email_change import EmailChangeRequest as EmailChangeRequest

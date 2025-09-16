@@ -1,36 +1,56 @@
 /* Gallery Page CSS - Enhanced */
 /* Masonry layout using CSS columns */
 .dynamic-gallery {
-    column-count: 5;
-    column-gap: 1.2rem;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1.2rem;
     margin-top: 1rem;
 }
-@media (max-width: 1400px) { .dynamic-gallery { column-count: 4; } }
-@media (max-width: 1100px) { .dynamic-gallery { column-count: 3; } }
-@media (max-width: 900px)  { .dynamic-gallery { column-count: 2; } }
-@media (max-width: 600px)  { .dynamic-gallery { column-count: 1; } }
+@media (max-width: 1400px) { .dynamic-gallery { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 1100px) { .dynamic-gallery { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 900px)  { .dynamic-gallery { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px)  { .dynamic-gallery { grid-template-columns: repeat(1, 1fr); } }
 
 .gallery-item {
     position: relative;
-    break-inside: avoid;
     background: #0f0f10;
     border: 1px solid rgba(255,255,255,0.06);
     border-radius: 12px;
     overflow: hidden;
     cursor: pointer;
-    margin: 0 0 1rem 0;
     transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Support for items that span multiple columns when using JS row-first masonry
+   The JS will set width/left/top for absolute positioned tiles. Provide a
+   fallback CSS rule for when JS hasn't run yet: a two-column span class. */
+.gallery-item.span-2 {
+    grid-column: span 2;
+}
+
+/* Attribute selector to allow server-side hints before JS runs */
+[data-colspan="2"] {
+    /* Ensure the media content stretches visually in CSS grid before JS reflow */
+}
+
+/* Skeleton loader state */
+.gallery-item.skeleton {
+        background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.10) 37%, rgba(255,255,255,0.06) 63%);
+        background-size: 400% 100%;
+        animation: shimmer 1.4s ease-in-out infinite;
+        height: 220px;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
 }
 
 /* Group heading inside masonry: span full width (new row) */
 .group-heading {
-    /* Span across all columns in the multicol layout */
-    column-span: all;
-    -webkit-column-span: all;
-    /* Avoid splitting or being confined within a single column */
-    break-inside: avoid;
-    -webkit-column-break-inside: avoid;
-    -moz-column-break-inside: avoid;
+    grid-column: 1 / -1;
     width: 100%;
     display: block;
     margin: 18px 0 8px;
@@ -58,6 +78,10 @@
     display: block;
     object-fit: cover;
     background: #0b0b0c;
+}
+
+.gallery-img.is-warming {
+    filter: blur(8px) saturate(0.9);
 }
 
 /* Minimal hover chrome: subtle gradient; no text */
@@ -126,6 +150,13 @@
 .gallery-filters .actions { margin-left:auto; display:flex; gap:8px; }
 .gallery-filters .btn.compact { padding:8px 12px; height:36px; }
 @media (max-width: 620px){ .gallery-filters .actions { width:100%; justify-content:flex-end; } }
+@media (max-width: 480px){
+    .gallery-filters { padding: 8px 8px 6px; }
+    .gallery-filters .floating-field { min-width: 130px; flex: 1 1 130px; }
+    .gallery-filters .date-range { flex-wrap: wrap; }
+    .gallery-filters .actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; gap: 6px; }
+    .gallery-filters .actions .btn { flex: 1 1 auto; min-width: 120px; }
+}
 
 /* Toolbar */
 .gallery-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0 0; margin-top:0; border-top:1px solid var(--color-border); }
@@ -164,6 +195,7 @@
     padding: 10px 16px;
 }
 .bulk-actions { display: flex; gap: 8px; align-items: center; }
+@media (max-width: 520px){ .bulk-inner { flex-direction: column; gap: 8px; align-items: stretch; } .bulk-actions { justify-content: space-between; } }
 
 /* Lightbox styles (themed) */
 :root{

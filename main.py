@@ -9,26 +9,28 @@ from fastapi import FastAPI, Request
 from fastapi import HTTPException as FastAPIHTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.responses import PlainTextResponse
+from starlette.responses import PlainTextResponse, RedirectResponse
 
 from app.api import (
     account,
-    addons,
     admin,
     auth,
     billing,
     events,
     events_create,
+    extras,
     gallery,
     guest,
     logout,
     misc,
+    photo_order,
     profile,
     profile_edit,
     support,
     uploads,
 )
 from app.core.logging_utils import configure_logging
+from app.core.middleware_compression import add_compression_middleware
 from app.core.settings import settings
 from app.core.templates import templates
 from app.models import AppErrorLog
@@ -43,7 +45,9 @@ except Exception:
 
 load_dotenv()
 
+
 app = FastAPI()
+add_compression_middleware(app)
 
 # Configure logging (console + rotating file; JSON by default)
 configure_logging(settings)
@@ -71,12 +75,13 @@ app.include_router(auth.router)
 app.include_router(guest.router)
 app.include_router(account.router)
 app.include_router(gallery.router)
+app.include_router(photo_order.router)
 app.include_router(misc.router)
 app.include_router(logout.router)
 app.include_router(billing.router)
 app.include_router(admin.router)
 app.include_router(support.router)
-app.include_router(addons.router)
+app.include_router(extras.router)
 
 
 # Serve favicon
@@ -210,7 +215,22 @@ async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
             db.commit()
     except Exception:
         pass
-    # Mirror FastAPI default JSON structure
+    # If this is a redirect (302/303/etc) and a Location header is present,
+    # return a RedirectResponse so browsers perform a proper HTML redirect
+    if status in (301, 302, 303, 307, 308):
+        loc = None
+        try:
+            # FastAPI stores headers on the exception; guard attribute access
+            if hasattr(exc, "headers") and exc.headers:
+                loc = exc.headers.get("Location")
+            else:
+                loc = None
+        except Exception:
+            loc = None
+        if loc:
+            return RedirectResponse(url=loc, status_code=status)
+
+    # Mirror FastAPI default JSON structure for non-redirects
     request_id = getattr(request.state, "request_id", None)
     resp = JSONResponse({"detail": exc.detail}, status_code=status)
     if request_id:

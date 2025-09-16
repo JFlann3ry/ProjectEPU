@@ -24,7 +24,7 @@ def upgrade() -> None:
         op.create_table(
             "GuestMessage",
             sa.Column("GuestMessageID", sa.Integer(), primary_key=True, autoincrement=True),
-            sa.Column("EventID", sa.Integer(), sa.ForeignKey("dbo.Event.EventID"), nullable=False),
+            sa.Column("EventID", sa.Integer(), sa.ForeignKey("Event.EventID"), nullable=False),
             sa.Column(
                 "GuestSessionID",
                 sa.Integer(),

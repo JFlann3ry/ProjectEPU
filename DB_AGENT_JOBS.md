@@ -186,6 +186,18 @@ WHEN MATCHED THEN UPDATE SET t.Uploads = s.Cnt
 WHEN NOT MATCHED THEN INSERT (EventID,[Date],Uploads) VALUES (s.EventID,s.[Date],s.Cnt);
 ```
 
+## 10) Precompute gallery file ordering (recommended)
+- Purpose: compute a stable, materialized gallery ordering per Event to avoid relying on ad-hoc ORDER BY during page render. This reduces DB work at request time and yields visually stable galleries.
+- Schedule: every 5-15 minutes depending on event activity.
+
+Use the provided script `sql/prepare_gallery_order.sql`. The job should run the T-SQL in the script and can be implemented as a T-SQL step that executes the script content. Consider these points:
+
+- The script creates `dbo.EventGalleryOrder(EventID, FileMetadataID, Ordinal)` and populates it using the same sort logic the app uses (CapturedDateTime NULLs last, captured asc, upload asc). The app can then join to this table to pull files in precomputed order.
+- Job frequency: higher frequency (5 minutes) for very active events; otherwise 15 minutes is sufficient. The job is idempotent and safe to run frequently.
+- Keep the job lightweight: consider batching per-event updates if you have many events. The example processes events found in the source query one-by-one to limit locking.
+
+Example job step (T-SQL): paste the contents of `sql/prepare_gallery_order.sql` into the job step. Attach a schedule and monitor failures in `dbo.JobRunLog`.
+
 ---
 
 ## Scheduling summary

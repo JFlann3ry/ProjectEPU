@@ -1,49 +1,30 @@
 {% extends "base.html" %}
+{% from "components/macros.html" import page_hero %}
 
 {% block title %}My Events - EPU{% endblock %}
 
 {% block breadcrumbs %}
+{% from 'components/macros.html' import breadcrumbs %}
 <div class="breadcrumbs-container section" style="padding-bottom:0;">
-    <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
-        <a href="/profile" class="crumb">Profile</a>
-        <span class="sep" aria-hidden="true">›</span>
-        <span class="crumb current" aria-current="page">My Events</span>
-    </nav>
+    {{ breadcrumbs([{'label':'Profile','href':'/profile'}], 'My Events') }}
 </div>
 {% endblock %}
 
 {% block content %}
 <div class="container section center">
-    <div class="page-hero" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-        <div>
-            <h1 class="hero-title">My Events</h1>
-            {% if plan %}
-                <p class="hero-sub">You have {{ total_events }} event(s).</p>
-            {% endif %}
-        </div>
-        <div>
-            {% if can_create %}
-                <a class="btn primary" href="/events/create" title="Create a new event">Create Event</a>
-            {% else %}
-                <span class="btn" style="opacity:0.6; cursor:not-allowed;" title="{{ create_block_reason }}" aria-disabled="true">Create Event</span>
-                <a class="btn primary" href="/billing/summary" style="margin-left:6px;">Upgrade</a>
-            {% endif %}
-        </div>
-    </div>
+    {%- set events_msg = '' -%}
+    {%- if total_events is none -%}
+        {%- set events_msg = '' -%}
+    {%- elif total_events == 0 -%}
+        {%- set events_msg = 'You have no events.' -%}
+    {%- elif total_events == 1 -%}
+        {%- set events_msg = 'You have 1 event.' -%}
+    {%- else -%}
+        {%- set events_msg = 'You have ' ~ total_events ~ ' events.' -%}
+    {%- endif -%}
+    {{ page_hero('My Events', events_msg, False) }}
 
-    {% if plan %}
-        <div class="notice" style="margin:12px 0 18px;">
-            <div class="p-bold">Current Package: {{ plan.Name }} ({{ plan.Code|upper }})</div>
-            <div class="small" style="opacity:0.9;">
-                {% if features.max_events is not none and features.max_events > 0 %}
-                    Max events: {{ features.max_events }}
-                {% endif %}
-                {% if features.max_guests_per_event is not none %}
-                    · Guests per event: {{ features.max_guests_per_event if features.max_guests_per_event>0 else 'Unlimited' }}
-                {% endif %}
-            </div>
-        </div>
-    {% else %}
+    {% if not plan %}
         <div class="notice" style="margin:12px 0 18px; border-style: dashed;">
             No active package. <a href="/pricing">Choose a package</a> to get started.
         </div>
@@ -55,8 +36,8 @@
                                         {% set etname = (e.EventTypeName or '') %}
                                         {% set etkey = etname|lower %}
                                         {% set etmap = {
-                                            'wedding':'💍', 'birthday':'🎂', 'party':'🎉', 'corporate':'🏢', 'conference':'🎤', 'sports':'🏟️',
-                                            'holiday':'🎄', 'baby shower':'🍼', 'graduation':'🎓', 'concert':'🎵', 'festival':'🎪', 'engagement':'💞', 'funeral':'🕊️'
+                                            'wedding':'💍', 'birthday':'🎂', 'party':'🥳', 'corporate':'💼', 'conference':'🗣️', 'sports':'🏟️',
+                                            'holiday':'🎄', 'baby shower':'🤱', 'graduation':'🎓', 'concert':'�', 'festival':'🎪', 'engagement':'💞', 'funeral':'🕊️'
                                         } %}
                                         {% set etemoji = etmap.get(etkey, '📷') %}
                                         {% set etimgmap = {
@@ -79,12 +60,7 @@
                                         {% endif %}
                                     </div>
                                 </div>
-                                <div class="title-right" style="position:relative; display:flex; align-items:center; gap:8px; margin-left:auto; padding-right:0; width:auto;">
-                                    <button class="btn ghost share-btn" type="button" data-event-id="{{ e.EventID }}" data-code="{{ e.Code }}" data-published="{{ 1 if e.Published else 0 }}" data-title="{{ e.Name }}" title="Share options" style="position:absolute; top:6px; right:6px; bottom:6px; display:flex; align-items:center;">
-                                        <svg class="icn" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M15 8a3 3 0 1 0-2.83-4H12A3 3 0 0 0 9 7a3 3 0 0 0 .17 1.02l-1.9 1.13A3 3 0 1 0 9 14.98l1.9-1.13A3 3 0 0 0 12 15a3 3 0 1 0 2.83-4.02l-1.9-1.13A3.01 3.01 0 0 0 12 9c0-.35.06-.68.17-1.02l1.9-1.13A3 3 0 0 0 15 8Z" stroke="currentColor" stroke-width="1.5"/></svg>
-                                        <span>Share</span>
-                                    </button>
-                                </div>
+                                
                             </div>
                         </div>
 
@@ -159,7 +135,7 @@
                             <!-- Compact To‑Do section -->
                             <div class="setup v5" style="max-width: 320px;">
                                 <div class="small muted" style="margin-bottom:6px;">To‑Do</div>
-                                <a class="task {% if e.Date %}done{% else %}pending{% endif %}" href="/events/{{ e.EventID }}/edit" title="Set or update event date">
+                                <a class="task {% if e.Date %}done{% else %}pending{% endif %}" href="/e/{{ e.Code }}/edit" title="Set or update event date">
                                     <svg class="ck" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                     <span class="label">Set event date</span>
                                 </a>
@@ -169,15 +145,19 @@
                                     <span class="label">Publish event</span>
                                 </div>
                                 {% else %}
-                                <a class="task pending" href="/events/{{ e.EventID }}" title="Open event to publish (Lock date)">
+                                <a class="task pending" href="/events/code/{{ e.Code }}" title="Open event to publish (Lock date)">
                                     <svg class="ck" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                     <span class="label">Publish event</span>
                                 </a>
                                 {% endif %}
-                                <button class="task {% if e.SharedOnce %}done{% else %}pending{% endif %} share-btn" type="button" data-event-id="{{ e.EventID }}" data-code="{{ e.Code }}" data-published="{{ 1 if e.Published else 0 }}" data-title="{{ e.Name }}" title="Share options">
+                                <a class="task {% if e.SharedOnce %}done{% else %}pending{% endif %} share-btn" href="/e/{{ e.Code }}" data-event-id="{{ e.EventID }}" data-code="{{ e.Code }}" data-published="{{ 1 if e.Published else 0 }}" data-title="{{ e.Name }}" data-share-template="Join %TITLE% — %URL%" title="Share options">
                                     <svg class="ck" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                     <span class="label">Share event</span>
-                                </button>
+                                </a>
+                                    <a class="task {% if e.Task_purchase_extras %}done{% else %}pending{% endif %} js-task-toggle" href="/extras?event_code={{ e.Code }}" title="Purchase extras" data-task-key="purchase_extras" data-event-id="{{ e.EventID }}">
+                                        <svg class="ck" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2v6M12 22v-6M2 12h6M22 12h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                        <span class="label">Purchase Extras</span>
+                                    </a>
                                 <a class="task {% if e.StorageUsageMB and e.StorageUsageMB > 0 %}done{% else %}pending{% endif %}" href="/guest/upload/{{ e.Code }}" title="Open guest upload page">
                                     <svg class="ck" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                     <span class="label">Upload first photos</span>
@@ -185,7 +165,8 @@
                             </div>
 
                             <div class="spacer"></div>
-                            <div class="actions btn-row" style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                            {% from 'components/macros.html' import btn_row %}
+                            {% call btn_row('class="actions" style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;"') %}
                                 <a class="btn" href="/events/code/{{ e.Code }}" title="Manage event" style="width:100%; justify-content:center;">
                                     <svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                         <path d="M4 4v7M4 17v3M12 4v4M12 12v8M20 4v9M20 17v3M1 11h6M9 8h6M17 16h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -196,7 +177,7 @@
                                         <svg class="icn" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 14l3-3 3 3 3-3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/></svg>
                                         <span>Gallery</span>
                                     </button>
-                            </div>
+                            {% endcall %}
                         </div>
                     </div>
                     {% endfor %}
@@ -232,27 +213,16 @@
             }
         });
         function esc(s){ return (s||'').replace(/[&<>"];/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',';':'&#59;'}[c]) || c; }); }
-    function openShare(code, published, title, eid){
-            var url = new URL('/e/' + code, window.location.origin).href;
-            var encUrl = encodeURIComponent(url);
-            var encTitle = encodeURIComponent(title || 'My event');
-            var warn = !published ? '<div class="notice" style="margin-bottom:10px;">This event is not published. Shared links may not be viewable by others until you publish.</div>' : '';
-            var body = warn +
-                '<div class="btn-row" style="flex-wrap:wrap; gap:10px;">' +
-            '<a class="btn share-via" data-eid="' + (eid||'') + '" href="https://wa.me/?text=' + encTitle + '%20' + encUrl + '" target="_blank" rel="noopener" title="Share via WhatsApp">' +
-                        '<span>WhatsApp</span>' +
-                    '</a>' +
-            '<a class="btn share-via" data-eid="' + (eid||'') + '" href="fb-messenger://share/?link=' + encUrl + '" target="_blank" rel="noopener" title="Share via Messenger (mobile)">' +
-                        '<span>Messenger</span>' +
-                    '</a>' +
-            '<a class="btn share-via" data-eid="' + (eid||'') + '" href="mailto:?subject=' + encTitle + '&body=' + encTitle + '%0A' + encUrl + '" title="Share via Email">' +
-                        '<span>Email</span>' +
-                    '</a>' +
-            '<button class="btn share-copy" type="button" data-url="' + esc(url) + '" data-eid="' + (eid||'') + '"><span>Copy Link</span></button>' +
-                '</div>' +
-                '<div class="small muted" style="margin-top:6px;">The share page URL is ' + esc(url) + '</div>';
-            if (window.EPU && window.EPU.modal){ window.EPU.modal.show({ title: 'Share Event', body: body, fit: true, actions: [], noDefaultClose: true }); }
+        function openShare(code, published, title, eid, tmpl){
+            if (window.EPU && window.EPU.share && window.EPU.share.open){
+                window.EPU.share.open({ code: code, published: !!published, title: title || '', tmpl: tmpl || null, eid: eid || null });
+            }
         }
+
+        // Listen for the shared event emitted by the global share modal and mark the event as shared server-side
+        document.addEventListener('epu:shared', function(ev){
+            try{ var eid = ev && ev.detail && ev.detail.eid; if (eid) { markShared(eid); } }catch(_e){}
+        });
         async function copyToClipboard(text){
             try { if (navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(text); return true; } } catch(e){}
             try { var ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); return true; } catch(e){ return false; }
@@ -272,16 +242,6 @@
             markSharedUI(eid);
         }
         document.addEventListener('click', function(e){
-            var shareBtn = e.target.closest('.share-btn');
-            if (shareBtn){
-                e.preventDefault();
-                var code = shareBtn.getAttribute('data-code');
-                var eid = shareBtn.getAttribute('data-event-id');
-                var pub = shareBtn.getAttribute('data-published') === '1';
-                var title = shareBtn.getAttribute('data-title') || 'My event';
-                openShare(code, pub, title, eid);
-                return;
-            }
             var copyBtn = e.target.closest('.share-copy');
             if (copyBtn){
                 var u = copyBtn.getAttribute('data-url');
@@ -297,6 +257,26 @@
                 // Treat clicking an external share link as a share action
                 var eid3 = shareVia.getAttribute('data-eid');
                 markShared(eid3);
+                return;
+            }
+            var shareMore = e.target.closest('.share-more');
+            if (shareMore){
+                e.preventDefault();
+                var u = shareMore.getAttribute('data-url');
+                var eid4 = shareMore.getAttribute('data-eid');
+                if (navigator.share){
+                    try {
+                        navigator.share({ title: document.title || 'Event', text: 'Check out this event', url: u })
+                        .then(function(){ if (window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Shared'); markShared(eid4); })
+                        .catch(function(err){ if (window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Share cancelled'); });
+                    } catch(err){
+                        // If share throws synchronously, fallback to copy
+                        copyToClipboard(u).then(function(ok){ if (window.EPU && window.EPU.snackbar) window.EPU.snackbar.show(ok?'Link copied':'Copy failed'); if (ok) markShared(eid4); });
+                    }
+                } else {
+                    // Fallback: copy link
+                    copyToClipboard(u).then(function(ok){ if (window.EPU && window.EPU.snackbar) window.EPU.snackbar.show(ok?'Link copied to clipboard':'Copy failed'); if (ok) markShared(eid4); });
+                }
                 return;
             }
         });
@@ -342,4 +322,5 @@
             hydrateCountdown();
     })();
 </script>
+<script src="/static/js/pages/event_tasks.js"></script>
 {% endblock %}

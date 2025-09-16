@@ -23,7 +23,7 @@ def upgrade() -> None:
     op.create_table(
         "EventLockAudit",
         sa.Column("AuditID", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("EventID", sa.Integer(), sa.ForeignKey("dbo.Event.EventID"), nullable=False),
+    sa.Column("EventID", sa.Integer(), sa.ForeignKey("Event.EventID"), nullable=False),
         sa.Column("UserID", sa.Integer(), sa.ForeignKey("dbo.Users.UserID"), nullable=True),
         sa.Column("LockedAt", sa.DateTime(), server_default=sa.func.now()),
         sa.Column("ClientIP", sa.String(length=45), nullable=True),

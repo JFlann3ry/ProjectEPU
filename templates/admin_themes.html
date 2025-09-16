@@ -8,33 +8,29 @@
 
 {% block breadcrumbs %}
 <div class="container section" style="padding-bottom:0;">
-  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
-    <a href="/admin" class="crumb">Admin</a>
-    <span class="sep" aria-hidden="true">›</span>
-    <span class="crumb current">Themes</span>
-  </nav>
+  {% from 'components/macros.html' import breadcrumbs %}
+  {{ breadcrumbs([{'label':'Admin','href':'/admin'}], 'Themes') }}
   </div>
 {% endblock %}
 {% block content %}
 <div class="container center section admin-themes">
-  <div class="page-hero center">
-    <h1 class="hero-title">Theme Manager</h1>
-    <p class="hero-sub">Browse, edit, and preview the themes available to customers.</p>
-    <div class="btn-row" style="margin-top:8px;">
-      <a class="btn primary" href="/admin/themes">Themes</a>
-      <a class="btn" href="/admin/themes/audit">Audit</a>
-    </div>
-  </div>
+  {% from 'components/macros.html' import page_hero, btn_row, badge %}
+  {{ page_hero('Theme Manager', 'Browse, edit, and preview the themes available to customers.') }}
+  {% call btn_row('style="margin-top:8px;"') %}
+    <a class="btn primary" href="/admin/themes">Themes</a>
+    <a class="btn" href="/admin/themes/audit">Audit</a>
+  {% endcall %}
   <div class="grid admin-themes-grid equal-heights">
     <!-- Sidebar list -->
     <aside class="card full-height" style="min-width:280px;">
-      <div class="btn-row" style="justify-content:space-between; align-items:center; margin-bottom:8px;">
+  {% from 'components/macros.html' import btn_row %}
+  {% call btn_row('style="justify-content:space-between; align-items:center; margin-bottom:8px;"') %}
         <strong>Themes ({{ themes|length }})</strong>
         <form id="seed-form" method="post" action="/admin/seed-themes" style="margin:0;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">
           <button class="btn sm" id="seed-btn" type="submit" title="Seed default themes">Seed defaults</button>
         </form>
-      </div>
+  {% endcall %}
       <div style="display:flex; flex-direction:column; gap:6px;">
         {% for t in themes %}
           {% set sw_btn1 = t.ButtonColour1 or '#4f8cff' %}
@@ -44,9 +40,9 @@
           <a class="btn{% if selected and selected.ThemeID==t.ThemeID %} primary{% endif %}" href="/admin/themes?id={{ t.ThemeID }}" style="justify-content:space-between;">
             <span style="display:flex; align-items:center; gap:8px;">
               <span title="Theme swatch" class="theme-swatch" data-style="{{ 'solid' if t.ButtonStyle=='solid' else 'gradient' }}" data-btn1="{{ sw_btn1 }}" data-btn2="{{ sw_btn2 }}" style="width:22px; height:16px; border-radius:4px; border:1px solid rgba(255,255,255,0.2); display:inline-block; box-shadow: inset 0 0 0 2px rgba(0,0,0,0.12);"></span>
-              <span>{{ t.Name }}</span>
+              <span class="{{ 'inactive' if not t.IsActive else '' }}">{{ t.Name }}</span>
             </span>
-            <span class="badge" style="margin-left:8px;">#{{ t.ThemeID }}</span>
+            {{ badge('#' ~ t.ThemeID, 'style="margin-left:8px;"') }}
           </a>
         {% endfor %}
       </div>
@@ -72,14 +68,15 @@
   {% if selected %}
   <!-- Live Preview (full width, zoomed) -->
   <div class="card preview-block">
-  <div class="btn-row" style="justify-content:space-between; align-items:center; margin-bottom:8px;">
+  {% from 'components/macros.html' import btn_row %}
+  {% call btn_row('style="justify-content:space-between; align-items:center; margin-bottom:8px;"') %}
       <h3 style="margin:0;">Live Preview</h3>
-      <div class="btn-row" style="gap:6px;">
+      {% call btn_row('style="gap:6px;"') %}
   <label class="checkbox-row"><input id="pv-banner" type="checkbox" class="checkbox-field"><span>Banner</span></label>
     <label class="checkbox-row"><input id="pv-progress" type="checkbox" class="checkbox-field"><span>Uploading</span></label>
     <label class="checkbox-row"><input id="pv-uploads" type="checkbox" class="checkbox-field"><span>Your uploads</span></label>
-      </div>
-    </div>
+      {% endcall %}
+    {% endcall %}
     <div class="web-preview-wrapper">
   {% set tv = {
         'bg': selected.BackgroundColour or '#0f0f12',
@@ -215,11 +212,17 @@
             </div>
           </div>
         </div>
-        <div class="floating-field" style="grid-column: span 12; min-width:280px;">
+  <div class="floating-field" style="grid-column: span 12; min-width:280px;">
           <label class="fl-label">Primary button style</label>
           <div class="btn-row">
             <label class="checkbox-row"><input type="radio" name="ButtonStyle" id="ButtonStyleGradient" value="gradient" class="checkbox-field" {% if selected.ButtonStyle!='solid' %}checked{% endif %}><span>Gradient</span></label>
             <label class="checkbox-row"><input type="radio" name="ButtonStyle" id="ButtonStyleSolid" value="solid" class="checkbox-field" {% if selected.ButtonStyle=='solid' %}checked{% endif %}><span>Solid</span></label>
+          </div>
+        </div>
+        <div class="floating-field" style="grid-column: span 12; min-width:280px;">
+          <label class="fl-label" for="IsActive">Active</label>
+          <div class="btn-row">
+            <label class="checkbox-row"><input type="checkbox" id="IsActive" name="IsActive" value="1" class="checkbox-field" {% if selected.IsActive %}checked{% endif %}><span>Selectable by users</span></label>
           </div>
         </div>
         <div class="notice" id="contrast-panel" style="margin-top:8px; grid-column: span 12;">
@@ -275,12 +278,12 @@
           <!-- Hidden field to submit and to drive preview via existing JS mapping -->
           <input type="hidden" id="FontFamily" name="FontFamily" value="{{ current_ff }}">
         </div>
-        <div class="btn-row" style="margin-top:8px; grid-column: span 12;">
+        {% call btn_row('style="margin-top:8px; grid-column: span 12;"') %}
           <button class="btn primary" type="submit">Save</button>
           <button class="btn" type="button" id="reset-preview">Reset preview</button>
           <a class="btn outline" href="/admin/themes/{{ selected.ThemeID }}/export" title="Export as JSON">Export</a>
           <button class="btn" type="submit" title="Duplicate theme" formaction="/admin/themes/{{ selected.ThemeID }}/duplicate" formmethod="post">Duplicate</button>
-        </div>
+        {% endcall %}
       </div>
     </form>
   </section>

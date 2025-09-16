@@ -1,19 +1,18 @@
 {% extends "base.html" %}
 
-{% block title %}Event Add-ons{% endblock %}
+{% block title %}Extras (formerly Add-ons){% endblock %}
 
 {% block content %}
 <div class="container">
-  <section class="page-hero center">
-  <h1 class="hero-title">Event Add-ons</h1>
-  <p class="hero-sub">Enhance your event with live gallery links, extra events, QR cards, and more.</p>
-  </section>
+  {% from 'components/macros.html' import page_hero, notice %}
+  {{ page_hero('Extras', 'Enhance your event with live gallery links, extra events, QR cards, and more.') }}
+  {{ notice('Heads up: this page moved to <a href="/extras">/extras</a>. You can update any bookmarks.', attrs='class="small" role="status" style="margin-top:10px;"') }}
 
   {% set qs = request.query_params %}
   {% if qs.get('success') == '1' %}
-  <div class="notice success" role="status" style="margin: 12px 0;">Checkout complete. Your add-on will appear shortly.</div>
+    {{ notice('Checkout complete. Your extra will appear shortly.', kind='success', attrs='role="status" style="margin: 12px 0;"') }}
   {% elif qs.get('canceled') == '1' %}
-  <div class="notice" role="status" style="margin: 12px 0;">Checkout canceled.</div>
+    {{ notice('Checkout canceled.', attrs='role="status" style="margin: 12px 0;"') }}
   {% endif %}
 
   <section class="section">
@@ -41,15 +40,35 @@
         </div>
       </div>
       {% endfor %}
+        {% if not addons or addons|length == 0 %}
+        <article class="card" style="display:flex; flex-direction:column; align-items:stretch;">
+          <div style="display:flex; align-items:center; justify-content:center; padding:10px 10px 0;">
+            <img src="/static/images/examples/corporate1.svg" alt="Live Gallery Link (Sample)" style="width:100%; max-width: 160px; height: auto; object-fit: contain; display:block;" loading="lazy">
+          </div>
+          <div style="padding: 10px 12px;">
+            <h3 style="margin:0 0 6px; text-align:center;">Live Gallery Link</h3>
+            <p class="muted" style="margin: 0 0 10px; text-align:center;">Display uploads in real-time on a shareable gallery page.</p>
+          </div>
+          <div style="margin-top:auto; padding: 10px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <div class="p-bold" style="font-size:18px;">£10.00</div>
+              {% if request.cookies.get('session_id') %}
+              <a class="btn" href="/gallery" role="button">Open Live Gallery</a>
+              {% else %}
+              <button class="btn" disabled title="Sample card">Add to event</button>
+              {% endif %}
+          </div>
+        </article>
+        {% endif %}
     </div>
-    <div class="btn-row" style="margin-top:16px;">
-      {% set ev_id = request.query_params.get('event_id') %}
-      {% if ev_id %}
-      <a class="btn" href="/events/{{ ev_id }}">Back to Event</a>
+  {% from 'components/macros.html' import btn_row %}
+  {% call btn_row('style="margin-top:16px;"') %}
+  {% set ev_code = request.query_params.get('event_code') %}
+  {% if ev_code %}
+  <a class="btn" href="/events/code/{{ ev_code }}">Back to Event</a>
       {% else %}
       <a class="btn" href="/events">Back to My Events</a>
       {% endif %}
-    </div>
+  {% endcall %}
   </section>
 </div>
 
@@ -65,9 +84,9 @@ async function buyAddon(btn){
   const allowQty = btn.dataset.allowqty === '1';
   const qtyEl = allowQty ? document.getElementById(`qty-${code}`) : null;
   const quantity = qtyEl ? Math.max(parseInt(qtyEl.value||'1',10)||1, 1) : 1;
-  const event_id = getQueryParam('event_id');
+  const event_code = getQueryParam('event_code');
   try {
-  const res = await fetch('/addons/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, quantity, event_id }) });
+  const res = await fetch('/extras/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, quantity, event_code }) });
     if (res.status === 401 || res.status === 403) { window.location = '/login'; return; }
     const data = await res.json();
     if (!data.id) throw new Error('Invalid response');

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% from "components/macros.html" import page_hero, notice %}
+
+{% block title %}Extras Marketplace{% endblock %}
+
+{# Breadcrumbs removed for a cleaner extras marketplace view #}
+
+{% block content %}
+<div class="container section center">
+  {{ page_hero('Extras Marketplace', 'Enhance your event with extras like live gallery links, QR cards, and more.', True) }}
+
+  {% set qs = request.query_params %}
+  {% if qs.get('success') == '1' %}
+    {{ notice('Checkout complete. Your extra will appear shortly.', 'success', 'role="status" style="margin: 12px 0;"') }}
+  {% elif qs.get('canceled') == '1' %}
+    {{ notice('Checkout canceled.', '', 'role="status" style="margin: 12px 0;"') }}
+  {% endif %}
+
+  {% if addons and addons|length > 0 %}
+  <section class="section">
+    <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px;">
+      {% for a in addons %}
+      {% set c = (a.currency or 'gbp')|lower %}
+      {% set sym = '£' if c == 'gbp' else ('$' if c == 'usd' else c|upper ~ ' ') %}
+      {% set price = (a.price_cents or 0) / 100 %}
+      <article class="card" style="display:flex; flex-direction:column; align-items:stretch;">
+        <div style="display:flex; align-items:center; justify-content:center; padding:10px 10px 0;">
+          <img src="{{ a.image or '/static/images/examples/corporate1.svg' }}" alt="{{ a.name }}" style="width:100%; max-width: 160px; height: auto; object-fit: contain; display:block;" loading="lazy">
+        </div>
+        <div style="padding: 10px 12px;">
+          <h3 style="margin:0 0 6px; text-align:center;">{{ a.name }}</h3>
+          {% if a.desc %}
+          <p class="muted" style="margin: 0 0 10px; text-align:center;">{{ a.desc }}</p>
+          {% endif %}
+          {% if a.allow_qty %}
+          <div class="floating-field" style="margin-top:8px;">
+            <label class="fl-label" for="qty-{{ a.code }}">Quantity</label>
+            <select id="qty-{{ a.code }}" class="input-field">
+              {% set mn = a.min_qty or 1 %}
+              {% set mx = a.max_qty or mn %}
+              {% for i in range(mn, mx + 1) %}
+              <option value="{{ i }}" {% if i == mn %}selected{% endif %}>{{ i }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+        </div>
+        <div style="margin-top:auto; padding: 10px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <div class="p-bold" style="font-size:18px;">{{ sym }}{{ '%.2f'|format(price) }}</div>
+          {% if request.cookies.get('session_id') %}
+          <button class="btn primary js-buy-extra" data-code="{{ a.code }}" data-allowqty="{{ '1' if a.allow_qty else '0' }}">Purchase</button>
+          {% else %}
+          <a class="btn primary" href="/signup" role="button">Sign up to purchase</a>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% else %}
+  <section class="section">
+    <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px;">
+      <article class="card" style="display:flex; flex-direction:column; align-items:stretch;">
+        <div style="display:flex; align-items:center; justify-content:center; padding:10px 10px 0;">
+          <img src="/static/images/examples/corporate1.svg" alt="Live Gallery Link (Sample)" style="width:100%; max-width: 160px; height: auto; object-fit: contain; display:block;" loading="lazy">
+        </div>
+        <div style="padding: 10px 12px;">
+          <h3 style="margin:0 0 6px; text-align:center;">Live Gallery Link</h3>
+          <p class="muted" style="margin: 0 0 10px; text-align:center;">Display uploads in real-time on a shareable gallery page.</p>
+        </div>
+        <div style="margin-top:auto; padding: 10px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <div class="p-bold" style="font-size:18px;">£10.00</div>
+          {% if request.cookies.get('session_id') %}
+          <a class="btn" href="/gallery" role="button">Open Live Gallery</a>
+          {% else %}
+          <button class="btn" disabled title="Sample card">Add to event</button>
+          {% endif %}
+        </div>
+      </article>
+    </div>
+  </section>
+  {% endif %}
+
+  {% from 'components/macros.html' import btn_row %}
+  {# Simplified back button: always return to events list #}
+  {% call btn_row('style="margin-top:16px;"') %}
+    <a class="btn" href="/events">Back to My Events</a>
+  {% endcall %}
+</div>
+
+{% block extra_js %}
+<script src="https://js.stripe.com/v3/"></script>
+<script id="extras-config" type="application/json">{
+  "stripe_pk": "{{ STRIPE_PUBLISHABLE_KEY }}",
+  "event_code": "{{ request.query_params.get('event_code') or '' }}"
+}</script>
+<script type="module" src="{{ url_for('static', path='js/pages/extras.js') }}?v={{ now() if now else '' }}" defer></script>
+{% endblock %}
+{% endblock %}

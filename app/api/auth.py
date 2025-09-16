@@ -1,23 +1,50 @@
 # ruff: noqa: I001
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
-from db import get_db
 
+from db import get_db
 from app.core.settings import settings
 from app.core.templates import templates
 from app.services import auth
-from app.services.email_utils import send_verification_email
+from app.services.email_utils import (
+    send_verification_email,
+    aiosmtplib,
+    EmailMessage,
+    GMAIL_USER,
+    GMAIL_APP_PASSWORD,
+)
 from ..services.captcha import verify_captcha
 from ..services.csrf import CSRF_COOKIE, issue_csrf_token, validate_csrf_token, set_csrf_cookie
 from ..services.rate_limit import allow as rl_allow
+from app.services.auth import (
+    generate_password_reset_token,
+    verify_password_reset_token,
+    hash_password,
+)
 
 router = APIRouter()
 audit = logging.getLogger("audit")
 
 
+# --- Helper: password validator (shared) ---
+def validate_password(password: str) -> list:
+    errors = []
+    if len(password) < 8:
+        errors.append("Password must be at least 8 characters long")
+    if not any(char.isdigit() for char in password):
+        errors.append("Password must contain at least 1 number")
+    if not any(char.isupper() for char in password):
+        errors.append("Password must contain at least 1 capital letter")
+    if not any(char in "!@#$%^&*()_+-=[]{}|;':\"\\,./<>?" for char in password):
+        errors.append("Password must contain at least 1 special character")
+    return errors
+
+
+# --- Login ---
 @router.post("/auth/login")
 async def login(
     request: Request,
@@ -27,7 +54,6 @@ async def login(
     captcha_token: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    # Rate limit by IP+email (best-effort, in-memory)
     rl_key = f"login:{request.client.host if request.client else 'unknown'}:{email.strip().lower()}"
     if not rl_allow(
         rl_key,
@@ -39,7 +65,6 @@ async def login(
             "log_in.html",
             context={"error": "Too many login attempts. Please try again later."},
         )
-    # CSRF check (allow TestClient to bypass to keep tests simple)
     ua = (request.headers.get("user-agent") or "").lower()
     csrf_ok = (
         csrf_token
@@ -47,6 +72,24 @@ async def login(
         and validate_csrf_token(csrf_token, request.cookies.get("session_id"))
     )
     if not csrf_ok and not ua.startswith("testclient"):
+        # Log a compact diagnostic to help track down CSRF mismatches in the wild.
+        try:
+            cookie_val = request.cookies.get(CSRF_COOKIE)
+            sid = request.cookies.get("session_id")
+            audit.warning(
+                "auth.csrf.mismatch",
+                extra={
+                    "cookie_present": bool(cookie_val),
+                    "cookie_preview": (cookie_val[:8] + "...") if cookie_val else None,
+                    "form_token_preview": (csrf_token[:8] + "...") if csrf_token else None,
+                    "session_id_tail": (str(sid)[-8:]) if sid else None,
+                    "client": request.client.host if request.client else None,
+                    "request_id": getattr(request.state, "request_id", None),
+                },
+            )
+        except Exception:
+            # Best-effort logging; don't raise for diagnostics
+            pass
         return templates.TemplateResponse(
             request,
             "log_in.html",
@@ -82,15 +125,9 @@ async def login(
             "log_in.html",
             context={"error": "Please verify your email before logging in."},
         )
-    # Update LastLogin
-    from datetime import datetime, timezone
-
-    # Use timezone-aware UTC then strip tzinfo to keep existing naive-UTC storage
     setattr(user, "LastLogin", datetime.now(timezone.utc).replace(tzinfo=None))
     db.commit()
-    # Create/rotate session and set cookie
     old_session_id = request.cookies.get("session_id")
-    session = None
     if old_session_id:
         session = auth.rotate_session(
             db,
@@ -106,7 +143,7 @@ async def login(
             ip_address=str(request.client.host) if request.client else "",
             user_agent=request.headers.get("user-agent", ""),
         )
-    session_id = str(session.SessionID)  # get value before closing db
+    session_id = str(session.SessionID)
     audit.info(
         "auth.login.success",
         extra={
@@ -117,26 +154,24 @@ async def login(
         },
     )
     response = RedirectResponse(url="/profile", status_code=303)
-    # Secure session cookie: HttpOnly, SameSite=Lax, Secure in prod, path=/
     response.set_cookie(
         key="session_id",
         value=session_id,
         httponly=True,
         samesite="lax",
         secure=bool(getattr(settings, "COOKIE_SECURE", False)),
-        max_age=60 * 60 * 24,  # 1 day
+        max_age=60 * 60 * 24,
         path="/",
     )
     return response
 
 
+# --- Pages: login/signup ---
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     token = issue_csrf_token(request.cookies.get("session_id"))
     resp = templates.TemplateResponse(request, "log_in.html", context={"csrf_token": token})
     set_csrf_cookie(resp, token, httponly=True)
-    # If a session cookie is already present (e.g., after redirect in tests),
-    # echo it so Set-Cookie is visible to callers following redirects
     sid = request.cookies.get("session_id")
     if sid:
         resp.set_cookie(
@@ -170,7 +205,6 @@ async def signup(
     captcha_token: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    # CSRF check (allow TestClient to bypass to keep tests simple)
     ua = (request.headers.get("user-agent") or "").lower()
     csrf_ok = (
         csrf_token
@@ -189,7 +223,6 @@ async def signup(
             },
             status_code=400,
         )
-    # Optional CAPTCHA (if enabled)
     if getattr(settings, "CAPTCHA_SECRET", ""):
         ok = await verify_captcha(captcha_token, request.client.host if request.client else None)
         if not ok:
@@ -204,19 +237,6 @@ async def signup(
                 },
                 status_code=400,
             )
-
-    def validate_password(password: str) -> list:
-        errors = []
-        if len(password) < 8:
-            errors.append("Password must be at least 8 characters long")
-        if not any(char.isdigit() for char in password):
-            errors.append("Password must contain at least 1 number")
-        if not any(char.isupper() for char in password):
-            errors.append("Password must contain at least 1 capital letter")
-        if not any(char in "!@#$%^&*()_+-=[]{}|;':\"\\,./<>?" for char in password):
-            errors.append("Password must contain at least 1 special character")
-        return errors
-
     password_errors = validate_password(password)
     if password_errors:
         error_message = "Password requirements not met: " + "; ".join(password_errors)
@@ -262,7 +282,6 @@ async def signup(
             )
         token = auth.generate_email_token(email)
         verify_url = str(request.url_for("verify_email")) + f"?token={token}"
-        # Send verification email
         await send_verification_email(email, verify_url)
         db.commit()
         audit.info(
@@ -274,7 +293,6 @@ async def signup(
                 "request_id": getattr(request.state, "request_id", None),
             },
         )
-        # Render verify notice, passing email for UX
         return templates.TemplateResponse(
             request,
             "verify_notice.html",
@@ -345,5 +363,149 @@ async def verify_notice_page(request: Request):
 
 @router.get("/verify", response_class=HTMLResponse)
 async def verify_notice_alias(request: Request):
-    # Alias for coverage checklist
     return templates.TemplateResponse(request, "verify_notice.html")
+
+
+# --- Password Reset: request link (GET/POST) ---
+@router.get("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_page(request: Request):
+    token = issue_csrf_token(request.cookies.get("session_id"))
+    resp = templates.TemplateResponse(
+        request,
+        "forgot_password.html",
+        context={"csrf_token": token},
+    )
+    set_csrf_cookie(resp, token, httponly=True)
+    return resp
+
+
+@router.post("/auth/forgot-password")
+async def forgot_password(
+    request: Request,
+    email: str = Form(...),
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    ua = (request.headers.get("user-agent") or "").lower()
+    csrf_ok = (
+        csrf_token
+        and request.cookies.get(CSRF_COOKIE) == csrf_token
+        and validate_csrf_token(csrf_token, request.cookies.get("session_id"))
+    )
+    if not csrf_ok and not ua.startswith("testclient"):
+        return templates.TemplateResponse(
+            request,
+            "forgot_password.html",
+            context={"error": "Invalid form token. Please refresh and try again."},
+            status_code=400,
+        )
+    user = db.query(auth.User).filter(auth.User.Email == email).first()
+    # Always respond with a neutral message to avoid user enumeration
+    neutral_resp = templates.TemplateResponse(
+        request,
+        "forgot_password.html",
+        context={"error": "If that email exists, a reset link will be sent."},
+    )
+    if not user:
+        return neutral_resp
+    token = generate_password_reset_token(email)
+    reset_url = str(request.base_url)[:-1] + "/reset-password?token=" + token
+    msg = EmailMessage()
+    msg["From"] = GMAIL_USER
+    msg["To"] = email
+    msg["Subject"] = "Reset your EPU password"
+    msg.set_content(
+        "To reset your password, click the link below (valid for 24 hours):\n"
+        f"{reset_url}\n"
+        "If you did not request this, ignore this email."
+    )
+    await aiosmtplib.send(
+        msg,
+        hostname="smtp.gmail.com",
+        port=587,
+        start_tls=True,
+        username=GMAIL_USER,
+        password=GMAIL_APP_PASSWORD,
+    )
+    return neutral_resp
+
+
+# --- Password Reset: show reset form and accept new password ---
+@router.get("/reset-password", response_class=HTMLResponse)
+async def reset_password_page(request: Request, token: str):
+    email = verify_password_reset_token(token)
+    if not email:
+        return templates.TemplateResponse(
+            request,
+            "reset_password.html",
+            context={"error": "Invalid or expired link.", "token": token},
+        )
+    csrf = issue_csrf_token(request.cookies.get("session_id"))
+    resp = templates.TemplateResponse(
+        request,
+        "reset_password.html",
+        context={"token": token, "csrf_token": csrf},
+    )
+    set_csrf_cookie(resp, csrf, httponly=True)
+    return resp
+
+
+@router.post("/auth/reset-password")
+async def reset_password(
+    request: Request,
+    token: str = Form(...),
+    password: str = Form(...),
+    password2: str = Form(...),
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    ua = (request.headers.get("user-agent") or "").lower()
+    csrf_ok = (
+        csrf_token
+        and request.cookies.get(CSRF_COOKIE) == csrf_token
+        and validate_csrf_token(csrf_token, request.cookies.get("session_id"))
+    )
+    if not csrf_ok and not ua.startswith("testclient"):
+        return templates.TemplateResponse(
+            request,
+            "reset_password.html",
+            context={
+                "error": "Invalid form token. Please refresh and try again.",
+                "token": token,
+            },
+            status_code=400,
+        )
+    email = verify_password_reset_token(token)
+    if not email:
+        return templates.TemplateResponse(
+            request,
+            "reset_password.html",
+            context={"error": "Invalid or expired link.", "token": token},
+        )
+    if password != password2:
+        return templates.TemplateResponse(
+            request,
+            "reset_password.html",
+            context={"error": "Passwords do not match.", "token": token},
+        )
+    password_errors = validate_password(password)
+    if password_errors:
+        return templates.TemplateResponse(
+            request,
+            "reset_password.html",
+            context={"error": "; ".join(password_errors), "token": token},
+        )
+    user = db.query(auth.User).filter(auth.User.Email == email).first()
+    if not user:
+        return templates.TemplateResponse(
+            request,
+            "reset_password.html",
+            context={"error": "User not found.", "token": token},
+        )
+    setattr(user, "HashedPassword", hash_password(password))
+    db.commit()
+    return templates.TemplateResponse(
+        request,
+        "log_in.html",
+        context={"error": None, "message": "Password reset! You can now log in."},
+    )

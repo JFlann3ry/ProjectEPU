@@ -1,3 +1,15 @@
+
+/* Share modal tweaks: centre the share buttons and make the URL text wrap/center nicely */
+.modal #modal-body .btn-row { justify-content: center; align-items: center; }
+.modal #modal-body .btn-row .btn { min-width: 120px; }
+.modal #modal-body .small.muted { text-align: center; word-break: break-word; max-width: 100%; margin-left: auto; margin-right: auto; }
+
+/* Prevent long event titles from overlapping the absolutely positioned share button
+  Strategy: reserve right-side padding for header actions across card variants. */
+/* removed earlier safe-padding for header share button — titles now use full width */
+
+/* Keep ellipsis/clamping in place but ensure readable wrapping where allowed */
+.event-card.v5 .event-title { word-break: break-word; }
 /* App Design System: modern, clean, responsive */
 /* Fonts */
 @font-face {
@@ -94,6 +106,9 @@ a:hover { text-decoration: underline; }
   max-width: var(--container);
   margin: 0 auto;
   padding: 0 16px;
+  /* Respect safe-area insets on iOS devices */
+  padding-left: calc(16px + env(safe-area-inset-left));
+  padding-right: calc(16px + env(safe-area-inset-right));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -124,7 +139,7 @@ a:hover { text-decoration: underline; }
   .header .inner { gap: 12px; }
   .nav {
     position: absolute;
-    right: 12px;
+  right: calc(12px + env(safe-area-inset-right));
     top: calc(var(--header-h) - 8px);
     display: none;
     flex-direction: column;
@@ -136,6 +151,7 @@ a:hover { text-decoration: underline; }
     border-radius: 12px;
   }
   .nav.open { display: flex; }
+  .nav a { width: 100%; }
 }
 
 /* User avatar + dropdown */
@@ -189,7 +205,9 @@ a:hover { text-decoration: underline; }
 
 main { padding-top: 12px; }
 /* Robust centering: explicit width capped at container and auto margins */
-.container { width: min(100%, var(--container)); max-width: var(--container); margin-inline: auto; padding: var(--space-6) var(--space-4); }
+.container { width: min(100%, var(--container)); max-width: var(--container); margin-inline: auto; padding: var(--space-6) var(--space-4); padding-left: calc(var(--space-4) + env(safe-area-inset-left)); padding-right: calc(var(--space-4) + env(safe-area-inset-right)); }
+.section { margin: 24px 0; }
+@media (max-width: 600px){ .container { padding: var(--space-4) var(--space-3); padding-left: calc(var(--space-3) + env(safe-area-inset-left)); padding-right: calc(var(--space-3) + env(safe-area-inset-right)); } .section { margin: 16px 0; } }
 .center { margin-left: auto; margin-right: auto; align-self: center; justify-self: center; }
 .section { margin: 24px 0; }
 .grid { display: grid; gap: 16px; }
@@ -392,6 +410,38 @@ button.btn, input[type="submit"].btn, input[type="button"].btn {
   padding: 12px 14px;
 }
 .event-card.v4 .title-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+
+/* Share button: show micro icon movement on hover to indicate action */
+.share-btn { transition: transform 120ms ease, color 120ms ease; }
+.share-btn .icn { transition: transform 160ms ease, opacity 160ms ease; opacity: 0.9; }
+.share-btn:hover .icn { transform: translateY(-2px) translateX(2px) scale(1.02); opacity: 1; }
+.share-btn span { transition: opacity 120ms ease, transform 120ms ease; }
+.share-btn:hover span { opacity: 0.9; transform: translateX(2px); }
+
+/* Share modal: center actions and platform-specific buttons */
+.modal .share-actions { display:flex; gap:10px; justify-content:center; align-items:center; margin-top:12px; flex-wrap:wrap; }
+.modal .share-actions .share-action { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); color: var(--color-text); cursor:pointer; min-width:120px; justify-content:center; }
+.modal .share-actions .share-action .s-icn { width:18px; height:18px; display:inline-block; }
+.modal .share-actions .share-action.whatsapp { background:#25D366; color:#fff; border-color: rgba(0,0,0,0.06); }
+.modal .share-actions .share-action.whatsapp:hover { filter: brightness(0.95); }
+.modal .share-actions .share-action.messenger { background: linear-gradient(90deg,#0084FF,#2D8CFF); color:#fff; border-color: rgba(0,0,0,0.06); }
+.modal .share-actions .share-action.messenger:hover { filter: brightness(0.95); }
+.modal .share-actions .share-action.email { background: #444; color:#fff; }
+.modal .share-actions .share-action.copy { background: #2b2f43; color:#fff; }
+.modal .share-actions .share-action svg { display:inline-block; vertical-align:middle; }
+
+@media (max-width:520px){ .modal .share-actions .share-action { min-width: 100%; } }
+
+/* Ensure share SVG icons are sized consistently */
+.modal .share-actions .s-icn { width:18px; height:18px; display:inline-block; flex:0 0 18px; }
+.modal .share-actions .share-action span { display:inline-block; vertical-align:middle; }
+
+/* Make other to-do task items animate the same as the share button */
+.task { transition: color 120ms ease; }
+.task .ck { transition: transform 160ms ease, opacity 160ms ease; opacity: 0.9; }
+.task:hover .ck { transform: translateY(-2px) translateX(2px) scale(1.02); opacity: 1; }
+.task .label { transition: opacity 120ms ease, transform 120ms ease; }
+.task:hover .label { opacity: 0.9; transform: translateX(2px); }
 .event-card.v4 .event-title { margin:0; font-size: 1.06rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .event-card.v4 .status-pills { display:flex; gap:6px; align-items:center; }
 .event-card.v4 .body { padding: 12px 14px 14px; display:flex; flex-direction:column; min-height: 172px; }
@@ -420,6 +470,11 @@ button.btn, input[type="submit"].btn, input[type="button"].btn {
 .event-card.v5 .event-title { margin:0; font-size:1.06rem; display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .event-card.v5 .status-pills { display:flex; gap:6px; align-items:center; }
 .event-card.v5 .body { padding: 10px 12px 12px; display:flex; flex-direction:column; min-height: 0; }
+@media (max-width: 400px){
+  .event-card.v3 .event-body { padding: 10px 12px 12px; }
+  .event-card.v4 .body { padding: 10px 12px 12px; }
+  .event-card.v5 .body { padding: 8px 10px 10px; }
+}
 .event-card.v5 .row.top { display:grid; grid-template-columns: 84px 1fr; gap:8px; align-items:start; }
 .event-card.v5 .top-meta { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
 .event-card.v5 .countdown.chip { background:#101323; border-color: var(--color-border); color:#cfe4ff; padding:4px 8px; font-size:12px; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -441,7 +496,7 @@ button.btn, input[type="submit"].btn, input[type="button"].btn {
 
 /* Event type chip on details: center and match date card width */
 .event-card.v5 .event-type-chip { display:flex; justify-content:center; }
-.event-card.v5 .event-type-chip .pill { display:inline-flex; align-items:center; justify-content:center; width:84px; text-align:center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.event-card.v5 .event-type-chip .pill { display:inline-flex; align-items:center; justify-content:center; width:84px; text-align:center; white-space: normal; overflow: visible; word-break: break-word; padding:6px 8px; line-height:1.1; }
 
 /* Breadcrumbs container aligned with header logo */
 .breadcrumbs-container { max-width: var(--container); margin: 0 auto; padding: 0 16px; }
@@ -465,20 +520,30 @@ button.btn, input[type="submit"].btn, input[type="button"].btn {
 .event-card.v5 .metric .progress .bar.warn { background: linear-gradient(90deg, #ffb020, #ffd27e); box-shadow: 0 0 10px rgba(255,176,32,0.35) inset; }
 .event-card.v5 .metric .progress .bar.danger { background: linear-gradient(90deg, #ff7a59, #ffab9a); box-shadow: 0 0 10px rgba(255,122,89,0.35) inset; }
 .event-card.v5 .spacer { flex:1 1 auto; }
-.event-card.v5 .actions { margin-top: 8px; }
+.event-card.v5 .actions { margin-top: 18px; }
 
 /* Setup checklist */
-.event-card.v5 .setup.v5 { display:grid; grid-template-columns: 1fr; gap:6px; margin-top: 8px; max-width: 300px; }
+.event-card.v5 .setup.v5 { display:grid; grid-template-columns: 1fr; gap:6px; margin-top: 8px; margin-bottom: 10px; max-width: 300px; }
 .event-card.v5 .setup .task { display:flex; align-items:center; gap:8px; background: var(--color-surface); border:1px solid var(--color-border); border-radius: 8px; padding:5px 9px; color: var(--color-text-muted); min-height: 26px; font-size: 0.88rem; }
 .event-card.v5 .setup .task[href] { text-decoration: none; }
 .event-card.v5 .setup .task .ck { width:14px; height:14px; opacity:0.9; }
 .event-card.v5 .setup .task.done { background:#13251c; border-color:#2a6a46; color:#a6e9c8; }
+
+/* Guest upload: when event is missing or unpublished we show a plain header
+  so the page reads like other top-level pages rather than a boxed card */
+.guest-card--plain { background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0; }
+.guest-card--plain .login-title { margin: 0 0 12px; font-size: 1.5rem; color: var(--color-text); text-align: center; }
+.guest-card--plain .form-error { margin: 0 0 12px; color: var(--color-accent); text-align: center; }
+.guest-card--plain .form { background: transparent; border: 0; padding: 0; }
 .event-card.v5 .setup .task.pending { background:#12131e; }
 .event-card.v5 .setup .task .label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 1100px){ .event-card.v5 .setup.v5 { grid-template-columns: 1fr; } }
 
 /* Subtle hover glow */
 .event-card.v5:hover { border-color:#3a3f55; box-shadow: 0 10px 28px rgba(0,0,0,0.35), 0 0 0 1px rgba(79,140,255,0.06) inset; }
+
+/* Highlight for preselected addon on extras page */
+.preselected { box-shadow: 0 6px 18px rgba(79,140,255,0.12); border-color: rgba(79,140,255,0.6); transform: translateY(-2px); }
 
 /* Forms */
 .form, form.form { display: grid; gap: 12px; }
@@ -498,6 +563,7 @@ label { font-weight: 600; color: var(--color-text); }
 .notice { border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); padding: 10px 12px; border-radius: 10px; }
 .notice.success { border-color: #2a6a46; background: #0e2a1e; color: #a6e9c8; }
 .notice.error { border-color: #5a1f1a; background: #2a0e0e; color: #ffb6ae; text-align: center; }
+.notice.warn { border-color: #6b5e19; background: #2a250e; color: #ffe79a; }
 .color-val { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; font-size: 12px; opacity: 0.9; margin-top: 4px; color: #cfe4ff; }
 .notice #contrast-ratio.badge { font-size: 12px; padding: 4px 8px; }
 .notice #contrast-aa.badge, .notice #contrast-aaa.badge { font-size: 12px; padding: 4px 8px; }
@@ -507,6 +573,10 @@ label { font-weight: 600; color: var(--color-text); }
 .table th, .table td { border-bottom: 1px solid var(--color-border); padding: 10px; text-align: left; }
 .table th { color: var(--color-text); font-weight: 700; }
 .table tr:hover { background: rgba(255,255,255,0.03); }
+@media (max-width: 680px){
+  /* Allow wide tables to scroll horizontally on mobile */
+  .table { display: block; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+}
 
 /* Footer */
 .footer { border-top: 1px solid var(--color-border); background: rgba(17,18,26,0.9); margin-top: 32px; }
@@ -548,6 +618,7 @@ label { font-weight: 600; color: var(--color-text); }
 .hero-sub { color: var(--color-text-muted); margin: 0; }
 .text-center { text-align: center; }
 .page-hero.center { text-align: center; }
+@media (max-width: 600px){ .hero-title { font-size: 1.6rem; } }
 
 /* Simple key/value blocks */
 .kv { display: grid; grid-template-columns: 180px 1fr; gap: var(--space-3) var(--space-5); }
@@ -579,6 +650,15 @@ label { font-weight: 600; color: var(--color-text); }
 .compare-grid[data-cols="2"] { grid-template-columns: 1.2fr 1fr 1fr; }
 .compare-grid[data-cols="3"] { grid-template-columns: 1.2fr 1fr 1fr 1fr; }
 .plan-card { position: relative; }
+@media (max-width: 800px) {
+  /* Stack pricing columns on small screens */
+  .compare-grid,
+  .compare-grid[data-cols="1"],
+  .compare-grid[data-cols="2"],
+  .compare-grid[data-cols="3"] {
+    grid-template-columns: 1fr;
+  }
+}
 .plan-ribbon {
   position: absolute;
   top: 12px;

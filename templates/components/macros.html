@@ -1,0 +1,70 @@
+{% macro page_hero(title, subtitle='', center=True) -%}
+  {%- set cls = 'page-hero' + (' center' if center else '') -%}
+  <div class="{{ cls }}">
+    <h1 class="hero-title">{{ title }}</h1>
+    {%- if subtitle %}
+    <p class="hero-sub">{{ subtitle }}</p>
+    {%- endif %}
+  </div>
+{%- endmacro %}
+
+{# Notice macro supports either a simple text string or a caller() block for custom HTML #}
+{% macro notice(text='', kind='info', attrs='') -%}
+  {%- set klass = 'notice' + (' ' + kind if kind in ['success','error','warn'] else '') -%}
+  <div class="{{ klass }}" {{ attrs|safe }}>
+    {%- if caller is defined -%}
+      {{ caller() }}
+    {%- else -%}
+      {{ text|safe }}
+    {%- endif -%}
+  </div>
+{%- endmacro %}
+
+{# Reusable button row wrapper; use with call to inject buttons #}
+{% macro btn_row(attrs='') -%}
+  <div class="btn-row" {{ attrs|safe }}>
+    {%- if caller is defined -%}
+      {{ caller() }}
+    {%- endif -%}
+  </div>
+{%- endmacro %}
+
+{# Simple breadcrumbs renderer: items = [{label, href}] #}
+{% macro breadcrumbs(items=[], current_label='') -%}
+  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
+    {%- for it in items -%}
+      <a class="crumb" href="{{ it.href }}">{{ it.label }}</a>
+      {%- if not loop.last or current_label -%}
+        <span class="sep" aria-hidden="true">›</span>
+      {%- endif -%}
+    {%- endfor -%}
+    {%- if current_label -%}
+      <span class="crumb current" aria-current="page">{{ current_label }}</span>
+    {%- endif -%}
+  </nav>
+{%- endmacro %}
+
+{# Badges and chips #}
+{% macro badge(text, attrs='') -%}
+  <span class="badge" {{ attrs|safe }}>{{ text }}</span>
+{%- endmacro %}
+
+{% macro chip(text, status='', attrs='') -%}
+  {%- set cls = 'chip' + (' status-' + status if status else '') -%}
+  <span class="{{ cls }}" {{ attrs|safe }}>{{ text }}</span>
+{%- endmacro %}
+
+{# Small inline icon helper: icon(name) #}
+{% macro icon(name) -%}
+  {%- if name == 'user' -%}
+    <svg class="card-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 20a8 8 0 0 1 16 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  {%- elif name == 'email' -%}
+    <svg class="card-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M3 7h18M21 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 7l9 6 9-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  {%- elif name == 'download' -%}
+    <svg class="card-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 15V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  {%- elif name == 'trash' -%}
+    <svg class="card-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M3 6h18M8 6v14a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  {%- else -%}
+    <span class="card-icon" aria-hidden="true"></span>
+  {%- endif -%}
+{%- endmacro %}

@@ -26,39 +26,49 @@ async def create_event_page(
     except Exception:
         event_types = []
     # Enforce plan: require paid plan; Basic (code 'single') allows only 1 event
-    from app.models.billing import Purchase
     from app.models.event import Event
-    from app.models.event_plan import EventPlan
-
-    plan_code = None
     try:
-        latest = (
-            db.query(Purchase, EventPlan)
-            .join(EventPlan, Purchase.PlanID == EventPlan.PlanID)
-            .filter(
-                Purchase.UserID == getattr(user, "UserID", None),
-                Purchase.Status == "paid",
-                EventPlan.IsActive,
-            )
-            .order_by(Purchase.CreatedAt.desc())
-            .first()
-        )
-        if latest:
-            plan_code = (latest[1].Code or "").lower()
+        from app.services.billing_utils import get_active_plan
+
+        plan_row, _features = get_active_plan(db, int(getattr(user, "UserID", 0)))
+        plan_code = (plan_row.Code or "").lower() if plan_row else None
     except Exception:
         plan_code = None
 
     if not plan_code:
-    # No active package -> go to billing/pricing
+        # No active package -> go to billing/pricing
         return RedirectResponse("/billing", status_code=303)
     if plan_code == "single":
         count = db.query(Event).filter(Event.UserID == getattr(user, "UserID", None)).count()
+        # Check for paid entitlement purchases that represent additional_event
+        try:
+            from app.models.billing import Purchase as _Purchase
+
+            # Check for any zero-amount paid purchases (entitlements) -- not used here
+            _ = (
+                db.query(_Purchase)
+                .filter(
+                    _Purchase.UserID == getattr(user, "UserID", None),
+                    _Purchase.Amount == 0,
+                    _Purchase.Status == "paid",
+                )
+                .order_by(_Purchase.CreatedAt.desc())
+                .first()
+            )
+        except Exception:
+            # ignore lookup errors
+            pass
+
         if count >= 1:
+            # Provide a direct link to purchase an additional event
             return templates.TemplateResponse(
                 request,
                 "create_event.html",
                 context={
-                    "error": "Your plan allows only 1 event. Please upgrade to create more.",
+                    "error": (
+                        'Your plan allows only 1 event. '
+                        'Purchase an additional event to create more.'
+                    ),
                     "event_types": event_types,
                 },
             )
@@ -88,41 +98,56 @@ async def create_event_submit(
         event_types = db.query(EventType).order_by(EventType.Name.asc()).all()
     except Exception:
         event_types = []
-    # Enforce plan again on POST (same logic as GET)
-    from app.models.billing import Purchase
-    from app.models.event import Event
-    from app.models.event_plan import EventPlan
-
-    plan_code = None
+    # Enforce plan again on POST (same logic as GET) — use shared helper
     try:
-        latest = (
-            db.query(Purchase, EventPlan)
-            .join(EventPlan, Purchase.PlanID == EventPlan.PlanID)
-            .filter(
-                Purchase.UserID == getattr(user, "UserID", None),
-                Purchase.Status == "paid",
-                EventPlan.IsActive,
-            )
-            .order_by(Purchase.CreatedAt.desc())
-            .first()
-        )
-        if latest:
-            plan_code = (latest[1].Code or "").lower()
+        from app.services.billing_utils import get_active_plan
+
+        plan_row, _features = get_active_plan(db, int(getattr(user, "UserID", 0)))
+        plan_code = (plan_row.Code or "").lower() if plan_row else None
     except Exception:
         plan_code = None
+    # Import Event model for count checks
+    from app.models.event import Event
+
     if not plan_code:
         return RedirectResponse("/billing", status_code=303)
     if plan_code == "single":
         count = db.query(Event).filter(Event.UserID == getattr(user, "UserID", None)).count()
-        if count >= 1:
-            return templates.TemplateResponse(
-                request,
-                "create_event.html",
-                context={
-                    "error": "Your plan allows only 1 event. Please upgrade to create more.",
-                    "event_types": event_types,
-                },
+        # Allow consuming one zero-amount paid entitlement (issued when purchasing additional_event)
+        try:
+            from app.models.billing import Purchase as _Purchase
+
+            entitlement = (
+                db.query(_Purchase)
+                .filter(
+                    _Purchase.UserID == getattr(user, "UserID", None),
+                    _Purchase.Amount == 0,
+                    _Purchase.Status == "paid",
+                )
+                .order_by(_Purchase.CreatedAt.asc())
+                .first()
             )
+        except Exception as e:
+            logging.exception("Error fetching entitlement: %s", e)
+            entitlement = None
+
+        if count >= 1:
+            if entitlement:
+                # consume entitlement so it can't be reused
+                try:
+                    setattr(entitlement, "Status", "used")
+                    db.commit()
+                except Exception:
+                    db.rollback()
+            else:
+                return templates.TemplateResponse(
+                    request,
+                    "create_event.html",
+                    context={
+                        "error": "Your plan allows only 1 event. Please upgrade to create more.",
+                        "event_types": event_types,
+                    },
+                )
     if not name:
         return templates.TemplateResponse(
             request,
@@ -141,6 +166,7 @@ async def create_event_submit(
 
     # Resolve or create EventType
     event_type_id = None
+    pending_custom_event_type = None
     try:
         from app.models.event import EventType
 
@@ -155,8 +181,19 @@ async def create_event_submit(
                 db.commit()
                 db.refresh(et)
             event_type_id = et.EventTypeID
+            # If the user supplied a custom name (selected 'other'), record it in CustomEventType
+            try:
+                if chosen.lower() == "other" and custom:
+                    from app.models.event import CustomEventType
+
+                    pending_custom_event_type = CustomEventType(
+                        EventID=None, EventTypeID=et.EventTypeID, CustomEventName=custom
+                    )
+            except Exception:
+                pending_custom_event_type = None
     except Exception:
         event_type_id = None
+        pending_custom_event_type = None
 
     # Generate a unique short event code
     import random
@@ -164,6 +201,11 @@ async def create_event_submit(
 
     def gen_code(n: int = 6) -> str:
         alphabet = string.ascii_uppercase + string.digits
+        return "".join(random.choice(alphabet) for _ in range(n))
+
+    def gen_password(n: int = 6) -> str:
+        # human-friendly password: exactly n alphanumeric chars
+        alphabet = string.ascii_letters + string.digits
         return "".join(random.choice(alphabet) for _ in range(n))
 
     from app.models.event import Event
@@ -182,19 +224,31 @@ async def create_event_submit(
     except Exception:
         parsed_date = None
 
-    # Create the event (Password required by schema; store empty for now)
+    # Create the event (generate a password and code)
+    password = gen_password()
     new_event = Event(
         EventTypeID=event_type_id,
         UserID=getattr(user, "UserID", None),
         Name=name,
         Date=parsed_date,
         Code=code,
-        Password="",
+        Password=password,
         TermsChecked=True,
     )
     db.add(new_event)
     db.commit()
     db.refresh(new_event)
+
+    # If we prepared a pending CustomEventType, attach the new EventID and persist
+    try:
+        if 'pending_custom_event_type' in locals() and pending_custom_event_type:
+            pending_custom_event_type.EventID = new_event.EventID
+            db.add(pending_custom_event_type)
+            db.commit()
+    except Exception:
+        # Don't block event creation if recording custom name fails; log and continue
+        evt_id = getattr(new_event, "EventID", None)
+        logging.exception("Failed to persist CustomEventType for event %s", evt_id)
 
     audit.info(
         "events.create.success",

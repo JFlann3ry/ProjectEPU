@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # Email
     GMAIL_USER: str = ""
     GMAIL_PASS: str = ""
+    GMAIL_APP_PASSWORD: str = ""
     SUPPORT_EMAIL_TO: str = ""  # destination inbox for support/contact
 
     # Stripe

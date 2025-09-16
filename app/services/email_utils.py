@@ -6,11 +6,12 @@ from app.core.settings import settings
 
 GMAIL_USER = settings.GMAIL_USER
 GMAIL_PASS = settings.GMAIL_PASS
+GMAIL_APP_PASSWORD = getattr(settings, "GMAIL_APP_PASSWORD", "")
 SUPPORT_EMAIL_TO = getattr(settings, "SUPPORT_EMAIL_TO", "")
 
 
 async def send_verification_email(to_email: str, verify_url: str):
-    if not GMAIL_USER or not GMAIL_PASS:
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
         return  # Not configured; skip sending in dev
     msg = EmailMessage()
     msg["From"] = GMAIL_USER
@@ -24,7 +25,7 @@ async def send_verification_email(to_email: str, verify_url: str):
         port=587,
         start_tls=True,
         username=GMAIL_USER,
-        password=GMAIL_PASS,
+        password=GMAIL_APP_PASSWORD,
     )
 
 
@@ -37,7 +38,7 @@ async def send_support_email(
     event_url: str | None = None,
 ):
     """Send a contact/support email to SUPPORT_EMAIL_TO. No-op if not configured."""
-    if not GMAIL_USER or not GMAIL_PASS or not SUPPORT_EMAIL_TO:
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD or not SUPPORT_EMAIL_TO:
         return
     msg = EmailMessage()
     msg["From"] = GMAIL_USER
@@ -62,12 +63,12 @@ async def send_support_email(
         port=587,
         start_tls=True,
         username=GMAIL_USER,
-        password=GMAIL_PASS,
+        password=GMAIL_APP_PASSWORD,
     )
 
 
 async def send_account_deletion_email(to_email: str):
-    if not GMAIL_USER or not GMAIL_PASS:
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
         return
     msg = EmailMessage()
     msg["From"] = GMAIL_USER
@@ -88,7 +89,36 @@ If you have any questions, reply to this email.
         port=587,
         start_tls=True,
         username=GMAIL_USER,
-        password=GMAIL_PASS,
+        password=GMAIL_APP_PASSWORD,
+    )
+
+
+async def send_email_change_notification(old_email: str, new_email: str, reversal_url: str):
+    """Notify the old email address that a change was requested and include a reversal link."""
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD or not old_email:
+        return
+    msg = EmailMessage()
+    msg["From"] = GMAIL_USER
+    msg["To"] = old_email
+    msg["Subject"] = "Your email address was changed on EPU"
+    body = (
+        f"Hello,\n\nWe received a request to change your account email "
+        f"from {old_email} to {new_email}.\n\n"
+        "If you made this change, no action is required.\n"
+        "If you did not make this change, click the link below to reverse the "
+        "update and keep your old address:\n"
+        f"{reversal_url}\n\n"
+        "If the new email has not yet been verified, clicking the reversal link "
+        "will deactivate the new verification link."
+    )
+    msg.set_content(body)
+    await aiosmtplib.send(
+        msg,
+        hostname="smtp.gmail.com",
+        port=587,
+        start_tls=True,
+        username=GMAIL_USER,
+        password=GMAIL_APP_PASSWORD,
     )
 
 
@@ -98,7 +128,7 @@ async def send_event_date_locked_email(
     """Notify the user their event date has been locked.
     event_date should be preformatted for human display (e.g., DD-MM-YYYY).
     """
-    if not GMAIL_USER or not GMAIL_PASS:
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
         return
     msg = EmailMessage()
     msg["From"] = GMAIL_USER
@@ -118,13 +148,13 @@ async def send_event_date_locked_email(
         port=587,
         start_tls=True,
         username=GMAIL_USER,
-        password=GMAIL_PASS,
+        password=GMAIL_APP_PASSWORD,
     )
 
 
 async def send_billing_email(to_email: str, subject: str, body: str):
     """Generic billing email notification; no-op if mail not configured."""
-    if not GMAIL_USER or not GMAIL_PASS or not to_email:
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD or not to_email:
         return
     msg = EmailMessage()
     msg["From"] = GMAIL_USER
@@ -137,5 +167,5 @@ async def send_billing_email(to_email: str, subject: str, body: str):
         port=587,
         start_tls=True,
         username=GMAIL_USER,
-        password=GMAIL_PASS,
+        password=GMAIL_APP_PASSWORD,
     )

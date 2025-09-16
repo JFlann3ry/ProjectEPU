@@ -476,6 +476,7 @@ async def admin_update_theme(
     ButtonStyle: str = Form(""),
     FontFamily: str = Form(""),
     BackgroundImage: str = Form(""),
+    IsActive: int = Form(0),
     csrf_token: str = Form(""),
 ):
     from app.models.event import Theme
@@ -517,6 +518,7 @@ async def admin_update_theme(
         "DropzoneBackgroundColour": getattr(theme, "DropzoneBackgroundColour", None),
         "FontFamily": getattr(theme, "FontFamily", None),
         "BackgroundImage": getattr(theme, "BackgroundImage", None),
+    "IsActive": getattr(theme, "IsActive", None),
     }
 
     setattr(theme, "Name", Name.strip())
@@ -539,6 +541,12 @@ async def admin_update_theme(
     setattr(theme, "DropzoneBackgroundColour", norm_color(DropzoneBackgroundColour) or None)
     setattr(theme, "FontFamily", (FontFamily or "").strip() or None)
     setattr(theme, "BackgroundImage", (BackgroundImage or "").strip() or None)
+    # Handle boolean checkbox
+    try:
+        want_active = bool(int(IsActive))
+    except Exception:
+        want_active = False
+    setattr(theme, "IsActive", want_active)
     db.add(theme)
     db.commit()
     # Compute simple diff
@@ -555,6 +563,7 @@ async def admin_update_theme(
         "DropzoneBackgroundColour": getattr(theme, "DropzoneBackgroundColour", None),
         "FontFamily": getattr(theme, "FontFamily", None),
         "BackgroundImage": getattr(theme, "BackgroundImage", None),
+    "IsActive": getattr(theme, "IsActive", None),
     }
     changes = {}
     for k in after.keys():
@@ -610,7 +619,8 @@ async def admin_export_theme(
         "InputBackgroundColour": getattr(theme, "InputBackgroundColour", None),
         "DropzoneBackgroundColour": getattr(theme, "DropzoneBackgroundColour", None),
         "FontFamily": getattr(theme, "FontFamily", None),
-        "BackgroundImage": getattr(theme, "BackgroundImage", None),
+    "BackgroundImage": getattr(theme, "BackgroundImage", None),
+    "IsActive": getattr(theme, "IsActive", None),
     }
     payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
     try:
@@ -657,6 +667,11 @@ async def admin_duplicate_theme(
         "BackgroundImage",
     ]:
         setattr(t2, field, getattr(theme, field))
+    # Preserve active state on duplicate (default to True if unknown)
+    try:
+        setattr(t2, "IsActive", bool(getattr(theme, "IsActive", True)))
+    except Exception:
+        setattr(t2, "IsActive", True)
     base_name = getattr(theme, "Name", "Theme") or "Theme"
     new_name = base_name + " Copy"
     # Ensure uniqueness best-effort

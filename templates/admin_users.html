@@ -3,20 +3,15 @@
 {% block title %}Admin Users - EPU{% endblock %}
 
 {% block breadcrumbs %}
+{% from 'components/macros.html' import breadcrumbs %}
 <div class="container section" style="padding-bottom:0;">
-  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
-    <a href="/admin" class="crumb">Admin</a>
-    <span class="sep" aria-hidden="true">›</span>
-    <span class="crumb current">Users</span>
-  </nav>
+  {{ breadcrumbs([{'label':'Admin','href':'/admin'}], 'Users') }}
   </div>
 {% endblock %}
 {% block content %}
 <div class="container section center">
-  <div class="page-hero">
-    <h1 class="hero-title">Users</h1>
-    <p class="hero-sub">Search, filter, and manage admin roles.</p>
-  </div>
+  {% from 'components/macros.html' import page_hero, badge, btn_row %}
+  {{ page_hero('Users', 'Search, filter, and manage admin roles.', False) }}
 
   <form method="get" class="card" style="display:grid; gap:12px; grid-template-columns: 1fr repeat(3, minmax(0, 160px)) 120px; align-items:end;">
     <div class="floating-field">
@@ -73,7 +68,7 @@
           <td>{{ u.Email }}</td>
           <td style="text-align:center;">{% if u.EmailVerified %}✓{% else %}—{% endif %}</td>
           <td style="text-align:center;">{% if u.IsActive %}✓{% else %}—{% endif %}</td>
-          <td style="text-align:center;">{% if u.IsAdmin %}<span class="badge">Admin</span>{% else %}—{% endif %}</td>
+          <td style="text-align:center;">{% if u.IsAdmin %}{{ badge('Admin') }}{% else %}—{% endif %}</td>
           <td>
             <form method="post" action="/admin/users/{{ u.UserID }}/set-admin" style="display:inline;">
               <input type="hidden" name="is_admin" value="{{ 0 if u.IsAdmin else 1 }}">
@@ -86,7 +81,7 @@
         {% endfor %}
       </tbody>
     </table>
-    <div class="btn-row" style="justify-content:space-between; margin-top:12px;">
+    {% call btn_row('style="justify-content:space-between; margin-top:12px;"') %}
       <div class="muted">Page {{ page }} of {{ ((total - 1) // page_size) + 1 }}</div>
       <div class="btn-row">
         {% set prev = page - 1 %}
@@ -98,7 +93,7 @@
           <a class="btn" href="?q={{ q }}&is_admin={{ '1' if is_admin else ('' if is_admin is none else '0') }}&verified={{ '1' if verified else ('' if verified is none else '0') }}&active={{ '1' if active else ('' if active is none else '0') }}&page={{ next }}&page_size={{ page_size }}">Next</a>
         {% endif %}
       </div>
-    </div>
+    {% endcall %}
   </div>
 </div>
 {% endblock %}

@@ -3,25 +3,21 @@
 
 {% block breadcrumbs %}
 <div class="container section" style="padding-bottom:0;">
-  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
-    <a href="/admin" class="crumb">Admin</a>
-    <span class="sep" aria-hidden="true">›</span>
-    <a href="/admin/themes" class="crumb">Themes</a>
-    <span class="sep" aria-hidden="true">›</span>
-    <span class="crumb current">Audit</span>
-  </nav>
+  {% from 'components/macros.html' import breadcrumbs %}
+  {{ breadcrumbs([
+    { 'label': 'Admin', 'href': '/admin' },
+    { 'label': 'Themes', 'href': '/admin/themes' }
+  ], 'Audit') }}
   </div>
 {% endblock %}
 {% block content %}
 <div class="container center section">
-  <div class="page-hero center">
-    <h1 class="hero-title">Theme Audit</h1>
-    <p class="hero-sub">Review changes to themes with filters and pagination.</p>
-    <div class="btn-row" style="margin-top:8px;">
-      <a class="btn" href="/admin/themes">Themes</a>
-      <a class="btn primary" href="/admin/themes/audit">Audit</a>
-    </div>
-  </div>
+  {% from 'components/macros.html' import page_hero, btn_row %}
+  {{ page_hero('Theme Audit', 'Review changes to themes with filters and pagination.') }}
+  {% call btn_row('style="margin-top:8px;"') %}
+    <a class="btn" href="/admin/themes">Themes</a>
+    <a class="btn primary" href="/admin/themes/audit">Audit</a>
+  {% endcall %}
 
   <div class="card">
     <form method="get" action="/admin/themes/audit" class="form">
@@ -52,28 +48,29 @@
           <input class="input-field" id="until" name="until" value="{{ filters.until or '' }}" placeholder="YYYY-MM-DD">
         </div>
       </div>
-      <div class="btn-row" style="margin-top:8px;">
+      {% call btn_row('style="margin-top:8px;"') %}
         <button class="btn primary" type="submit">Apply</button>
         <a class="btn" href="/admin/themes/audit">Reset</a>
-      </div>
+      {% endcall %}
     </form>
   </div>
 
   <div class="card">
-    <div class="btn-row" style="justify-content:space-between; margin-bottom:8px;">
+    {% from 'components/macros.html' import badge %}
+      {% call btn_row('style="justify-content:space-between; margin-bottom:8px;"') %}
       <div>
         <strong>{{ total }}</strong> changes
       </div>
-      <div class="btn-row">
+        {% call btn_row() %}
         {% if page > 1 %}
           <a class="btn" href="/admin/themes/audit?page={{ page-1 }}&page_size={{ page_size }}&theme_id={{ filters.theme_id or '' }}&admin_user_id={{ filters.admin_user_id or '' }}&q={{ filters.q or '' }}&since={{ filters.since or '' }}&until={{ filters.until or '' }}">Prev</a>
         {% endif %}
-        <span class="badge">Page {{ page }} / {{ max_page }}</span>
+        {{ badge('Page ' ~ page ~ ' / ' ~ max_page) }}
         {% if page < max_page %}
           <a class="btn" href="/admin/themes/audit?page={{ page+1 }}&page_size={{ page_size }}&theme_id={{ filters.theme_id or '' }}&admin_user_id={{ filters.admin_user_id or '' }}&q={{ filters.q or '' }}&since={{ filters.since or '' }}&until={{ filters.until or '' }}">Next</a>
         {% endif %}
-      </div>
-    </div>
+        {% endcall %}
+      {% endcall %}
 
     {% if results|length == 0 %}
       <div class="muted">No audit entries match your filters.</div>
@@ -84,16 +81,16 @@
           {% set t = row.theme %}
           {% set u = row.user %}
           <div class="theme-card card rounded" style="background: var(--card); color: var(--card-text);">
-            <div class="btn-row" style="justify-content:space-between; align-items:center; margin-bottom:6px;">
+                {% call btn_row('style="justify-content:space-between; align-items:center; margin-bottom:6px;"') %}
               <div>
                 <strong>{{ t.Name if t else 'Unknown Theme' }}</strong>
-                <span class="badge">#{{ ta.AuditID }}</span>
-                <span class="badge">Theme #{{ ta.ThemeID }}</span>
+                {{ badge('#' ~ ta.AuditID) }}
+                {{ badge('Theme #' ~ ta.ThemeID) }}
               </div>
               <div class="muted">
                 {{ ta.ChangedAt|dtfmt }} • by {{ (u.UserID ~ ' / ' ~ u.Email) if u else 'Unknown' }} • {{ ta.ClientIP or '' }}
               </div>
-            </div>
+              {% endcall %}
             {% if row.changes_count == 0 %}
               <div class="muted">No recorded field changes.</div>
             {% else %}

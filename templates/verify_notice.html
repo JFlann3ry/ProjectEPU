@@ -4,15 +4,13 @@
 
 {% block content %}
 <div class="container section">
-    <div class="page-hero">
-        <h1 class="hero-title">Check Your Email</h1>
-        <p class="hero-sub">We’ve sent you a verification link.</p>
-    </div>
+    {% from 'components/macros.html' import page_hero, notice %}
+    {{ page_hero('Check Your Email', 'We’ve sent you a verification link.') }}
     <div class="card" style="max-width:720px;margin:0 auto;">
-        <div class="notice success" style="text-align:center;">
+        {% call notice(kind='success', attrs='style="text-align:center;"') %}
             A verification email has been sent{% if email %} to <strong>{{ email }}</strong>{% endif %}.<br>
             Please check your inbox and follow the link to verify your account.
-        </div>
+        {% endcall %}
         <div class="login-footer" style="display:flex; gap:8px; align-items:center; justify-content:center; margin-top:16px;">
             <span class="p-bold">Already verified?</span>
             <a href="/login" class="btn">Log in</a>

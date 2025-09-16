@@ -127,29 +127,22 @@
 {% endblock %}
 {% block breadcrumbs %}
 <div class="breadcrumbs-container section" style="padding-bottom:0;">
-  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
-    <a href="/events" class="crumb">My Events</a>
-    <span class="sep" aria-hidden="true">›</span>
-    <span class="crumb">{{ event.Name or 'Event' }}</span>
-    <span class="sep" aria-hidden="true">›</span>
-  <span class="crumb current" aria-current="page">Edit</span>
-  </nav>
+  {% from 'components/macros.html' import breadcrumbs %}
+  {{ breadcrumbs([{'label':'My Events','href':'/events'},{'label': (event.Name or 'Event'), 'href': '/events/code/' ~ event.Code }], 'Edit') }}
 </div>
 {% endblock %}
 {% block content %}
 <div class="container center section edit-event">
-  <div class="page-hero center">
-    <h1 class="hero-title">Edit Event</h1>
-    <p class="hero-sub">Update your event details and preview your chosen theme live.</p>
-  </div>
+  {% from 'components/macros.html' import page_hero, notice %}
+  {{ page_hero('Edit Event', 'Update your event details and preview your chosen theme live.') }}
   <!-- Subtle notice to indicate the Live Preview appears below -->
-  <div class="notice" style="margin: 8px 0 12px 0; font-size:0.95em; opacity:0.9; text-align:center;">
+  {% call notice(attrs='style="margin: 8px 0 12px 0; font-size:0.95em; opacity:0.9; text-align:center;"') %}
     A preview of the guest upload page is shown below this form. <a href="#admin-like-preview" class="link">Jump to preview</a>
-  </div>
+  {% endcall %}
   {% if event.IsDateLocked %}
-  <div class="notice error" style="margin: 8px 0 16px 0;">
+  {% call notice(kind='error', attrs='style="margin: 8px 0 16px 0;"') %}
     This event date is finalised and cannot be changed. {% if event.DateLockedAt %}Locked at: <span class="p-bold">{{ event.DateLockedAt|dtfmt }}</span>{% endif %}
-  </div>
+  {% endcall %}
   {% endif %}
     {% set tv = {
       'bg': custom.BackgroundColour if custom else None,
@@ -168,15 +161,17 @@
     {% set bs = (custom.ButtonStyle if custom and custom.ButtonStyle else 'gradient') %}
   {% set gsty = (custom.ButtonGradientStyle if custom and custom.ButtonGradientStyle else 'linear') %}
   {% set gdir = (custom.ButtonGradientDirection if custom and custom.ButtonGradientDirection else '90deg') %}
-  <form id="event-edit-form" class="form card" method="post" action="/events/{{ event.EventID }}/edit" enctype="multipart/form-data">
+  <form id="event-edit-form" class="form card" method="post" action="/e/{{ event.Code }}/edit" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">
       <div class="floating-field">
         <label for="name" class="fl-label">Event Name</label>
         <input class="input-field" type="text" id="name" name="name" value="{{ event.Name }}" required>
       </div>
+  {# Password display removed from the Edit UI by design; owners can still see/copy passwords on the Event Details page. #}
       <div class="grid" style="grid-template-columns: repeat(12, minmax(0,1fr)); gap:12px; align-items:end;">
         <div class="floating-field" style="grid-column: span 6; min-width:240px;">
           <label for="date" class="fl-label">Event Date</label>
-          <input class="input-field" type="date" id="date" name="date" value="{{ event.Date.strftime('%Y-%m-%d') if event.Date else '' }}" {% if event.IsDateLocked or event.Published %}disabled aria-disabled="true"{% endif %}>
+          <input class="input-field" type="date" id="date" name="date" value="{{ event.Date.strftime('%Y-%m-%d') if event.Date else '' }}" {% if event.IsDateLocked %}disabled aria-disabled="true"{% endif %}>
         </div>
         <div id="event-type-group" style="grid-column: span 6; min-width:240px; display:grid; grid-template-columns: 1fr; gap:10px; align-items:end;">
           <div id="event-type-wrap" class="floating-field" style="min-width:180px;">
@@ -199,11 +194,11 @@
       <div class="grid" style="grid-template-columns: repeat(12, minmax(0,1fr)); gap:12px;">
         <div class="floating-field" style="grid-column: span 6; min-width:240px;">
           <label for="welcome_message" class="fl-label">Welcome Message</label>
-          <textarea class="input-field" id="welcome_message" name="welcome_message">{{ custom.WelcomeMessage if custom else '' }}</textarea>
+          <textarea class="input-field" id="welcome_message" name="welcome_message" placeholder="Welcome guests — add a short greeting that appears at the top of the guest upload page">{{ custom.WelcomeMessage if custom else '' }}</textarea>
         </div>
         <div class="floating-field" style="grid-column: span 6; min-width:240px;">
           <label for="upload_instructions" class="fl-label">Upload Instructions</label>
-          <textarea class="input-field" id="upload_instructions" name="upload_instructions">{{ custom.UploadInstructions if custom else '' }}</textarea>
+          <textarea class="input-field" id="upload_instructions" name="upload_instructions" placeholder="Upload instructions (e.g. file types, preferred naming, size limits, or a short note to guests)">{{ custom.UploadInstructions if custom else '' }}</textarea>
         </div>
       </div>
       
@@ -231,7 +226,20 @@
       <div id="assets" class="card" style="grid-column: span 6; min-width:280px; height:100%;">
           <label class="p-bold" for="banner_image">Banner / Background Image</label>
           <div class="assets-preview" style="margin-bottom: 10px;">
-            <img id="asset-banner-preview" src="{{ custom.CoverPhotoPath if custom and custom.CoverPhotoPath else '' }}" alt="Current Banner" style="border: 1px solid rgba(255,255,255,0.08);" {% if not (custom and custom.CoverPhotoPath) %}hidden{% endif %}>
+            {% if custom and custom.CoverPhotoPath %}
+            <img id="asset-banner-preview" src="{{ custom.CoverPhotoPath }}" alt="Current Banner" style="border: 1px solid rgba(255,255,255,0.08);">
+            {% else %}
+            <div id="no-banner" style="width:100%; height:160px; border-radius:12px; border:1px dashed rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:center; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));">
+              <div style="text-align:center; max-width:280px;">
+                <svg aria-hidden="true" width="36" height="36" viewBox="0 0 24 24" fill="none" style="opacity:0.9; color:var(--muted, #a9a9b3);">
+                  <path d="M4 7a2 2 0 0 1 2-2h2l1-1h6l1 1h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M8 13l2.5-3L13 15l3-4 2 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <div class="muted" style="margin-top:8px; color: #b8b8c2;">No banner yet</div>
+                <div class="small muted" style="margin-top:6px; color:#9fa0aa;">Upload an image to display at the top of the guest upload page</div>
+              </div>
+            </div>
+            {% endif %}
           </div>
           <div class="file-row">
             <input class="file-input" type="file" id="banner_image" name="banner_image" accept="image/*">
@@ -240,7 +248,7 @@
           </div>
           <div class="floating-field" style="margin-top:10px;">
             <input type="hidden" id="remove_banner" name="remove_banner" value="0">
-            <button type="button" id="remove-banner-btn" class="btn sm danger" {% if not (custom and custom.CoverPhotoPath) %}disabled aria-disabled="true"{% endif %}>Remove current banner image</button>
+            <!-- Remove button removed from UI; backend still supports clearing on save if needed -->
           </div>
         </div>
 
@@ -251,21 +259,32 @@
               <div class="floating-field">
                 <label class="fl-label" for="qr-fg">QR Colour</label>
                 <div class="color-row">
-                  <input id="qr-fg" class="input-field color-swatch" type="color" value="#000000">
-                  <input id="qr-fg-hex" class="input-field mono" value="#000000" maxlength="9" autocomplete="off" placeholder="#000000">
+                  {% set qr_fill_val = (custom.QRFillColour if custom and custom.QRFillColour else (custom.ButtonColour1 if custom and custom.ButtonColour1 else '#000000')) %}
+                  <input id="qr-fg" class="input-field color-swatch" type="color" value="{{ qr_fill_val }}">
+                  <input id="qr-fg-hex" class="input-field mono" value="{{ qr_fill_val }}" maxlength="9" autocomplete="off" placeholder="#000000">
+                  <!-- Hidden field to submit QR foreground colour -->
+                  <input type="hidden" id="qr-fill-input" name="qr_fill" value="{{ qr_fill_val }}" form="event-edit-form">
                 </div>
               </div>
               <div class="floating-field">
                 <label class="fl-label" for="qr-bg">Background Colour</label>
                 <div class="color-row">
-                  <input id="qr-bg" class="input-field color-swatch" type="color" value="#ffffff">
-                  <input id="qr-bg-hex" class="input-field mono" value="#ffffff" maxlength="9" autocomplete="off" placeholder="#ffffff">
+                  {% set qr_back_val = (custom.QRBackColour if custom and custom.QRBackColour else (custom.BackgroundColour if custom and custom.BackgroundColour else '#ffffff')) %}
+                  <input id="qr-bg" class="input-field color-swatch" type="color" value="{{ qr_back_val }}">
+                  <input id="qr-bg-hex" class="input-field mono" value="{{ qr_back_val }}" maxlength="9" autocomplete="off" placeholder="#ffffff">
+                  <!-- Hidden field to submit QR background colour -->
+                  <input type="hidden" id="qr-back-input" name="qr_back" value="{{ qr_back_val }}" form="event-edit-form">
                 </div>
               </div>
               <!-- Box size control removed per request -->
             </div>
+            {% if user_plan_code == 'ultimate' %}
+            <div class="floating-field" style="margin-top:8px;">
+              <label class="checkbox-row"><input type="checkbox" id="qr-remove-logo" class="checkbox-field"><span>Remove website logo</span></label>
+            </div>
+            {% endif %}
             <div class="qr-preview">
-  <img id="qr-img" class="qr" src="/qr?url={{ guest_url | urlencode }}&theme=classic&logo=1" alt="QR Code to guest upload" style="width:140px;height:140px;border-radius:12px;display:block;">
+  <img id="qr-img" class="qr" src="/qr?url={{ guest_url | urlencode }}&theme=classic&logo=1&fg={{ (custom.QRFillColour or custom.ButtonColour1 or '#000000')|urlencode }}&bg={{ (custom.QRBackColour or custom.BackgroundColour or '#ffffff')|urlencode }}" alt="QR Code to guest upload" style="width:140px;height:140px;border-radius:12px;display:block;">
     <div class="qr-tip muted">Use high contrast (e.g. black on white) for the most reliable scans.</div>
             </div>
           </div>
@@ -281,7 +300,11 @@
         <div class="floating-field" style="grid-column: span 6; min-width:280px;">
           <label for="theme_id" class="fl-label">Theme</label>
           <select class="input-field" id="theme_id" name="theme_id" form="event-edit-form">
-            <option value="">-- Custom --</option>
+            {% if user_plan_code == 'ultimate' %}
+              <option value="">-- Custom --</option>
+            {% else %}
+              <option value="">-- Select --</option>
+            {% endif %}
             {% for theme in themes %}
             <option value="{{ theme.ThemeID }}"
               data-button1="{{ theme.ButtonColour1 or '' }}"
@@ -298,6 +321,7 @@
             {% endfor %}
           </select>
         </div>
+        {% if user_plan_code == 'ultimate' %}
         <div id="theme-meta" style="grid-column: span 6; display:none; align-items:center; gap:14px; justify-content:space-between;">
           <div style="display:flex; align-items:center; gap:12px;">
             <div id="theme-swatch" title="Theme preview" style="width:120px; height:40px; border-radius:8px; border:1px solid rgba(255,255,255,0.18);"></div>
@@ -305,6 +329,15 @@
           </div>
           
         </div>
+        {% else %}
+        <div style="grid-column: span 6; display:flex; align-items:center; gap:12px; justify-content:flex-end;">
+          <div class="upgrade-ultimate">
+            <p class="muted small" style="margin:0 0 6px 0">Upgrade to fully customise your event theme (colors, fonts, and layout) and unlock premium options.</p>
+            <a class="btn sm outline primary" href="/billing/upgrade" role="button" aria-label="Upgrade to Ultimate - customise theme and unlock premium options">Upgrade to Ultimate</a>
+          </div>
+          <a class="small muted" href="/pricing" style="text-decoration:underline; margin-left:8px;">See pricing</a>
+        </div>
+        {% endif %}
       </div>
       <!-- Global Button Style controls (outside Custom editor) -->
       <div class="grid" style="grid-template-columns: repeat(12, minmax(0,1fr)); gap:12px; align-items:center; margin-top:8px;">
@@ -344,8 +377,9 @@
       </div>
     </div>
     
-    <!-- Admin-like Theme Editor (shown for Custom) placed directly under Theme selector -->
-    <div id="theme-editor-like" class="card" style="display:none; margin: 8px 0 12px 0;">
+  {% if user_plan_code == 'ultimate' %}
+  <!-- Admin-like Theme Editor (shown for Custom) placed directly under Theme selector -->
+  <div id="theme-editor-like" class="card" style="display:none; margin: 8px 0 12px 0;">
       <div class="grid" style="grid-template-columns: repeat(12, minmax(0,1fr)); gap:16px; align-items:start;">
         <div class="floating-field" style="grid-column: span 4; min-width:240px;">
           <label class="fl-label" for="BackgroundColour">Background</label>
@@ -438,38 +472,55 @@
           </select>
         </div>
       </div>
-    </div>
-    <!-- Admin-like Live Preview (shown for Custom) placed after the form to avoid layout interference -->
+  </div>
+  {% endif %}
+  <!-- Admin-like Live Preview (shown for Custom) placed after the form to avoid layout interference -->
     <div id="admin-like-preview" class="card preview-block" style="margin: 12px 0 16px;">
-      <div class="btn-row" style="justify-content:space-between; align-items:center; margin-bottom:8px;">
+      {% from 'components/macros.html' import btn_row %}
+      {% call btn_row('style="justify-content:space-between; align-items:center; margin-bottom:8px;"') %}
         <h3 style="margin:0;">Live Preview</h3>
-  <div class="btn-row" style="gap:6px;">
+  {% call btn_row('style="gap:6px;"') %}
           <label class="checkbox-row"><input id="pv-banner" type="checkbox" class="checkbox-field"><span>Banner Image</span></label>
           <label class="checkbox-row"><input id="pv-progress" type="checkbox" class="checkbox-field"><span>Uploading</span></label>
           <label class="checkbox-row"><input id="pv-uploads" type="checkbox" class="checkbox-field"><span>Your uploads</span></label>
-        </div>
-      </div>
+        {% endcall %}
+      {% endcall %}
       <div class="web-preview-wrapper">
         <div id="preview-root" class="theme-root section-bg-only {{ 'is-solid' if bs=='solid' else 'is-gradient' }}">
           {% include "_theme_vars.html" %}
           <div class="web-preview" data-base="1400">
             <div class="container center" style="padding-top: 12px;">
-              <div class="frost-wrap" style="max-width:1100px;margin:0 auto; border-radius:12px;">
+              <div class="frost-wrap" style="max-width:860px;margin:0 auto; border-radius:12px;">
                 <div class="theme-card card guest-card rounded radius-{{ 'subtle' if cr=='subtle' else ('sharp' if cr=='sharp' else 'rounded') }} center">
-                  <h1 id="guest-title" class="login-title heading-{{ hs }}" style="margin-bottom:6px; text-align:center;">{{ custom.WelcomeMessage if custom and custom.WelcomeMessage else 'Guest Upload' }}</h1>
-                  <p id="guest-instructions" class="muted" style="color: var(--card-text); opacity:0.9; margin-top:0; text-align:center;">{{ custom.UploadInstructions if custom and custom.UploadInstructions else 'Welcome! Please upload your files for this event.' }}</p>
+                  {% if custom and custom.WelcomeMessage %}
+                  <h2 id="guest-title" class="login-title heading-{{ hs }}" style="margin-bottom:6px; text-align:center;">{{ custom.WelcomeMessage }}</h2>
+                  {% else %}
+                  <h2 id="guest-title" class="login-title heading-{{ hs }}" style="margin-bottom:6px; text-align:center;">Guest Upload</h2>
+                  {% endif %}
+                  {% if custom and custom.UploadInstructions %}
+                  <p id="guest-instructions" class="muted" style="color: var(--card-text); opacity:0.9; margin-top:0; text-align:center;">{{ custom.UploadInstructions }}</p>
+                  {% else %}
+                  <p id="guest-instructions" class="muted" style="color: var(--card-text); opacity:0.9; margin-top:0; text-align:center;">Welcome! Please upload your files for this event.</p>
+                  {% endif %}
                   <div id="pv-cover-wrap" style="display:none; margin-bottom: 16px; text-align: center;"><img id="pv-cover-img" src="{{ custom.CoverPhotoPath if custom and custom.CoverPhotoPath else 'https://picsum.photos/1000/240' }}" alt="Event Banner" style="max-width: 100%; border-radius: 12px;"></div>
-                  <div class="form">
+                  <form class="form" method="post" enctype="multipart/form-data" novalidate>
                     <div class="floating-field" style="margin-top:8px;">
-                      <label class="fl-label">Your Email (optional)</label>
-                      <input class="input-field" type="email" placeholder="you@example.com">
+                      <label for="guest_email" class="fl-label">Your Email (optional)</label>
+                      <input class="input-field" type="email" id="guest_email" name="guest_email">
                     </div>
-                    <div id="pv-guestbook-wrap" class="floating-field" style="margin-top:8px;">
-                      <label class="fl-label" for="pv-guestbook-message">Guestbook Message (optional)</label>
-                      <textarea id="pv-guestbook-message" class="input-field" placeholder="Write a message for the event hosts"></textarea>
+                    <div class="floating-field" style="margin-top:8px;">
+                      <label for="display_name" class="fl-label">Your Name (optional)</label>
+                      <input class="input-field" type="text" id="display_name" name="display_name" maxlength="80" placeholder="How should we show your message?">
                     </div>
+                    <div class="floating-field" style="margin-top:10px;">
+                      <label for="guest_message" class="fl-label">Leave a message (optional)</label>
+                      <textarea class="input-field" id="guest_message" name="guest_message" rows="3" maxlength="300" placeholder="Say something to the host…"></textarea>
+                      <div class="muted" style="text-align:right; margin-top:4px;"><small id="gm-counter">0/300</small></div>
+                    </div>
+                    <input type="hidden" id="device_type" name="device_type" value="Desktop">
                     <div style="margin: 6px 0 6px;">
                       <div class="muted" style="color: var(--card-text); opacity:0.9; margin-bottom:6px;">Select Photos/Videos</div>
+                      <input type="file" id="file" name="files" multiple accept="image/*,video/*" style="display:none;" aria-hidden="true">
                       <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="File dropzone">
                         <div class="dz-inner">
                           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -478,41 +529,64 @@
                           </svg>
                           <div class="dz-text">
                             <span class="dz-hint-dnd"><strong>Drag and drop</strong> photos or videos here</span>
-
-                            <span class="dz-hint-tap"><strong>Tap to select</strong> photos or videos</span><br>
+                            <span class="dz-hint-tap"><strong>Tap to select</strong> photos or videos</span>
+                            <br>
                             <span class="muted small dz-browse-click">or click to browse</span>
                             <span class="muted small dz-browse-tap">or tap to browse</span>
                           </div>
                         </div>
                       </div>
-                      <div id="selection" class="chip-list" style="display:none;"></div>
                     </div>
-                    <div class="upload-actions" style="margin-top:6px; display:flex; gap:8px; align-items:center; justify-content:space-between;">
-                      <div class="btn-row">
+                    <div class="upload-actions" aria-label="File selection and upload" style="margin-top:6px;">
+                      {% call btn_row() %}
                         <span id="file-count" class="muted small"></span>
-                        <button type="button" class="btn sm" style="display:none;">Clear selection</button>
-                      </div>
-                      <div class="btn-row" style="margin-left:auto; align-items:center;">
-                        <label class="terms-inline">
-                          <input type="checkbox" class="checkbox-field">
-                          <span>I agree to the <a href="#" title="View the full terms and conditions">terms and conditions</a></span>
+                        <span id="file-hint" class="muted small" style="display:none; color: var(--card-text);">Select at least one file</span>
+                        <button type="button" id="clear-selection" class="btn sm" style="display:none;">Clear selection</button>
+                      {% endcall %}
+                      {% call btn_row('style="margin-left:auto; align-items:center;"') %}
+                        <label for="terms" id="terms-label" class="terms-inline">
+                          <input type="checkbox" id="terms" name="terms" class="checkbox-field" required>
+                          <span>I agree to the <a id="terms-link" href="#" title="View the full terms and conditions">terms and conditions</a></span>
                         </label>
-                        <button type="button" class="btn primary">Upload</button>
-                      </div>
+                        <button id="upload-btn" type="submit" class="btn primary">Upload</button>
+                      {% endcall %}
                     </div>
-                    <div id="progress-container" style="display:none; margin:10px 0; width:100%; position:relative;">
-                      <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
-                      <div id="progress-percent" class="muted small" style="position:absolute; top:100%; left:0; right:0; text-align:center; margin-top:4px;">0%</div>
+                    <div id="progress-container" style="display:none; margin:10px 0; width:100%;">
+                      <div class="progress-bar"><div class="progress-fill" id="upload-fill" style="width:0%"></div></div>
                     </div>
-                    <div id="uploads-empty-hint" class="muted small" style="margin-top:8px; text-align:center;">
-                      You’ll see your photos here after upload.
-                    </div>
-                    <div id="pv-uploads-wrap" class="card" style="display:none; margin-top:12px; background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.08);">
+                    <div id="upload-success" style="display:none; font-family:'Inter', Arial, sans-serif; font-size:18px; text-align:center; margin:10px 0;">Upload successful!</div>
+                    <div id="upload-duplicates" class="muted" style="display:none; font-size:14px; text-align:center; margin:-6px 0 8px 0;">Some duplicates were skipped.</div>
+                  </form>
+                  <div id="uploads-empty-hint" class="muted small" style="margin-top:8px; text-align:center;">
+                    You’ll see your photos here after upload.
+                  </div>
+                  <div class="section" id="your-uploads-section" style="padding-top:16px;">
+                    <div id="your-uploads-card" class="theme-card card">
                       <h3 style="margin:0 0 8px;">Your uploads</h3>
-                      <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
+                      {% call btn_row('style="margin-bottom:6px; align-items:center; justify-content:space-between;"') %}
+                        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+                          <button class="btn sm" id="filter-all">All</button>
+                          <button class="btn sm" id="filter-images">Images</button>
+                          <button class="btn sm" id="filter-videos">Videos</button>
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                          <label for="sort" class="muted" style="font-size: 13px;">Sort</label>
+                          <select id="sort" class="input-field" style="width:auto; padding:6px 8px; height:34px;">
+                            <option value="newest">Newest</option>
+                            <option value="oldest">Oldest</option>
+                            <option value="name_asc">Name A–Z</option>
+                            <option value="size_desc">Size (largest)</option>
+                            <option value="size_asc">Size (smallest)</option>
+                          </select>
+                          <span id="sel-count" class="muted">0 selected</span>
+                          <button id="bulk-remove" class="btn danger" disabled>Remove selected</button>
+                        </div>
+                      {% endcall %}
+                      <div id="guest-files" class="grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
                         {% for i in range(0,8) %}
-                        <div class="thumb" style="padding:6px; border-radius:10px; background:#0f111b; display:flex;">
-                          <img src="https://picsum.photos/seed/{{ i }}/200/120" alt="Preview" style="width:100%; height:100px; object-fit:cover; border-radius:6px;" loading="lazy">
+                        <div class="thumb selectable theme-tile" data-id="{{ i }}" data-type="image">
+                          <input type="checkbox" class="select" aria-label="Select" style="position:absolute; top:6px; left:6px; width:18px; height:18px;">
+                          <img data-role="preview" src="https://picsum.photos/seed/{{ i }}/200/120" alt="Preview" style="width:100%; height:100px; object-fit:cover; border-radius:6px; cursor:pointer;" loading="lazy">
                         </div>
                         {% endfor %}
                       </div>
@@ -527,6 +601,7 @@
   </div>
   <!-- Data hook with initial banner url if present -->
   <div id="initial-banner" data-url="{{ custom.CoverPhotoPath if custom and custom.CoverPhotoPath else '' }}" hidden></div>
+  <div id="event-meta" data-event-id="{{ event.EventID }}" hidden></div>
   <script id="theme-init" type="application/json">{{ {
     'text': (custom.TextColour if custom and custom.TextColour else '#0F0E17'),
     'font': (custom.FontFamily if custom and custom.FontFamily else 'Inter, Arial, sans-serif'),
@@ -868,16 +943,16 @@ document.addEventListener('DOMContentLoaded', function(){
       reader.onload = function(e){
         // Show as banner image in live preview
         const img = document.getElementById('pv-cover-img');
-        if (img) { img.src = e.target.result; }
+        if (img) { img.src = e.target.result; img.removeAttribute('hidden'); }
         if (coverWrap) { coverWrap.style.display = ''; }
         // Also show in assets preview card
         const ap = document.getElementById('asset-banner-preview');
         if (ap) { ap.src = e.target.result; ap.removeAttribute('hidden'); }
         // Tick and lock the Banner toggle
         if (pvBanner) { pvBanner.checked = true; pvBanner.disabled = true; }
-        // Set frosted background using CSS vars on theme root
+        // Set frosted background using CSS vars on theme root (quote URL to be safe)
         if (pRoot) {
-          pRoot.style.setProperty('--bg-image', `url(${e.target.result})`);
+          pRoot.style.setProperty('--bg-image', `url('${e.target.result}')`);
           pRoot.style.setProperty('--bg-size', 'cover');
           pRoot.style.setProperty('--bg-position', 'center');
           pRoot.style.setProperty('--bg-blur', '44px');
@@ -885,6 +960,28 @@ document.addEventListener('DOMContentLoaded', function(){
         updatePreview();
       };
       reader.readAsDataURL(file);
+      // Also attempt to upload immediately to server via AJAX
+      try {
+        const meta = document.getElementById('event-meta');
+        const eid = meta ? meta.getAttribute('data-event-id') : null;
+        if (eid) {
+          const fd = new FormData();
+          fd.append('file', file);
+          fetch(`/events/${eid}/banner`, { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(j => {
+              if (j && j.ok && j.path) {
+                const p = j.path + '?v=' + Date.now();
+                const ap = document.getElementById('asset-banner-preview'); if (ap) { ap.src = p; ap.removeAttribute('hidden'); }
+                const img = document.getElementById('pv-cover-img'); if (img) { img.src = p; img.removeAttribute('hidden'); }
+                if (pRoot) { pRoot.style.setProperty('--bg-image', `url(${p})`); }
+              } else {
+                if (window.snackbar && window.snackbar.show){ window.snackbar.show(j && j.error ? j.error : 'Upload failed'); }
+              }
+            })
+            .catch(()=>{/*silent*/});
+        }
+      } catch(e) { /*ignore*/ }
     });
   }
   if (removeBannerBtn){
@@ -1067,7 +1164,9 @@ document.addEventListener('DOMContentLoaded', function(){
     function applyToggles(){
       if (coverWrap && pvBanner){ coverWrap.style.display = pvBanner.checked ? '' : 'none'; }
       const prog = document.getElementById('progress-container'); if (prog && pvProgress){ prog.style.display = pvProgress.checked ? '' : 'none'; }
-      const uploadsWrap = document.getElementById('pv-uploads-wrap'); if (uploadsWrap && pvUploads){ uploadsWrap.style.display = pvUploads.checked ? '' : 'none'; }
+      // The preview uses `your-uploads-section` in the DOM; ensure we target that element
+      const uploadsWrap = document.getElementById('your-uploads-section') || document.getElementById('pv-uploads-wrap');
+      if (uploadsWrap && pvUploads){ uploadsWrap.style.display = pvUploads.checked ? '' : 'none'; }
       // Guestbook message input is always visible now
       scalePreview();
     }
@@ -1126,11 +1225,11 @@ document.addEventListener('DOMContentLoaded', function(){
             progressFill.style.width = '100%';
             if (progressPercent) progressPercent.textContent = '100%';
             clearInterval(timer); timer = null;
-            // Briefly show complete state, then hide and reveal uploads
+            // Show complete state and reveal uploads; leave the progress toggle checked
             setTimeout(function(){
-              if (pvProgress) pvProgress.checked = false;
+              // Keep pvProgress checked so the progress container stays visible until the user unticks it
               if (pvUploads) pvUploads.checked = true;
-              resetProgressBar();
+              // Leave the progress bar at 100% so the completed state remains visible
               applyToggles();
             }, 600);
           } else {
@@ -1185,8 +1284,13 @@ document.addEventListener('DOMContentLoaded', function(){
     p.set('theme', 'classic');
   if (fg) p.set('fg', fg.value||'#000000');
   if (bg) p.set('bg', bg.value||'#ffffff');
-    // Always include website logo in the QR
-    p.set('logo', '1');
+    // Include or remove website logo depending on ultimate-only control
+    var logoEl = document.getElementById('qr-remove-logo');
+    if (logoEl) {
+      p.set('logo', logoEl.checked ? '0' : '1');
+    } else {
+      p.set('logo', '1');
+    }
     return p;
   }
   function update(){
@@ -1223,15 +1327,37 @@ document.addEventListener('DOMContentLoaded', function(){
     if (v) { sw.value = v; }
   }
   if (fg && fgHex){
-    fg.addEventListener('input', function(){ syncFromSwatch('qr-fg'); update(); });
-    fgHex.addEventListener('input', function(){ syncFromHex('qr-fg'); update(); });
+    fg.addEventListener('input', function(){ syncFromSwatch('qr-fg'); update(); syncHidden('qr-fg'); });
+    fgHex.addEventListener('input', function(){ syncFromHex('qr-fg'); update(); syncHidden('qr-fg'); });
     syncFromSwatch('qr-fg');
+    // initialize hidden input
+    if (document.getElementById('qr-fill-input')) document.getElementById('qr-fill-input').value = (fg.value || '#000000').toUpperCase();
   }
   if (bg && bgHex){
-    bg.addEventListener('input', function(){ syncFromSwatch('qr-bg'); update(); });
-    bgHex.addEventListener('input', function(){ syncFromHex('qr-bg'); update(); });
+    bg.addEventListener('input', function(){ syncFromSwatch('qr-bg'); update(); syncHidden('qr-bg'); });
+    bgHex.addEventListener('input', function(){ syncFromHex('qr-bg'); update(); syncHidden('qr-bg'); });
     syncFromSwatch('qr-bg');
+    // initialize hidden input
+    if (document.getElementById('qr-back-input')) document.getElementById('qr-back-input').value = (bg.value || '#ffffff').toUpperCase();
   }
+  // Keep hidden inputs in sync with visible controls
+  function syncHidden(id){
+    try{
+      if (id === 'qr-fg'){
+        var v = (document.getElementById('qr-fg').value || '').toUpperCase();
+        var h = document.getElementById('qr-fill-input');
+        if (h) h.value = v;
+      }
+      if (id === 'qr-bg'){
+        var v2 = (document.getElementById('qr-bg').value || '').toUpperCase();
+        var h2 = document.getElementById('qr-back-input');
+        if (h2) h2.value = v2;
+      }
+    }catch(e){/* fail silently */}
+  }
+  // Wire ultimate-only logo toggle
+  var qrLogoToggle = document.getElementById('qr-remove-logo');
+  if (qrLogoToggle) { qrLogoToggle.addEventListener('change', update); }
   // logo upload removed
   // Removed login link input as it's not editable
 });

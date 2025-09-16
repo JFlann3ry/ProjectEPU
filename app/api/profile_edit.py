@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.templates import templates
+from app.models.email_change import EmailChangeRequest
 from app.models.export import UserDataExportJob
 from app.models.user import User
 from app.services.auth import (
@@ -16,7 +17,10 @@ from app.services.auth import (
     verify_email_token,
 )
 from app.services.csrf import issue_csrf_token, set_csrf_cookie, validate_csrf_token
-from app.services.email_utils import send_verification_email
+from app.services.email_utils import (
+    send_email_change_notification,
+    send_verification_email,
+)
 from app.services.export_service import build_user_export_zip
 from db import get_db
 
@@ -112,11 +116,139 @@ async def edit_profile_submit(
     u = db.query(User).filter(User.UserID == user.UserID).first()
     if not u:
         return RedirectResponse("/login", status_code=302)
-    # Update only names; ignore email changes
+    # Update names
     setattr(u, "FirstName", first_name.strip()[:100])
     setattr(u, "LastName", last_name.strip()[:100])
+    # Check for email change in the posted form (optional field may be included)
+    form = await request.form()
+    raw_email = form.get("email", "")
+    # form.get may return an UploadFile in some multipart cases; coerce safely
+    if isinstance(raw_email, str):
+        new_email = raw_email.strip()
+    elif hasattr(raw_email, "filename"):
+        new_email = (raw_email.filename or "").strip()
+    else:
+        new_email = (str(raw_email or "")).strip()
+    if new_email and new_email.lower() != getattr(u, "Email", "").lower():
+        old_email = getattr(u, "Email")
+        # Create a token containing user id + new email
+        payload = f"{u.UserID}|{new_email}"
+        token = generate_email_token(payload)
+        confirm_base = str(request.url_for("email_change_confirm"))
+        confirm_url = f"{confirm_base}?token={token}"
+        # Create reversal URL
+        reverse_base = str(request.url_for("email_change_reverse"))
+        reverse_url = f"{reverse_base}?token={token}"
+        # Persist change request
+        req = EmailChangeRequest(
+            UserID=u.UserID,
+            OldEmail=old_email,
+            NewEmail=new_email,
+            Token=token,
+            IsActive=True,
+        )
+        db.add(req)
+        db.commit()
+        # Send verification to new email and notify old email
+        try:
+            await send_verification_email(new_email, confirm_url)
+        except Exception:
+            pass
+        try:
+            await send_email_change_notification(old_email, new_email, reverse_url)
+        except Exception:
+            pass
+        # Do not change stored email until verification
+        db.commit()
+        return RedirectResponse("/profile/edit?message=email_change_pending", status_code=303)
     db.commit()
     return RedirectResponse("/profile/edit?message=saved", status_code=303)
+
+
+
+@router.get("/profile/email/confirm", name="email_change_confirm", response_class=HTMLResponse)
+async def email_change_confirm(request: Request, token: str = "", db: Session = Depends(get_db)):
+    payload = verify_email_token(token)
+    if not payload or "|" not in payload:
+        return templates.TemplateResponse(request, "email_change_done.html", context={"ok": False})
+    user_id_str, new_email = payload.split("|", 1)
+    try:
+        user_id = int(user_id_str)
+    except Exception:
+        return templates.TemplateResponse(request, "email_change_done.html", context={"ok": False})
+    # Find the pending request and ensure it's active
+    req = (
+        db.query(EmailChangeRequest)
+        .filter(
+            EmailChangeRequest.UserID == user_id,
+            EmailChangeRequest.Token == token,
+            EmailChangeRequest.IsActive,
+        )
+        .first()
+    )
+    if not req:
+        return templates.TemplateResponse(request, "email_change_done.html", context={"ok": False})
+    # Apply the change
+    u = db.query(User).filter(User.UserID == user_id).first()
+    if not u:
+        return templates.TemplateResponse(request, "email_change_done.html", context={"ok": False})
+    setattr(u, "Email", req.NewEmail)
+    setattr(u, "EmailVerified", True)
+    setattr(req, "IsActive", False)
+    setattr(req, "CompletedAt", datetime.now(timezone.utc).replace(tzinfo=None))
+    db.commit()
+    return templates.TemplateResponse(request, "email_change_done.html", context={"ok": True})
+
+
+@router.get("/profile/email/reverse", name="email_change_reverse", response_class=HTMLResponse)
+async def email_change_reverse(request: Request, token: str = "", db: Session = Depends(get_db)):
+    payload = verify_email_token(token)
+    if not payload or "|" not in payload:
+        return templates.TemplateResponse(
+            request, "email_change_reverse_done.html", context={"ok": False}
+        )
+    user_id_str, new_email = payload.split("|", 1)
+    try:
+        user_id = int(user_id_str)
+    except Exception:
+        return templates.TemplateResponse(
+            request, "email_change_reverse_done.html", context={"ok": False}
+        )
+    req = (
+        db.query(EmailChangeRequest)
+        .filter(
+            EmailChangeRequest.UserID == user_id,
+            EmailChangeRequest.Token == token,
+        )
+        .first()
+    )
+    if not req:
+        return templates.TemplateResponse(
+            request, "email_change_reverse_done.html", context={"ok": False}
+        )
+    # If already completed, attempt to reverse
+    if getattr(req, "CompletedAt", None):
+        # find user and restore old email
+        u = db.query(User).filter(User.UserID == user_id).first()
+        if u:
+            setattr(u, "Email", req.OldEmail)
+            setattr(u, "EmailVerified", True)
+            setattr(req, "ReversedAt", datetime.now(timezone.utc).replace(tzinfo=None))
+            setattr(req, "IsActive", False)
+            db.commit()
+            return templates.TemplateResponse(
+                request, "email_change_reverse_done.html", context={"ok": True}
+            )
+        return templates.TemplateResponse(
+            request, "email_change_reverse_done.html", context={"ok": False}
+        )
+    # Not completed yet: deactivate the request so the verification link can't be used
+    setattr(req, "IsActive", False)
+    setattr(req, "ReversedAt", datetime.now(timezone.utc).replace(tzinfo=None))
+    db.commit()
+    return templates.TemplateResponse(
+        request, "email_change_reverse_done.html", context={"ok": True}
+    )
 
 
 @router.post("/profile/export/request")

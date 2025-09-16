@@ -9,7 +9,9 @@ class Purchase(Base):
     PurchaseID = Column(Integer, primary_key=True, autoincrement=True)
     # Ensure schema-qualified FK for consistency with Users table
     UserID = Column(Integer, ForeignKey("dbo.Users.UserID"), nullable=False)
-    PlanID = Column(Integer, ForeignKey("EventPlan.PlanID"), nullable=False)
+    # Allow null for PlanID because some purchases represent entitlements
+    # (e.g. additional_event addons) which do not map to an EventPlan.
+    PlanID = Column(Integer, ForeignKey("EventPlan.PlanID"), nullable=True)
     Amount = Column(Numeric(10, 2), nullable=False)
     Currency = Column(String(8), nullable=False, default="GBP")
     StripeSessionID = Column(String(255), nullable=True)

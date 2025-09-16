@@ -1,32 +1,32 @@
 {% extends "base.html" %}
+{% from "components/macros.html" import page_hero %}
 
 {% block title %}Billing Summary - EPU{% endblock %}
 
 {% block breadcrumbs %}
+{% from 'components/macros.html' import breadcrumbs %}
 <div class="breadcrumbs-container section" style="padding-bottom:0;">
-  <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
-    <a href="/profile" class="crumb">Profile</a>
-    <span class="sep" aria-hidden="true">›</span>
-    <span class="crumb current">Billing</span>
-  </nav>
+  {{ breadcrumbs([{'label':'Profile','href':'/profile'}], 'Billing') }}
   </div>
 {% endblock %}
 {% block content %}
 <div class="container section center">
-  <div class="page-hero center">
-    <h1 class="hero-title">Billing Summary</h1>
-    <p class="hero-sub">Recent purchases and payment status.</p>
-  </div>
+  {% from 'components/macros.html' import chip, notice, btn_row %}
+  {{ page_hero('Billing Summary', 'Recent purchases and payment status.', True) }}
   <div class="card" style="max-width:760px;margin:0 auto;">
     <style>
-  .table { display: grid; grid-template-columns: 1fr; }
-  /* Give columns balanced space: Purchase, Date, Amount, Status */
-  .row { display:grid; grid-template-columns: 2fr 1.2fr 0.9fr auto; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.08); align-items:center; }
-      .row.head { font-weight:600; opacity:0.85; border-bottom-color: rgba(255,255,255,0.18); }
-  .cell { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Use a single grid on the table so column widths are consistent across rows. */
+  /* Spread columns a bit more evenly and reduce Purchase column width */
+  .table { display: grid; grid-template-columns: 1.6fr 1fr 0.8fr 0.8fr; width:100%; }
+  /* Each logical row becomes "contents" so its cells participate in the parent grid
+     (keeps visual grouping while ensuring columns line up). */
+  .row { display: contents; }
+  .row.head .cell { font-weight:600; opacity:0.85; border-bottom-color: rgba(255,255,255,0.18); }
+  .cell { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:8px 6px; border-bottom:1px solid rgba(255,255,255,0.08); align-items:center; display:flex; }
   /* Do not shorten the purchase summary; allow wrapping */
   .cell.purchase { white-space: normal; overflow: visible; text-overflow: clip; word-break: break-word; }
-  .cell.amount { text-align: right; font-variant-numeric: tabular-nums; }
+  /* Left-align amounts to match the column and avoid excessive right padding */
+  .cell.amount { text-align: left; justify-content:flex-start; font-variant-numeric: tabular-nums; padding-left:6px; }
     </style>
     {% if items and items|length > 0 %}
       <div class="table" role="table" aria-label="Recent purchases">
@@ -58,19 +58,18 @@
               {% set _norm = _raw %}
             {% endif %}
             {% set status_class = 'status-' + (_norm if _norm in ['paid','pending','refunded','canceled'] else 'other') %}
-            <span class="chip {{ status_class }}">{{ (_norm or '—')|capitalize }}</span>
-            <a href="/billing/purchase/{{ i.id }}/receipt.pdf" class="btn compact" style="margin-left:8px;">PDF</a>
+            {{ chip(((_norm or '—')|capitalize), _norm if _norm in ['paid','pending','refunded','canceled'] else '') }}
           </div>
         </div>
         {% endfor %}
       </div>
     {% else %}
-      <div class="notice" style="margin:12px 0;">No purchases yet.</div>
+      {{ notice('No purchases yet.', 'info', 'style="margin:12px 0;"') }}
     {% endif %}
-    <div class="btn-row" style="margin-top:12px;">
-  <a class="btn" href="/pricing">Choose a package</a>
+    {% call btn_row('style="margin-top:12px; display:flex; justify-content:center; gap:8px;"') %}
+      <a class="btn" href="/pricing">Choose a package</a>
       <a class="btn" href="/profile">Back to Profile</a>
-    </div>
+    {% endcall %}
   </div>
 </div>
 {% endblock %}

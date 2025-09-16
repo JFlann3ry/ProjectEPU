@@ -2,10 +2,18 @@ import io as _io
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from fastapi.responses import HTMLResponse, RedirectResponse
 from PIL import Image
 from sqlalchemy import func as _func
@@ -29,6 +37,121 @@ from db import get_db
 
 router = APIRouter()
 audit = logging.getLogger("audit")
+
+
+@router.post("/events/task/toggle")
+async def toggle_event_task(
+    request: Request,
+    db: Session = Depends(get_db),
+    user=Depends(require_user),
+):
+    """Toggle or set/clear a named task for an event.
+
+    Accepts JSON or form data. Parameters accepted:
+      - event_id
+      - key or task_key
+      - action (optional): 'set'|'clear'. If omitted, the endpoint toggles the current state.
+    Returns { ok: True, done: <bool> } where done indicates whether task is present (done).
+    """
+    # Accept either JSON or form-encoded body
+    event_id = None
+    key = None
+    action = None
+    try:
+        if request.headers.get("content-type", "").lower().startswith("application/json"):
+            data = await request.json()
+            event_id = data.get("event_id") or data.get("event")
+            key = data.get("key") or data.get("task_key")
+            action = data.get("action")
+        else:
+            form = await request.form()
+            event_id = form.get("event_id") or form.get("event")
+            key = form.get("task_key") or form.get("key")
+            action = form.get("action")
+    except Exception:
+        # fallback: try json then form
+        try:
+            data = await request.json()
+            event_id = data.get("event_id") or data.get("event")
+            key = data.get("key") or data.get("task_key")
+            action = data.get("action")
+        except Exception:
+            try:
+                form = await request.form()
+                event_id = form.get("event_id") or form.get("event")
+                key = form.get("task_key") or form.get("key")
+                action = form.get("action")
+            except Exception:
+                pass
+
+    if not event_id or not key:
+        raise HTTPException(status_code=400, detail="Missing parameters")
+
+    try:
+        from app.models.event import EventTask
+
+        # Safely coerce user id and event id into ints; return 400 on invalid input
+        try:
+            uid = int(getattr(user, "UserID", 0))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid user id")
+        try:
+            # Some clients may send event_id as an UploadFile or other types; coerce via str()
+            eid = int(str(event_id))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid event_id")
+
+        et = (
+            db.query(EventTask)
+            .filter(EventTask.EventID == eid, EventTask.UserID == uid, EventTask.Key == key)
+            .first()
+        )
+
+        # If explicit action requested
+        if action in ("set", "clear"):
+            if action == "set":
+                if not et:
+                    et = EventTask(
+                        EventID=eid,
+                        UserID=uid,
+                        Key=key,
+                        State="done",
+                        CompletedAt=datetime.now(timezone.utc),
+                    )
+                    db.add(et)
+                else:
+                    setattr(et, "State", "done")
+                    setattr(et, "CompletedAt", datetime.now(timezone.utc))
+                db.commit()
+                return {"ok": True, "done": True}
+            else:
+                if et:
+                    db.delete(et)
+                    db.commit()
+                return {"ok": True, "done": False}
+
+        # Toggle: if exists remove it (pending), otherwise create it (done)
+        if et:
+            db.delete(et)
+            db.commit()
+            return {"ok": True, "done": False}
+        else:
+            new_et = EventTask(
+                EventID=eid,
+                UserID=uid,
+                Key=key,
+                State="done",
+                CompletedAt=datetime.now(timezone.utc),
+            )
+            db.add(new_et)
+            db.commit()
+            return {"ok": True, "done": True}
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/e/{code}/edit", response_class=HTMLResponse)
@@ -55,7 +178,42 @@ async def edit_event_page_code(
     themes = db.query(Theme).all()
     event_types = db.query(EventType).order_by(EventType.Name.asc()).all()
     guest_url = f"/guest/upload/{event.Code}" if event else None
-    return templates.TemplateResponse(
+    from app.services.csrf import (
+        issue_csrf_token,
+        set_csrf_cookie,
+    )
+    # Ensure event has a password for display/editing; generate/repair a
+    # 6-char alphanumeric one if missing or invalid
+    try:
+        if event:
+            pw = getattr(event, "Password", None) or ''
+            import re
+
+            def _valid_pw(p: str) -> bool:
+                return bool(re.fullmatch(r"[A-Za-z0-9]{6}", str(p or '')))
+
+            if not _valid_pw(pw):
+                import random
+                import string
+
+                def _gen_pw(n: int = 6) -> str:
+                    alphabet = string.ascii_letters + string.digits
+                    return "".join(random.choice(alphabet) for _ in range(n))
+
+                gen_pw = _gen_pw()
+                # ensure uniqueness not required for passwords but keep as-is
+                setattr(event, "Password", gen_pw)
+                try:
+                    db.commit()
+                except Exception:
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    token = issue_csrf_token(request.cookies.get("session_id"))
+    resp = templates.TemplateResponse(
         request,
         "edit_event.html",
         context={
@@ -64,8 +222,11 @@ async def edit_event_page_code(
             "themes": themes,
             "event_types": event_types,
             "guest_url": guest_url,
+            "csrf_token": token,
         },
     )
+    set_csrf_cookie(resp, token, httponly=True)
+    return resp
 
 @router.get("/events/{event_id}/edit", response_class=HTMLResponse)
 async def edit_event_page(
@@ -86,6 +247,36 @@ async def edit_event_page(
     themes = db.query(Theme).all()
     event_types = db.query(EventType).order_by(EventType.Name.asc()).all()
     guest_url = f"/guest/upload/{event.Code}" if event else None
+    # Ensure event has a password for display/editing; generate/repair a
+    # 6-char alphanumeric one if missing or invalid
+    try:
+        if event:
+            pw = getattr(event, "Password", None) or ''
+            import re
+
+            def _valid_pw(p: str) -> bool:
+                return bool(re.fullmatch(r"[A-Za-z0-9]{6}", str(p or '')))
+
+            if not _valid_pw(pw):
+                import random
+                import string
+
+                def _gen_pw(n: int = 6) -> str:
+                    alphabet = string.ascii_letters + string.digits
+                    return "".join(random.choice(alphabet) for _ in range(n))
+
+                gen_pw = _gen_pw()
+                setattr(event, "Password", gen_pw)
+                try:
+                    db.commit()
+                except Exception:
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
     return templates.TemplateResponse(
         request,
         "edit_event.html",
@@ -126,9 +317,52 @@ async def edit_event_submit(
     heading_size: str = Form(None),
     show_cover: str = Form(None),
     banner_image: UploadFile = File(None),
+    csrf_token: str = Form(None),
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
+    from app.models.event import (
+        EventCustomisation,
+        EventType,
+        Theme,
+    )
+    from app.services.csrf import (
+        CSRF_COOKIE,
+        issue_csrf_token,
+        set_csrf_cookie,
+        validate_csrf_token,
+    )
+    cookie_token = request.cookies.get(CSRF_COOKIE)
+    if (
+        not cookie_token
+        or not csrf_token
+        or not validate_csrf_token(csrf_token, request.cookies.get("session_id"))
+        or cookie_token != csrf_token
+    ):
+        token = issue_csrf_token(request.cookies.get("session_id"))
+        event = db.query(Event).filter(Event.EventID == event_id).first()
+        resp = templates.TemplateResponse(
+            request,
+            "edit_event.html",
+            context={
+                "event": event,
+                "custom": (
+                    db.query(EventCustomisation)
+                    .filter(EventCustomisation.EventID == event_id)
+                    .first()
+                    if event
+                    else None
+                ),
+                "themes": db.query(Theme).all(),
+                "event_types": db.query(EventType).order_by(EventType.Name.asc()).all(),
+                "guest_url": f"/guest/upload/{event.Code}" if event else None,
+                "csrf_token": token,
+                "error": "Invalid form token. Please refresh and try again.",
+            },
+            status_code=400,
+        )
+        set_csrf_cookie(resp, token, httponly=True)
+        return resp
     event = db.query(Event).filter(Event.EventID == event_id).first()
     audit.info(
         "events.edit.submit",
@@ -282,6 +516,18 @@ async def edit_event_submit(
     if show_cover is not None:
         setattr(custom, "ShowCover", True if str(show_cover) in ("1", "true", "on") else False)
 
+    # QR colours - read from form to avoid changing function signature used by code-path delegate
+    try:
+        form = await request.form()
+        qr_fill_val = form.get('qr_fill') if form is not None else None
+        qr_back_val = form.get('qr_back') if form is not None else None
+        if qr_fill_val is not None:
+            setattr(custom, "QRFillColour", (str(qr_fill_val) or '').strip() or None)
+        if qr_back_val is not None:
+            setattr(custom, "QRBackColour", (str(qr_back_val) or '').strip() or None)
+    except Exception:
+        pass
+
     # Validation helpers for image assets
     def _safe_name(name: str) -> str:
         name = name.replace("\\", "/").split("/")[-1]
@@ -394,9 +640,48 @@ async def edit_event_submit_code(
     heading_size: str = Form(None),
     show_cover: str = Form(None),
     banner_image: UploadFile = File(None),
+    csrf_token: str = Form(None),
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
+    from app.services.csrf import (
+        CSRF_COOKIE,
+        issue_csrf_token,
+        set_csrf_cookie,
+        validate_csrf_token,
+    )
+    cookie_token = request.cookies.get(CSRF_COOKIE)
+    if (
+        not cookie_token
+        or not csrf_token
+        or not validate_csrf_token(csrf_token, request.cookies.get("session_id"))
+        or cookie_token != csrf_token
+    ):
+        from app.models.event import EventCustomisation, EventType, Theme
+        token = issue_csrf_token(request.cookies.get("session_id"))
+        event = db.query(Event).filter(Event.Code == code).first()
+        resp = templates.TemplateResponse(
+            request,
+            "edit_event.html",
+            context={
+                "event": event,
+                "custom": (
+                    db.query(EventCustomisation)
+                    .filter(EventCustomisation.EventID == event.EventID)
+                    .first()
+                    if event
+                    else None
+                ),
+                "themes": db.query(Theme).all(),
+                "event_types": db.query(EventType).order_by(EventType.Name.asc()).all(),
+                "guest_url": f"/guest/upload/{code}",
+                "csrf_token": token,
+                "error": "Invalid form token. Please refresh and try again.",
+            },
+            status_code=400,
+        )
+        set_csrf_cookie(resp, token, httponly=True)
+        return resp
     # Resolve event by code, then delegate by calling the existing handler logic
     event = db.query(Event).filter(Event.Code == code).first()
     if not event:
@@ -419,7 +704,7 @@ async def edit_event_submit_code(
         name,
         date,
         event_type_id,
-    custom_event_type,
+        custom_event_type,
         theme_id,
         welcome_message,
         upload_instructions,
@@ -439,6 +724,7 @@ async def edit_event_submit_code(
         heading_size,
         show_cover,
         banner_image,
+        csrf_token,
         db,
         user,
     )
@@ -473,7 +759,7 @@ async def lock_event_date(
         try:
             from datetime import datetime as _dt
 
-            setattr(event, "DateLockedAt", _dt.utcnow())
+            setattr(event, "DateLockedAt", _dt.now(timezone.utc))
         except Exception:
             pass
         # Insert EventLockAudit row
@@ -527,7 +813,137 @@ async def lock_event_date(
                 "request_id": getattr(request.state, "request_id", None),
             },
         )
+    # Prefer code-based redirect when available
+    try:
+        if getattr(event, "Code", None):
+            return RedirectResponse(f"/events/code/{event.Code}", status_code=303)
+    except Exception:
+        pass
     return RedirectResponse(f"/events/{event_id}", status_code=303)
+
+
+@router.post("/events/{event_id}/albums/create")
+async def create_album(
+    request: Request,
+    event_id: int,
+    name: str = Form(...),
+    db: Session = Depends(get_db),
+    user=Depends(require_user),
+):
+    # Create a named album for an event (owner only)
+    ev = db.query(Event).filter(Event.EventID == event_id).first()
+    if not ev:
+        raise HTTPException(status_code=404, detail="Event not found")
+    try:
+        if getattr(ev, 'UserID', None) != getattr(user, 'UserID', None):
+            raise HTTPException(status_code=403, detail='Forbidden')
+    except Exception:
+        pass
+    from app.models.album import Album
+    a = Album(EventID=event_id, Name=name)
+    db.add(a)
+    db.commit()
+    db.refresh(a)
+    return {"ok": True, "album_id": int(getattr(a, 'AlbumID'))}
+
+
+@router.get("/events/{event_id}/albums")
+async def list_albums(event_id: int, db: Session = Depends(get_db), user=Depends(require_user)):
+    # List albums for an event (owner view)
+    rows = []
+    try:
+        from app.models.album import Album
+        rows = (
+            db.query(Album)
+            .filter(Album.EventID == event_id)
+            .order_by(Album.CreatedAt.desc())
+            .all()
+        )
+        res = []
+        for a in rows:
+            res.append({
+                "id": int(getattr(a, 'AlbumID')),
+                "name": str(getattr(a, 'Name') or ''),
+                "count": int(len(getattr(a, 'photos') or [])),
+            })
+        return {"ok": True, "items": res}
+    except Exception:
+        return {"ok": True, "items": []}
+
+
+@router.post("/events/{event_id}/albums/{album_id}/add")
+async def album_add_photo(
+    event_id: int,
+    album_id: int,
+    file_id: int = Form(...),
+    db: Session = Depends(get_db),
+    user=Depends(require_user),
+):
+    # Add a file to an album
+    from app.models.album import Album, AlbumPhoto
+    from app.models.event import Event, FileMetadata
+    ev = db.query(Event).filter(Event.EventID == event_id).first()
+    if not ev:
+        raise HTTPException(status_code=404, detail='Event not found')
+    try:
+        if getattr(ev, 'UserID', None) != getattr(user, 'UserID', None):
+            raise HTTPException(status_code=403, detail='Forbidden')
+    except Exception:
+        pass
+    alb = db.query(Album).filter(Album.AlbumID == album_id, Album.EventID == event_id).first()
+    if not alb:
+        raise HTTPException(status_code=404, detail='Album not found')
+    fm = db.query(FileMetadata).filter(FileMetadata.FileID == int(file_id)).first()
+    if not fm:
+        raise HTTPException(status_code=404, detail='File not found')
+    ap = AlbumPhoto(AlbumID=alb.AlbumID, FileID=fm.FileID)
+    db.add(ap)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/events/{event_id}/albums/{album_id}/remove")
+async def album_remove_photo(
+    event_id: int,
+    album_id: int,
+    file_id: int = Form(...),
+    db: Session = Depends(get_db),
+    user=Depends(require_user),
+):
+    from app.models.album import AlbumPhoto
+    from app.models.event import Event
+    ev = db.query(Event).filter(Event.EventID == event_id).first()
+    if not ev:
+        raise HTTPException(status_code=404, detail='Event not found')
+    try:
+        if getattr(ev, 'UserID', None) != getattr(user, 'UserID', None):
+            raise HTTPException(status_code=403, detail='Forbidden')
+    except Exception:
+        pass
+    ap = (
+        db.query(AlbumPhoto)
+        .filter(
+            AlbumPhoto.AlbumID == album_id,
+            AlbumPhoto.FileID == int(file_id),
+        )
+        .first()
+    )
+    if not ap:
+        return {"ok": False, "error": "not found"}
+    db.delete(ap)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/e/{code}/lock-date", response_class=HTMLResponse)
+async def lock_event_date_by_code(
+    request: Request, code: str, db: Session = Depends(get_db), user=Depends(require_user)
+):
+    ev = db.query(Event).filter(Event.Code == code).first()
+    if not ev:
+        return RedirectResponse("/events", status_code=303)
+    # Delegate to existing numeric handler for business logic
+    return await lock_event_date(request, int(getattr(ev, "EventID")), db, user)
 
 
 @router.get("/events/code/{code}", response_class=HTMLResponse)
@@ -835,6 +1251,65 @@ async def upload_qr_logo(
     return JSONResponse({"ok": True, "path": rel})
 
 
+@router.post("/events/{event_id}/banner")
+async def upload_banner_ajax(
+    request: Request,
+    event_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user=Depends(require_user),
+):
+    from fastapi.responses import JSONResponse
+
+    event = db.query(Event).filter(Event.EventID == event_id).first()
+    if not event:
+        return JSONResponse({"ok": False, "error": "Event not found"}, status_code=404)
+    # Ownership check
+    try:
+        if getattr(event, "UserID", None) != getattr(user, "UserID", None):
+            return JSONResponse({"ok": False, "error": "Forbidden"}, status_code=403)
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Forbidden"}, status_code=403)
+    # Basic validation
+    if not file or not file.filename:
+        return JSONResponse({"ok": False, "error": "No file"}, status_code=400)
+    ctype = getattr(file, "content_type", "") or ""
+    if not ctype.startswith("image/"):
+        return JSONResponse({"ok": False, "error": "Unsupported type"}, status_code=400)
+    data = await file.read()
+    max_bytes = int(getattr(settings, "MAX_UPLOAD_BYTES", 200_000_000))
+    if max_bytes and len(data) > max_bytes:
+        return JSONResponse({"ok": False, "error": "File too large"}, status_code=400)
+    # Safe name and save under static/uploads/event_{id}_banner_{safe}
+    def _safe_name(name: str) -> str:
+        name = name.replace("\\", "/").split("/")[-1]
+        return re.sub(r"[^A-Za-z0-9._-]", "_", name)
+
+    safe = _safe_name(file.filename)
+    banner_path = f"static/uploads/event_{event_id}_banner_{safe}"
+    os.makedirs(os.path.dirname(banner_path), exist_ok=True)
+    try:
+        # Try to normalise image where possible
+        img = Image.open(_io.BytesIO(data)).convert("RGBA")
+        img.save(banner_path)
+    except Exception:
+        with open(banner_path, "wb") as fh:
+            fh.write(data)
+    rel = f"/{banner_path}"
+    try:
+        audit.info(
+            "events.edit.asset.banner_updated",
+            extra={
+                "event_id": event_id,
+                "file_name": getattr(file, "filename", None),
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
+    except Exception:
+        pass
+    return JSONResponse({"ok": True, "path": rel})
+
+
 @router.post("/events/{event_id}/guestbook/{message_id}/delete")
 async def guestbook_delete(
     request: Request,
@@ -1060,6 +1535,23 @@ async def events_dashboard(
     except Exception:
         for e in events:
             setattr(e, "SharedOnce", False)
+    # Annotate event tasks (purchase_extras, etc.) for current user
+    try:
+        from app.models.event import EventTask as ET
+
+        event_ids = [e.EventID for e in events]
+        rows = (
+            db.query(ET)
+            .filter(ET.EventID.in_(event_ids), ET.UserID == getattr(user, "UserID"))
+            .all()
+        )
+        done_map = {(r.EventID, getattr(r, "Key", None)): True for r in rows}
+        for e in events:
+            e_purchase = bool(done_map.get((getattr(e, "EventID"), "purchase_extras"), False))
+            setattr(e, "Task_purchase_extras", e_purchase)
+    except Exception:
+        for e in events:
+            setattr(e, "Task_purchase_extras", False)
     # Plan badge
     plan, features = (None, {})
     try:

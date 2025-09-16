@@ -6,6 +6,7 @@ from app.models.user import Base
 
 class AddonCatalog(Base):
     __tablename__ = "AddonCatalog"
+    __table_args__ = {"schema": "dbo"}
     AddonID = Column(Integer, primary_key=True, autoincrement=True)
     Code = Column(String(50), nullable=False, unique=True)
     Name = Column(String(120), nullable=False)
@@ -22,10 +23,11 @@ class AddonCatalog(Base):
 
 class EventAddonPurchase(Base):
     __tablename__ = "EventAddonPurchase"
+    __table_args__ = {"schema": "dbo"}
     PurchaseID = Column(Integer, primary_key=True, autoincrement=True)
     UserID = Column(Integer, ForeignKey("dbo.Users.UserID"), nullable=False)
     EventID = Column(Integer, ForeignKey("Event.EventID"), nullable=True)
-    AddonID = Column(Integer, ForeignKey("AddonCatalog.AddonID"), nullable=False)
+    AddonID = Column(Integer, ForeignKey("dbo.AddonCatalog.AddonID"), nullable=False)
     Quantity = Column(Integer, nullable=False, default=1)
     Amount = Column(Numeric(10, 2), nullable=False)
     Currency = Column(String(8), nullable=False, default="GBP")

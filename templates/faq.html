@@ -4,10 +4,8 @@
 
 {% block content %}
 <div class="container section center">
-  <div class="page-hero center">
-    <h1 class="hero-title">Frequently Asked Questions</h1>
-    <p class="hero-sub">Quick answers about uploading, privacy, plans, and more.</p>
-  </div>
+  {% from 'components/macros.html' import page_hero %}
+  {{ page_hero('Frequently Asked Questions', 'Quick answers about uploading, privacy, plans, and more.') }}
   <div class="card center" style="max-width:900px;">
     <div class="accordion" role="tablist">
       {% for item in qas %}

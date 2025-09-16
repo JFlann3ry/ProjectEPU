@@ -1,23 +1,18 @@
 {% extends "base.html" %}
+{% from "components/macros.html" import page_hero, notice %}
 
 {% block title %}Create Event - EPU{% endblock %}
 
 {% block breadcrumbs %}
+{% from 'components/macros.html' import breadcrumbs %}
 <div class="container section" style="padding-bottom:0;">
-    <nav class="breadcrumbs small muted" aria-label="Breadcrumb">
-        <a href="/events" class="crumb">My Events</a>
-        <span class="sep" aria-hidden="true">›</span>
-    <span class="crumb current" aria-current="page">Create Event</span>
-    </nav>
+    {{ breadcrumbs([{'label':'My Events','href':'/events'}], 'Create Event') }}
 </div>
 {% endblock %}
 {% block content %}
 <div class="container section center">
-    <div class="page-hero">
-        <h1 class="hero-title">Create a New Event</h1>
-        <p class="hero-sub">Set up your event details; you can customize visuals later.</p>
-    </div>
-    <form class="card form" method="post" action="/events/create" style="max-width:680px;">
+    {{ page_hero('Create a New Event', 'Set up your event details; you can customise visuals later.', True) }}
+    <form class="card form" method="post" action="/events/create" style="max-width:520px; width:100%; margin:0 auto;">
             <div class="floating-field">
                 <label for="name" class="fl-label">Event Name</label>
                 <input class="input-field" type="text" id="name" name="name" required>
@@ -40,14 +35,15 @@
                 <label for="type_custom" class="fl-label">Custom Type</label>
                 <input class="input-field" type="text" id="type_custom" name="type_custom">
             </div>
-            <label for="terms" class="p-bold checkbox-row">
-                <input type="checkbox" id="terms" name="terms" required class="checkbox-field">
-                <span>I agree to the <a href="/terms" target="_blank">terms</a></span>
+            <label for="terms" class="p-bold checkbox-row" id="terms-label">
+                <input type="checkbox" id="terms" name="terms" class="checkbox-field">
+                <span>I agree to the <a href="/terms" id="terms-link">terms and conditions</a></span>
             </label>
+            <div id="create-event-notice-container" style="margin-top:8px;"></div>
             {% if error %}
-            <div class="notice error">{{ error }}</div>
+            {{ notice(error, 'error') }}
             {% endif %}
-            <button type="submit" class="btn primary">Create Event</button>
+            <button type="submit" class="btn primary" style="display:block; margin:16px auto 0;">Create Event</button>
     </form>
 </div>
 <script>
@@ -63,5 +59,76 @@ typeSelect.addEventListener('change', function() {
         typeCustom.required = false;
     }
 });
+</script>
+<script>
+// Terms modal logic (reuse shared pattern from guest_upload)
+(function(){
+    var termsLink = document.getElementById('terms-link');
+    var termsCb = document.getElementById('terms');
+    if (!termsLink) return;
+    async function openSharedModal(){
+        try {
+            const res = await fetch('/terms/embed', { headers: { 'X-Requested-With':'fetch' } });
+            const html = await res.text();
+            const body = '<div style="height:65vh; overflow:auto; padding:12px 16px;">'+ html +'</div>';
+            if (window.EPU && window.EPU.modal){
+                window.EPU.modal.show({
+                    title: 'Terms and Conditions',
+                    body: body,
+                    fit: true,
+                    actions: [
+                        { label: 'Cancel', role: 'cancel' },
+                        { label: 'I Agree', onClick: function(h){ if (termsCb) termsCb.checked = true; h(); } }
+                    ]
+                });
+            } else {
+                // fallback: open full page
+                window.open('/terms', '_blank');
+            }
+        } catch (e){
+            if (window.EPU && window.EPU.modal){
+                window.EPU.modal.show({ title: 'Terms and Conditions', body: '<p class="muted">Could not load terms. Please open the full page: <a href="/terms" target="_blank">/terms</a></p>', actions: [{ label:'Close', role:'cancel' }], fit: true });
+            } else {
+                window.open('/terms', '_blank');
+            }
+        }
+    }
+    termsLink.addEventListener('click', function(e){ e.preventDefault(); openSharedModal(); });
+})();
+</script>
+<script>
+// Replace browser native required tooltip with a site-styled notice
+(function(){
+    var form = document.querySelector('form.card.form[action="/events/create"]');
+    if (!form) return;
+    var terms = document.getElementById('terms');
+    var noticeContainer = document.getElementById('create-event-notice-container');
+    form.addEventListener('submit', function(e){
+        if (!terms) return; // nothing to do
+        if (terms.checked) return; // allow normal submit
+        // prevent native validation tooltip
+        e.preventDefault();
+        // render site-styled notice if available
+        if (window.EPU && window.EPU.ui && typeof window.EPU.ui.renderNotice === 'function'){
+            noticeContainer.innerHTML = window.EPU.ui.renderNotice('Please accept the Terms and Conditions to continue.', 'warn', 'style="margin-bottom:10px;"');
+        } else if (window.EPU && window.EPU.snackbar){
+            window.EPU.snackbar.show('Please accept the Terms and Conditions to continue.');
+        } else {
+            alert('Please accept the Terms and Conditions to continue.');
+        }
+        var lbl = document.getElementById('terms-label');
+        if (lbl){ lbl.style.transition='outline-color .2s'; lbl.style.outline='2px solid var(--accent)'; setTimeout(function(){ lbl.style.outline=''; }, 1500); }
+        try { terms.focus(); } catch (e){}
+        return false;
+    });
+    // Remove any warning notice when the checkbox is ticked
+    if (terms){
+        terms.addEventListener('change', function(){
+            if (terms.checked && noticeContainer){
+                noticeContainer.innerHTML = '';
+            }
+        });
+    }
+})();
 </script>
 {% endblock %}
