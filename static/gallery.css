@@ -2,10 +2,56 @@
 /* Masonry layout using CSS columns */
 .dynamic-gallery {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    /* Ensure we place items row-first so DOM order -> visual order is left-to-right, top-to-bottom */
+    grid-auto-flow: row;
+    /* base row height used by JS row-first masonry packing */
+    grid-auto-rows: 8px;
+    /* maximum tile height (px) to prevent extremely tall videos */
+    --gallery-max-tile-height: 420px;
+    /* Responsive grid: auto-fill columns so tiles wrap naturally; we use per-tile aspect-ratio
+       (set by JS from image natural dimensions) to size tiles and preserve order. */
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 1.2rem;
     margin-top: 1rem;
 }
+.dynamic-gallery {
+    /* configurable video portrait ratio: height = width * var(--gallery-video-portrait-ratio) */
+    --gallery-video-portrait-ratio: 1.25; /* default: slightly taller than square but shorter than 4:3 */
+}
+/* Column-style masonry (Explorer-like) - applied when JS toggles .masonry-columns on the gallery */
+.dynamic-gallery.masonry-columns {
+    display: block; /* container becomes a block wrapper for columns */
+    margin-top: 1rem;
+    overflow-x: hidden; /* prevent column overflow when JS recalculates */
+}
+.dynamic-gallery.masonry-columns .masonry-columns {
+    display: flex;
+    gap: 1.2rem;
+    align-items: flex-start;
+    flex-wrap: wrap; /* allow headings/full-width rows and safe wrapping */
+    width: 100%;
+    box-sizing: border-box;
+}
+.dynamic-gallery.masonry-columns .masonry-column {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+    min-width: 220px; /* prevent excessive column counts */
+    box-sizing: border-box;
+    min-height: 0;
+}
+.dynamic-gallery.masonry-columns .gallery-item,
+.dynamic-gallery.masonry-columns .group-heading {
+    width: 100%;
+    margin: 0; /* spacing handled by column gap */
+    grid-row-end: unset; /* ensure grid-span styles don't interfere */
+}
+
+/* when using columns, the checkbox and absolute badges still overlay correctly */
+.dynamic-gallery.masonry-columns .gallery-item { border-radius: 12px; overflow: hidden; }
+/* Previously we used an absolute-positioned packing layout; we now use grid row-first
+   masonry by setting per-tile grid-row spans from JS. */
 @media (max-width: 1400px) { .dynamic-gallery { grid-template-columns: repeat(4, 1fr); } }
 @media (max-width: 1100px) { .dynamic-gallery { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 900px)  { .dynamic-gallery { grid-template-columns: repeat(2, 1fr); } }
@@ -19,21 +65,20 @@
     overflow: hidden;
     cursor: pointer;
     transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
-    display: flex;
-    flex-direction: column;
+    display: block;
+    /* Provide a sensible minimum height to avoid very thin tiles while JS computes exact height */
+    min-height: 140px;
+    /* Remove text/inline-image whitespace below images */
+    line-height: 0;
 }
 
 /* Support for items that span multiple columns when using JS row-first masonry
-   The JS will set width/left/top for absolute positioned tiles. Provide a
-   fallback CSS rule for when JS hasn't run yet: a two-column span class. */
-.gallery-item.span-2 {
-    grid-column: span 2;
-}
+    The JS will set width/left/top for absolute positioned tiles. Colspan/span-2
+    logic has been intentionally disabled to preserve server-provided ordinal
+    ordering; do not rely on the `.span-2` class. */
 
 /* Attribute selector to allow server-side hints before JS runs */
-[data-colspan="2"] {
-    /* Ensure the media content stretches visually in CSS grid before JS reflow */
-}
+
 
 /* Skeleton loader state */
 .gallery-item.skeleton {
@@ -74,10 +119,16 @@
 
 .gallery-img, .gallery-video {
     width: 100%;
-    height: auto;
+    height: auto; /* allow aspect-ratio to determine height */
     display: block;
     object-fit: cover;
     background: #0b0b0c;
+    margin: 0;
+}
+.gallery-video {
+    /* Videos will occupy the full tile and be cropped if necessary so their tile size matches portrait photos */
+    object-fit: cover;
+    background: #000; /* black background behind video */
 }
 
 .gallery-img.is-warming {
@@ -288,6 +339,26 @@
     border-radius: 12px;
     box-shadow: 0 10px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04);
 }
+.lightbox-content.loading {
+    /* Reserve a sensible minimum so the lightbox doesn't collapse to the thumbnail size
+       while the high-res image is preloading. */
+    min-width: 320px;
+    min-height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.lightbox-content.loading::after {
+    content: '';
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.12);
+    border-top-color: var(--lightbox-accent);
+    animation: lb-spin 0.9s linear infinite;
+    display: block;
+}
+@keyframes lb-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .lightbox-content img, .lightbox-content video {
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.35);

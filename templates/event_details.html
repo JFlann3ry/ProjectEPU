@@ -143,7 +143,7 @@
             <h3>Guest Upload</h3>
             <div class="qr-wrap">
                 <a href="{{ guest_url }}" target="_blank" style="display:inline-block;">
-                    <img class="qr" src="/qr?url={{ guest_url | urlencode }}&theme=classic&fg={{ (custom.QRFillColour or custom.ButtonColour1 or '#000000')|urlencode }}&bg={{ (custom.QRBackColour or custom.BackgroundColour or '#ffffff')|urlencode }}" alt="QR Code to guest upload" style="width:140px;height:140px;border-radius:8px;display:block;">
+                        <img class="qr" src="/qr?url={{ guest_url | urlencode }}&theme=classic&logo={{ 0 if (event_custom and event_custom.RemoveWebsiteLogo) else 1 }}&fg={{ (custom.QRFillColour or custom.ButtonColour1 or '#000000')|urlencode }}&bg={{ (custom.QRBackColour or custom.BackgroundColour or '#ffffff')|urlencode }}" alt="QR Code to guest upload" style="width:140px;height:140px;border-radius:8px;display:block;">
                 </a>
             </div>
             <form class="form" style="margin-top:6px; background: transparent; border: none; padding: 0;">

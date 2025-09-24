@@ -231,8 +231,14 @@ async def guest_upload_post(
             setattr(guest_session, "TermsChecked", bool(terms))
             db.commit()
         guest_id = guest_session.GuestID
-        storage_path = os.path.join("storage", str(user_id), str(event_id))
-        os.makedirs(storage_path, exist_ok=True)
+        # Ensure event storage layout exists: base/, uploads/, thumbnails/
+        event_base_path = os.path.join("storage", str(user_id), str(event_id))
+        uploads_base = os.path.join(event_base_path, "uploads")
+        thumbs_base = os.path.join(event_base_path, "thumbnails")
+        os.makedirs(uploads_base, exist_ok=True)
+        os.makedirs(thumbs_base, exist_ok=True)
+        # Keep storage_path variable for compatibility with downstream accounting
+        storage_path = event_base_path
 
         upload_count = 0
         from app.services.metadata_utils import (
@@ -379,7 +385,8 @@ async def guest_upload_post(
         for contents, sniffed, orig_name in prechecked_files:
             fname = safe_name(orig_name)
             # We'll compute metadata first to get checksum for duplicate detection
-            tmp_path = unique_path(storage_path, fname)
+            # Store uploaded files under the uploads/ subfolder
+            tmp_path = unique_path(uploads_base, fname)
             with open(tmp_path, "wb") as buffer:
                 buffer.write(contents)
             total_bytes += len(contents)
@@ -414,6 +421,7 @@ async def guest_upload_post(
                 continue
             file_path = tmp_path
             # Save metadata
+            # Persist only the uploads-relative filename (stored in uploads/)
             stored_name = os.path.basename(file_path)
             metadata = FileMetadata(
                 EventID=event_id,
@@ -437,7 +445,7 @@ async def guest_upload_post(
             int(getattr(guest_session, "UploadCount", 0) or 0) + upload_count,
         )
         db.commit()
-        # Fire-and-forget background thumb generation to avoid on-demand cost
+    # Fire-and-forget background thumb generation to avoid on-demand cost
         try:
             import threading
 
@@ -465,6 +473,18 @@ async def guest_upload_post(
             )
             t = threading.Thread(target=_thumb_job, args=(user_id, event_id, new_recs), daemon=True)
             t.start()
+        except Exception:
+            pass
+        # Rebuild gallery order synchronously so newly uploaded files appear
+        # in the EventGalleryOrder table immediately for UI and API consumers.
+        try:
+            from app.services.photo_order_service import rebuild_event_gallery_order
+
+            try:
+                rebuild_event_gallery_order(db, event_id)
+            except Exception:
+                # Non-fatal: don't fail upload on ordering issues
+                audit.exception("guest.upload.order_rebuild_failed", extra={"event_id": event_id})
         except Exception:
             pass
         audit.info(

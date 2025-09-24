@@ -52,6 +52,8 @@ class EventCustomisation(Base):
     # QR custom colours
     QRFillColour = Column(String(16), nullable=True)
     QRBackColour = Column(String(16), nullable=True)
+    # Allow owners (ultimate) to opt-out of website logo being applied to QR codes
+    RemoveWebsiteLogo = Column(Boolean, default=False)
     # New lightweight customization options
     ButtonStyle = Column(String(16), nullable=True)  # 'gradient' or 'solid'
     # Optional gradient parameters when ButtonStyle == 'gradient'

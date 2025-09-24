@@ -37,7 +37,7 @@ function boot(){
         const plan = btn.getAttribute('data-plan');
         await startCheckout(plan);
       } catch (e) {
-        if (window.EPU?.snackbar) window.EPU.snackbar.show('Unable to start checkout');
+      if (window.EPU && window.EPU.snackbar && typeof window.EPU.snackbar.show === 'function') window.EPU.snackbar.show('Unable to start checkout');
       }
     });
   });

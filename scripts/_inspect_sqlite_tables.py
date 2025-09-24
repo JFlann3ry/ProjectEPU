@@ -1,11 +1,10 @@
 import os
+
 os.environ['TEST_SQLITE'] = '1'
 from sqlalchemy import text
 
 # Force sqlite inspection mode for this script
 os.environ["TEST_SQLITE"] = "1"
-
-from db import engine
 
 # Import many models to register tables with SQLAlchemy metadata.
 # These imports may be unused directly in this script but are required to
@@ -20,6 +19,7 @@ import app.models.logging  # noqa: F401
 import app.models.user  # noqa: F401
 import app.models.user_prefs  # noqa: F401
 from app.models.user import Base as UserBase
+from db import engine
 
 
 def main() -> None:

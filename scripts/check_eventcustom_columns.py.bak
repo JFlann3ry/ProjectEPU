@@ -1,0 +1,13 @@
+# Script to print columns of EventCustomisation table using the project's DB engine
+from db import engine
+from sqlalchemy import text
+
+
+with engine.connect() as conn:
+    res = conn.execute(
+        text(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='EventCustomisation' ORDER BY ORDINAL_POSITION"
+        )
+    )
+    cols = [row[0] for row in res.fetchall()]
+    print(cols)

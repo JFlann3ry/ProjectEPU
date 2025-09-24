@@ -1,0 +1,41 @@
+name: Build frontend (React gallery)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-gallery:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        working-directory: frontend/gallery
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend/gallery
+        run: npm run build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gallery-dist
+          path: frontend/gallery/dist
+
+      - name: Publish static to deployment (optional)
+        if: true
+        run: |
+          # Copy built assets to static/gallery so the backend can serve them directly
+          mkdir -p static/gallery
+          cp -r frontend/gallery/dist/* static/gallery/
+*** End Patch

@@ -1,5 +1,10 @@
 // Gallery: video tiles open lightbox, arrow keys navigate, and order matches visual rows.
+// Prevent legacy script from running when the modern module-based gallery is loaded.
+// The new module lives at `window.GalleryModule`. If present, skip the legacy bootstrap
+// to avoid competing DOM reorders and selection UI wiring which caused the gallery to
+// appear out-of-order after infinite-scroll appends.
 (function(){
+  try{ if (typeof window !== 'undefined' && window.GalleryModule) { if (window.__GALLERY_DEBUG) console.debug('legacy static/gallery.js skipped in favor of GalleryModule'); return; } } catch(_){}
   // State
   const initial = Array.isArray(window.galleryFiles) ? window.galleryFiles : [];
   const seen = new Set();
@@ -75,6 +80,36 @@
     }catch(_){ }
   }
 
+  // Bulk action UI: show/hide bulk bar, enable buttons and wire select-all/clear
+  function initBulkBarLegacy(){
+    try{
+      const bulkBar = document.getElementById('bulk-bar');
+      const bulkCount = document.getElementById('bulk-count');
+      const btnClear = document.getElementById('bb-clear');
+      const btnDelete = document.getElementById('bb-delete');
+      const btnRestore = document.getElementById('bb-restore');
+      const btnZip = document.getElementById('bb-zip');
+      const btnAdd = document.getElementById('bb-add-to-album');
+      const selectAllBtn = document.getElementById('select-all');
+      function getSelectedIds(){ return Array.from(document.querySelectorAll('.select-chk:checked')).map(i=>parseInt(i.getAttribute('data-id'))).filter(i=>!isNaN(i)); }
+      if (selectAllBtn){ selectAllBtn.addEventListener('click', function(){ const visible = Array.from(document.querySelectorAll('#gallery .gallery-item .select-chk')); if (!visible.length) return; const allChecked = visible.every(chk=>chk.checked); visible.forEach(chk=>chk.checked = !allChecked); updateSelectionUI(); }); }
+      if (btnClear) btnClear.addEventListener('click', function(){ Array.from(document.querySelectorAll('.select-chk:checked')).forEach(c=>c.checked=false); updateSelectionUI(); });
+      if (btnDelete) btnDelete.addEventListener('click', function(){ const ids = getSelectedIds(); if (!ids.length) return; const dlg = document.getElementById('delete-confirm'); if (dlg) dlg.style.display='flex'; });
+      if (btnRestore) btnRestore.addEventListener('click', function(){ const ids = getSelectedIds(); if (!ids.length) return; const form = document.getElementById('restore-form'); if (form){ Array.from(form.querySelectorAll('input[name="file_ids"]')).forEach(i=>i.remove()); ids.forEach(id=>{ const h = document.createElement('input'); h.type='hidden'; h.name='file_ids'; h.value=String(id); form.appendChild(h); } ); form.submit(); } });
+      if (btnZip) btnZip.addEventListener('click', function(){ const ids = getSelectedIds(); if (!ids.length) return; const form = document.getElementById('zip-form'); if (form){ Array.from(form.querySelectorAll('input[name="file_ids"]')).forEach(i=>i.remove()); ids.forEach(id=>{ const h = document.createElement('input'); h.type='hidden'; h.name='file_ids'; h.value=String(id); form.appendChild(h); } ); form.submit(); } });
+      if (btnAdd) btnAdd.addEventListener('click', function(){ const ids = getSelectedIds(); if (!ids.length) return; if (typeof openAddToAlbumModal === 'function') openAddToAlbumModal(ids); });
+
+      // confirm delete button inside modal (id: del-confirm) should submit delete-form
+      const delConfirmBtn = document.getElementById('del-confirm');
+      if (delConfirmBtn){ delConfirmBtn.addEventListener('click', function(){ const ids = getSelectedIds(); if (!ids.length) return; const form = document.getElementById('delete-form'); if (form){ Array.from(form.querySelectorAll('input[name="file_ids"]')).forEach(i=>i.remove()); ids.forEach(id=>{ const h = document.createElement('input'); h.type='hidden'; h.name='file_ids'; h.value=String(id); form.appendChild(h); } ); form.submit(); } }); }
+
+      // expose updateSelectionUI globally for other scripts
+      if (typeof window.updateSelectionUI !== 'function') window.updateSelectionUI = function(){ try{ const ids = getSelectedIds(); const n = ids.length; if (bulkBar && bulkCount) { bulkCount.textContent = n + (n===1? ' selected' : ' selected'); bulkBar.style.display = n>0? 'block' : 'none'; } if (btnDelete) btnDelete.disabled = n===0; if (btnRestore) btnRestore.disabled = n===0; if (btnZip) btnZip.disabled = n===0; if (btnAdd) btnAdd.disabled = n===0; }catch(e){} };
+      // initialize
+      try{ window.updateSelectionUI(); }catch(e){}
+    }catch(e){}
+  }
+
   function initFromDOM(){
     try{
       const gal = document.querySelector('.dynamic-gallery'); if (!gal) return;
@@ -98,7 +133,8 @@
         else {
           const isVid = !!tile.querySelector('video');
           const img = tile.querySelector('img');
-          const url = isVid ? (tile.querySelector('video')?.getAttribute('src') || '') : (img?.getAttribute('data-full') || img?.getAttribute('src') || '');
+          const videoEl = tile.querySelector('video');
+          const url = isVid ? ((videoEl && videoEl.getAttribute('src')) || '') : ((img && (img.getAttribute('data-full') || img.getAttribute('src'))) || '');
           newFiles.push({ id, type: isVid ? 'video' : 'image', url, favorite:false });
         }
       });
@@ -176,8 +212,9 @@
     // fade in
     try { document.querySelectorAll('.gallery-item').forEach((item,i)=>{ item.style.opacity=0; setTimeout(()=>{ item.style.transition='opacity 0.5s'; item.style.opacity=1; }, 100 + i*80); }); } catch(_){}
 
-    // slideshow
-    document.getElementById('play-slideshow')?.addEventListener('click', function(){
+  // slideshow
+  const playBtn = document.getElementById('play-slideshow');
+  if (playBtn) playBtn.addEventListener('click', function(){
       if (files.length===0) return; let idx=0; let playing=true; window.__slideshowPlaying = true;
       function showSlide(i){
         openLightbox(i); const f = files[i];
@@ -192,8 +229,9 @@
       if (closeBtn) closeBtn.onclick = function(){ playing=false; window.__slideshowPlaying=false; try { document.getElementById('lightbox-video').pause(); } catch(_){} closeLightbox(); };
     });
 
-    if (typeof updateSelectionUI === 'function') updateSelectionUI();
-    if (typeof renderFavoritesCount === 'function') renderFavoritesCount();
+  if (typeof updateSelectionUI === 'function') updateSelectionUI();
+  if (typeof renderFavoritesCount === 'function') renderFavoritesCount();
+  try{ if (typeof initBulkBarLegacy === 'function') initBulkBarLegacy(); } catch(e) {}
     setTimeout(()=>{ try { rebuildGalleryOrder(); } catch(_){} }, 120);
     let reb; window.addEventListener('resize', ()=>{ clearTimeout(reb); reb = setTimeout(()=>{ try { rebuildGalleryOrder(); } catch(_){} }, 150); });
   }

@@ -6,6 +6,8 @@
   /* Edit Event page scoped styles */
   /* Shared width for hex inputs and color swatches */
   .edit-event { --hex-width: 164px; }
+  /* QR-specific override: use half-width for the smaller QR swatch + hex inputs */
+  .edit-event .qr-card { --qr-hex-width: calc(var(--hex-width) / 2); }
   /* Use default site container width; no page-level override */
   /* Make the main edit form fill the container (form.css sets max-width:368px by default) */
   .edit-event > form.form.card { max-width: 100%; width: 100%; }
@@ -75,11 +77,15 @@
   .edit-event #theme-editor-like .color-row .mono { width: 100%; }
   }
   /* QR section layout and polish */
-  .edit-event .qr-card .qr-grid { display: grid; grid-template-columns: 1fr 180px; gap: 12px; align-items: start; }
-  .edit-event .qr-card .qr-preview { display: flex; flex-direction: column; align-items: center; gap: 8px; align-self: center; }
-  .edit-event .qr-card .qr-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; align-items: start; min-width: 0; }
+  /* Make the left controls auto-size (narrow) and give the preview a larger fixed column */
+  /* Make the left controls narrow and the preview a bit smaller to avoid overlap */
+  /* Make the QR card two equal columns: controls on left, preview on right (50% / 50%) */
+  .edit-event .qr-card .qr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  .edit-event .qr-card .qr-preview { display: flex; flex-direction: column; align-items: center; gap: 8px; align-self: center; padding: 0; margin: 0; }
+  /* Controls column fills the left grid column (50% of the card); inputs stack and fill that column */
+  .edit-event .qr-card .qr-controls { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; min-width: 0; width: 100%; box-sizing: border-box; }
   .edit-event .qr-card .qr-controls .floating-field { min-width: 0; }
-  .edit-event .qr-card .qr-controls { max-width: 100%; width: 100%; box-sizing: border-box; overflow: hidden; }
+  .edit-event .qr-card .qr-controls { max-width: 100%; width: 100%; box-sizing: border-box; }
   .edit-event .qr-card h3 { margin-top: 0; }
   /* Ensure the QR card header has no odd background */
   .edit-event .qr-card h3 { background: transparent !important; background-image: none !important; box-shadow: none !important; border: 0 !important; padding: 0; }
@@ -88,14 +94,19 @@
   @media (max-width: 520px){ .edit-event .qr-card .qr-controls { grid-template-columns: 1fr; } }
   /* Tighter spacing before QR section */
   .edit-event .qr-card { margin-top: 8px; }
-  /* More generous spacing for QR colour controls; keep columns flexible to avoid overflow */
-  .edit-event .qr-card .qr-controls { gap: 14px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-  @media (min-width: 900px){ .edit-event .qr-card .qr-controls { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); } }
+  /* More generous spacing for QR colour controls; keep single stacked column so inputs fill the controls column */
+  .edit-event .qr-card .qr-controls { gap: 14px; grid-template-columns: 1fr; }
+  @media (min-width: 900px){ .edit-event .qr-card .qr-controls { grid-template-columns: 1fr; } }
   /* QR color rows mimic theme editor sizing/readability */
-  .edit-event .qr-card .color-row { display:grid; grid-template-columns: 1fr; gap:8px; align-items:start; min-width:0; }
+  /* Place QR swatch and hex input side-by-side (50% each) on larger screens so the QR preview can grow; collapse to stacked on small screens */
+  /* Stack swatch above hex but keep controls narrow so preview can be larger */
+  /* Keep swatch above hex input, but ensure they fill the controls column (which is 50% of the card) */
+  .edit-event .qr-card .color-row { display:grid; grid-template-columns: 1fr; gap:8px; align-items:start; min-width:0; width:100%; }
   .edit-event .qr-card .color-row .input-field { margin: 0; }
-  .edit-event .qr-card .color-swatch { width:100%; height:44px; padding:0; }
-  .edit-event .qr-card .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; background:#1a1b23 !important; color:#f5f7ff !important; border-color: rgba(255,255,255,0.24) !important; height:44px; line-height:44px; padding:0 10px; width:100%; box-sizing:border-box; min-width:0; }
+  /* Keep swatch full width inside the stacked layout, but visually smaller height */
+  .edit-event .qr-card .color-swatch { width:100%; height:40px; padding:0; box-sizing:border-box; }
+  .edit-event .qr-card .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; background:#1a1b23 !important; color:#f5f7ff !important; border-color: rgba(255,255,255,0.24) !important; height:40px; line-height:40px; padding:0 10px; width:100%; box-sizing:border-box; min-width:0; }
+  @media (max-width: 520px){ .edit-event .qr-card .qr-controls { width: 100%; } }
   .edit-event .qr-card .mono::placeholder { color:#c8c8d2; }
   .edit-event .qr-card .input-field:focus { box-shadow: 0 0 0 3px rgba(110,168,254,0.2); border-color: #6ea8fe; }
   /* Make floating labels readable on dark QR card */
@@ -108,6 +119,7 @@
   .edit-event .qr-card .qr-tip { font-size: 0.9em; opacity: 0.8; }
   .edit-event .qr-card .qr-preview .qr-tip { text-align: center; margin-top: 4px; }
   .edit-event .qr-card .qr-controls .qr-divider { grid-column: 1 / -1; height: 1px; background: rgba(255,255,255,0.08); margin: 4px 0 2px; border-radius: 1px; }
+  @media (max-width: 520px){ .edit-event .qr-card .color-row { grid-template-columns: 1fr; } }
   /* Custom file input: hide native, show styled button + filename */
   .edit-event .file-input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; clip-path: inset(50%); }
   .edit-event .file-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
@@ -123,6 +135,22 @@
   /* Ensure the Live Preview reflects the chosen font across all widgets */
   .edit-event #preview-root, .edit-event #preview-root * { font-family: var(--font, Inter, Arial, sans-serif) !important; }
   .edit-event #assets .file-row #banner_file_name { font-size: 0.85em; }
+  /* Strong override: make left controls a fixed 100px column and let preview take remaining space */
+  .edit-event .qr-card .qr-grid { grid-template-columns: 100px 1fr !important; }
+  .edit-event .qr-card .qr-controls { grid-column: 1 / 2 !important; width: 100% !important; justify-self: start !important; }
+  .edit-event .qr-card .qr-preview { grid-column: 2 / 3 !important; }
+  /* Make the hint span the full width of the QR card */
+  .edit-event .qr-card .qr-tip { grid-column: 1 / -1 !important; text-align: center; }
+
+  /* Left column: stack pickers and align left; each picker column is 100px wide */
+  .edit-event .qr-card .qr-controls .floating-field { width: 100% !important; display: block !important; }
+  .edit-event .qr-card .qr-controls .color-row { display: grid; grid-template-columns: 1fr; gap:6px; align-items:start; justify-items:start; width: 100%; }
+  .edit-event .qr-card .qr-controls .color-row .color-swatch { width: 100% !important; height:40px !important; box-sizing: border-box; }
+  .edit-event .qr-card .qr-controls .color-row .mono { width: 100% !important; box-sizing: border-box; }
+
+  /* Ensure the left column remains visually 100px: constrain contents by the parent grid column width */
+  .edit-event .qr-card { --qr-left-col: 100px; }
+  .edit-event .qr-card .qr-grid { grid-template-columns: var(--qr-left-col) 1fr !important; }
 </style>
 {% endblock %}
 {% block breadcrumbs %}
@@ -245,10 +273,12 @@
             <input class="file-input" type="file" id="banner_image" name="banner_image" accept="image/*">
             <label for="banner_image" class="btn sm">Choose file</label>
             <span id="banner_file_name" class="muted small">No file chosen</span>
+            <!-- Visible remove button restored so JS can wire to #remove-banner-btn -->
+            <button id="remove-banner-btn" type="button" class="btn danger sm" style="margin-left:8px; display: none;">Remove Image</button>
           </div>
           <div class="floating-field" style="margin-top:10px;">
             <input type="hidden" id="remove_banner" name="remove_banner" value="0">
-            <!-- Remove button removed from UI; backend still supports clearing on save if needed -->
+            <!-- Hidden legacy spot kept for compatibility; visible remove button lives next to file input -->
           </div>
         </div>
 
@@ -267,7 +297,7 @@
                 </div>
               </div>
               <div class="floating-field">
-                <label class="fl-label" for="qr-bg">Background Colour</label>
+                <label class="fl-label" for="qr-bg">Background</label>
                 <div class="color-row">
                   {% set qr_back_val = (custom.QRBackColour if custom and custom.QRBackColour else (custom.BackgroundColour if custom and custom.BackgroundColour else '#ffffff')) %}
                   <input id="qr-bg" class="input-field color-swatch" type="color" value="{{ qr_back_val }}">
@@ -280,14 +310,17 @@
             </div>
             {% if user_plan_code == 'ultimate' %}
             <div class="floating-field" style="margin-top:8px;">
-              <label class="checkbox-row"><input type="checkbox" id="qr-remove-logo" class="checkbox-field"><span>Remove website logo</span></label>
+              {# Persisted flag: submit via hidden input name 'qr_remove_logo' #}
+              <input type="hidden" id="qr-remove-logo-input" name="qr_remove_logo" value="{{ '1' if (custom and custom.RemoveWebsiteLogo) else '0' }}" form="event-edit-form">
+              <label class="checkbox-row"><input type="checkbox" id="qr-remove-logo" class="checkbox-field" {% if custom and custom.RemoveWebsiteLogo %}checked{% endif %}><span>Remove website logo</span></label>
             </div>
             {% endif %}
             <div class="qr-preview">
-  <img id="qr-img" class="qr" src="/qr?url={{ guest_url | urlencode }}&theme=classic&logo=1&fg={{ (custom.QRFillColour or custom.ButtonColour1 or '#000000')|urlencode }}&bg={{ (custom.QRBackColour or custom.BackgroundColour or '#ffffff')|urlencode }}" alt="QR Code to guest upload" style="width:140px;height:140px;border-radius:12px;display:block;">
-    <div class="qr-tip muted">Use high contrast (e.g. black on white) for the most reliable scans.</div>
+  {# Determine whether to show logo based on saved setting; default logo=1 unless RemoveWebsiteLogo true #}
+  <img id="qr-img" class="qr" src="/qr?url={{ guest_url | urlencode }}&theme=classic&logo={{ 0 if (custom and custom.RemoveWebsiteLogo) else 1 }}&fg={{ (custom.QRFillColour or custom.ButtonColour1 or '#000000')|urlencode }}&bg={{ (custom.QRBackColour or custom.BackgroundColour or '#ffffff')|urlencode }}" alt="QR Code to guest upload" style="width:100%;max-width:220px;height:auto;border-radius:12px;display:block;">
             </div>
           </div>
+           <div class="qr-tip muted">Use high contrast (e.g. black on white) for the most reliable scans.</div>
         </aside>
     </div>
       <div style="margin-top:12px;">
@@ -641,6 +674,20 @@ document.addEventListener('DOMContentLoaded', function(){
   
   const removeBannerHidden = document.getElementById('remove_banner');
   const removeBannerBtn = document.getElementById('remove-banner-btn');
+  // If a banner preview is present on load, display the remove button so user can clear it
+  (function(){
+    try{
+      const assetPreview = document.getElementById('asset-banner-preview');
+      const nameEl = document.getElementById('banner_file_name');
+      if (removeBannerBtn){
+        if ((assetPreview && assetPreview.getAttribute('src')) || (nameEl && nameEl.textContent && nameEl.textContent !== 'No file chosen')){
+          removeBannerBtn.style.display = '';
+        } else {
+          removeBannerBtn.style.display = 'none';
+        }
+      }
+    }catch(e){}
+  })();
   // Example swatches (removed for simplified preview)
   const exText = document.getElementById('ex-text');
   const exAccent = document.getElementById('ex-accent');
@@ -849,7 +896,8 @@ document.addEventListener('DOMContentLoaded', function(){
         : ((bsGradRadio && bsGradRadio.checked) ? 'gradient' : ((buttonStyle && buttonStyle.value) || (useTheme && data && data.style) || 'gradient'));
       if (gradientControls) { gradientControls.style.display = (styleVal === 'solid') ? 'none' : 'grid'; }
       if (gradientDirWrap) {
-        const selectedType = (document.getElementById('ButtonGradientStyle')?.value) || 'linear';
+          const bgsEl = document.getElementById('ButtonGradientStyle');
+          const selectedType = (bgsEl && bgsEl.value) || 'linear';
         gradientDirWrap.style.display = (styleVal === 'solid' || selectedType === 'radial') ? 'none' : 'block';
       }
       if (styleVal === 'solid'){
@@ -900,8 +948,10 @@ document.addEventListener('DOMContentLoaded', function(){
     if (meta){
       if (useTheme){
         if (swatch){
-          const dir = (document.getElementById('ButtonGradientDirection')?.value) || '90deg';
-          const sty = (document.getElementById('ButtonGradientStyle')?.value) || 'linear';
+          const dirSel = document.getElementById('ButtonGradientDirection');
+          const stySel = document.getElementById('ButtonGradientStyle');
+          const dir = (dirSel && dirSel.value) || '90deg';
+          const sty = (stySel && stySel.value) || 'linear';
           const gradCss = sty === 'radial'
             ? `radial-gradient(circle at center, ${gradStart} 0%, ${gradEnd} 100%)`
             : `linear-gradient(${dir}, ${gradStart} 0%, ${gradEnd} 100%)`;
@@ -931,6 +981,8 @@ document.addEventListener('DOMContentLoaded', function(){
       const nameEl = document.getElementById('banner_file_name');
       if (nameEl) { nameEl.textContent = file ? file.name : 'No file chosen'; }
       if (!file) return updatePreview();
+  // Show remove button once a file is chosen
+  if (removeBannerBtn) removeBannerBtn.style.display = '';
       const type = (file.type || '').toLowerCase();
       if (!type.startsWith('image/')){
         banner.value = '';
@@ -1017,9 +1069,9 @@ document.addEventListener('DOMContentLoaded', function(){
         font_family: (ffSelectEl && ffSelectEl.value) || (fontSelect && fontSelect.value) || '',
         input_background_color: getVal('InputBackgroundColour', ''),
         dropzone_background_color: getVal('DropzoneBackgroundColour', ''),
-        button_style: (document.getElementById('ButtonStyleSolid')?.checked ? 'solid' : 'gradient'),
-        button_gradient_style: (document.getElementById('ButtonGradientStyle')?.value) || 'linear',
-        button_gradient_direction: (document.getElementById('ButtonGradientDirection')?.value) || '90deg'
+  button_style: (document.getElementById('ButtonStyleSolid') && document.getElementById('ButtonStyleSolid').checked) ? 'solid' : 'gradient',
+  button_gradient_style: (document.getElementById('ButtonGradientStyle') && document.getElementById('ButtonGradientStyle').value) || 'linear',
+  button_gradient_direction: (document.getElementById('ButtonGradientDirection') && document.getElementById('ButtonGradientDirection').value) || '90deg'
       };
       Object.keys(payload).forEach(function(k){
         const el = document.getElementById(k);
@@ -1128,8 +1180,10 @@ document.addEventListener('DOMContentLoaded', function(){
     function relLum({r,g,b}){ const sr=[r,g,b].map(v=>{v/=255; return v<=0.03928? v/12.92: Math.pow((v+0.055)/1.055,2.4);}); return 0.2126*sr[0] + 0.7152*sr[1] + 0.0722*sr[2]; }
     function contrastRatio(bg, tx){ const L1=Math.max(bg,tx), L2=Math.min(bg,tx); return (L1+0.05)/(L2+0.05); }
     function updateContrast(){
-      const bg = hexToRgb(document.getElementById('BackgroundColour')?.value);
-      const tx = hexToRgb(document.getElementById('TextColour')?.value);
+  const bgEl = document.getElementById('BackgroundColour');
+  const txEl = document.getElementById('TextColour');
+  const bg = hexToRgb(bgEl && bgEl.value);
+  const tx = hexToRgb(txEl && txEl.value);
       const ratioEl = document.getElementById('contrast-ratio'); if (!bg || !tx || !ratioEl) return;
       const r = contrastRatio(relLum(bg), relLum(tx));
       ratioEl.textContent = r.toFixed(2) + ':1';
@@ -1173,7 +1227,8 @@ document.addEventListener('DOMContentLoaded', function(){
     [pvBanner, pvProgress, pvUploads].forEach(function(x){ if (x) x.addEventListener('change', applyToggles); });
     // If a banner already exists, enforce it on load: tick and lock, show cover, set background
     (function(){
-      var initialBanner = document.getElementById('initial-banner')?.getAttribute('data-url') || '';
+  var initialBannerEl = document.getElementById('initial-banner');
+  var initialBanner = initialBannerEl ? (initialBannerEl.getAttribute('data-url') || '') : '';
       if (initialBanner) {
         if (pvBanner) { pvBanner.checked = true; pvBanner.disabled = true; }
         if (coverWrap) { coverWrap.style.display = ''; }
@@ -1357,7 +1412,22 @@ document.addEventListener('DOMContentLoaded', function(){
   }
   // Wire ultimate-only logo toggle
   var qrLogoToggle = document.getElementById('qr-remove-logo');
-  if (qrLogoToggle) { qrLogoToggle.addEventListener('change', update); }
+  var qrLogoHidden = document.getElementById('qr-remove-logo-input');
+  function syncQrLogoHidden(){
+    try{
+      if (!qrLogoHidden || !qrLogoToggle) return;
+      // Hidden stores '1' when remove flag is true to match server expectations
+      qrLogoHidden.value = qrLogoToggle.checked ? '1' : '0';
+    }catch(e){}
+  }
+  if (qrLogoToggle) {
+    qrLogoToggle.addEventListener('change', function(){ syncQrLogoHidden(); update(); });
+    // initialize hidden state on load
+    syncQrLogoHidden();
+  }
+  // Ensure hidden input is correct on submit regardless of theme/custom mode
+  var outerForm = document.getElementById('event-edit-form');
+  if (outerForm){ outerForm.addEventListener('submit', function(){ syncQrLogoHidden(); }, true); }
   // logo upload removed
   // Removed login link input as it's not editable
 });

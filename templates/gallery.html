@@ -102,7 +102,7 @@
         {# Sorted by days_left; backend now guarantees an int for deleted files (or 9999 for unknown) #}
         {% set sorted_files = files|sort(attribute='days_left') %}
     {% endif %}
-    <div class="dynamic-gallery masonry-row-first" id="gallery" data-next-offset="{{ next_offset if next_offset is not none else '' }}" data-page-size="{{ page_size }}">
+    <div class="dynamic-gallery masonry-row-first" id="gallery" data-masonry="columns" data-target-col-width="300" data-next-offset="{{ next_offset if next_offset is not none else '' }}" data-page-size="{{ page_size }}">
             {% if filters and filters.show_deleted %}{% set ns = namespace(last_days=None) %}{% endif %}
             {% for file in sorted_files %}
             {% set days = file.days_left if file.days_left is number else 9999 %}
@@ -114,10 +114,8 @@
             {% endif %}
             {% if file.type == 'video' %}
                 {% set cls = 'gallery-item gallery-large gallery-video-tile gallery-clickable' %}
-                {% set row_span = 2 %}
             {% else %}
                 {% set cls = 'gallery-item gallery-clickable' %}
-                {% set row_span = [1,2] | random %}
             {% endif %}
             <div class="{{ cls }}" data-index="{{ loop.index0 }}" data-name="{{ file.name }}" data-datetime="{{ file.datetime or '' }}">
                 <input type="checkbox" class="select-chk" data-id="{{ file.id }}">

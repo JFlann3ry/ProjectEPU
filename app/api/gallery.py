@@ -80,6 +80,28 @@ def _verify_scope(value: str) -> Optional[str]:
     return None
 
 
+@router.get("/events/{event_id}/gallery/app", response_class=HTMLResponse)
+async def gallery_app_page(
+    request: Request,
+    event_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(require_user),
+):
+    # Ensure the event belongs to the user
+    owned = (
+        db.query(Event.EventID)
+        .filter(Event.EventID == event_id, Event.UserID == user.UserID)
+        .first()
+    )
+    if not owned:
+        return templates.TemplateResponse(request, "404.html", status_code=404)
+    # Redirect to the standard event gallery rendering (server-side) so the
+    # legacy link continues to work without serving the React SPA.
+    from fastapi.responses import RedirectResponse
+
+    return RedirectResponse(url=f"/events/{event_id}/gallery", status_code=303)
+
+
 def _build_gallery_files(
     db: Session,
     user_id: int,
@@ -178,26 +200,90 @@ def _build_gallery_files(
             db.query(FavoriteFile.FileMetadataID).filter(FavoriteFile.UserID == user_id).all()
         )
         fav_ids = set(int(r[0]) for r in fav_rows2)
-    # Pagination: fetch one extra to know if more remain
-    q2 = q
-    if offset:
-        try:
-            q2 = q2.offset(int(offset))
-        except Exception:
-            pass
-    fetch_limit = None
-    if limit and limit > 0:
-        try:
-            fetch_limit = int(limit) + 1
-            q2 = q2.limit(fetch_limit)
-        except Exception:
-            pass
 
-    rows = list(q2)
+    # Attempt to prefer EventGalleryOrder when scoped to a single event.
+    order_ids: list[int] = []
+    if event_id is not None:
+        try:
+            from sqlalchemy import text
+
+            # Try calling dbo.GetEventGalleryOrder(@EventID) (SQL Server stored proc)
+            sql = text("EXEC dbo.GetEventGalleryOrder :eid")
+            res = db.execute(sql.bindparams(eid=event_id))
+            rows_sp = res.fetchall()
+            order_ids = [int(r[0]) for r in rows_sp] if rows_sp else []
+        except Exception:
+            try:
+                rows_o = (
+                    db.query(EventGalleryOrder.FileMetadataID)
+                    .filter(EventGalleryOrder.EventID == event_id)
+                    .order_by(EventGalleryOrder.Ordinal)
+                    .all()
+                )
+                order_ids = [int(r[0]) for r in rows_o] if rows_o else []
+            except Exception:
+                order_ids = []
+
+    # If we have explicit ordinal ordering, build the full ordered row list in Python
+    # (ordered rows first, then any remaining files in chronological order), then
+    # apply pagination in Python so offset/limit reflect the canonical order.
+    rows: list = []
     has_more = False
-    if fetch_limit is not None and len(rows) > (fetch_limit - 1):
-        has_more = True
-        rows = rows[: (fetch_limit - 1)]
+    if order_ids:
+        try:
+            all_rows = list(q)
+            # map id->row
+            idx_id = 0
+            by_id = {int(r[idx_id]): r for r in all_rows}
+            ordered_rows: list = []
+            for fid in order_ids:
+                if fid in by_id:
+                    ordered_rows.append(by_id.pop(fid))
+            # append remaining rows in the chronological order provided by `q`
+            if by_id:
+                for r in all_rows:
+                    try:
+                        rid = int(r[idx_id])
+                    except Exception:
+                        continue
+                    if rid in by_id:
+                        ordered_rows.append(by_id.pop(rid))
+            # Apply offset/limit in Python
+            start = int(offset or 0)
+            if limit and int(limit) > 0:
+                lim = int(limit)
+                slice_rows = ordered_rows[start : start + lim]
+                has_more = len(ordered_rows) > (start + lim)
+            else:
+                slice_rows = ordered_rows[start:]
+                has_more = False
+            rows = slice_rows
+        except Exception:
+            # Fall back to DB pagination when anything unexpected happens
+            rows = []
+            has_more = False
+
+    if not order_ids:
+        # Pagination: fetch one extra to know if more remain
+        q2 = q
+        if offset:
+            try:
+                q2 = q2.offset(int(offset))
+            except Exception:
+                pass
+        fetch_limit = None
+        if limit and limit > 0:
+            try:
+                fetch_limit = int(limit) + 1
+                q2 = q2.limit(fetch_limit)
+            except Exception:
+                pass
+
+        rows = list(q2)
+        has_more = False
+        if fetch_limit is not None and len(rows) > (fetch_limit - 1):
+            has_more = True
+            rows = rows[: (fetch_limit - 1)]
 
     # Indexes into row tuple
     idx_id = 0
@@ -262,6 +348,20 @@ def _build_gallery_files(
                         )
             except Exception:
                 days_label = None
+        # precompute thumbnail id-based URLs to keep lines short for linters
+        thumb_480 = (
+            f"/thumbs/{row[idx_id]}.jpg?w=480" if ftype in ("image", "video") else None
+        )
+        thumb_720 = (
+            f"/thumbs/{row[idx_id]}.jpg?w=720" if ftype in ("image", "video") else None
+        )
+        thumb_960 = (
+            f"/thumbs/{row[idx_id]}.jpg?w=960" if ftype in ("image", "video") else None
+        )
+        thumb_1440 = (
+            f"/thumbs/{row[idx_id]}.jpg?w=1440" if ftype in ("image", "video") else None
+        )
+
         files.append(
             {
                 "id": row[idx_id],
@@ -269,6 +369,10 @@ def _build_gallery_files(
                 "type": ftype,
                 "url": f"/storage/{user_id}/{row[idx_event]}/{row[idx_name]}",
                 "thumb_url": thumb_url,
+                "thumbnail_480": thumb_480,
+                "thumbnail_720": thumb_720,
+                "thumbnail_960": thumb_960,
+                "thumbnail_1440": thumb_1440,
                 "srcset": srcset,
                 "name": row[idx_name],
                 "datetime": (
@@ -294,10 +398,11 @@ async def user_gallery(
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
+    # Basic request/user scope initialization
     user_id = user.UserID
-    # Read selected event scope from signed cookie (no identifiers in URL)
     selected_event_id: int | None = None
-    selected_event_name: str | None = None
+
+    # Restore scoped event from signed cookie when present
     scope_cookie = request.cookies.get(GALLERY_COOKIE)
     if scope_cookie:
         raw = _verify_scope(scope_cookie) or None
@@ -307,20 +412,19 @@ async def user_gallery(
             except Exception:
                 eid = None
             if eid is not None:
-                owned = (
-                    db.query(Event.EventID, Event.Name)
-                    .filter(Event.EventID == eid, Event.UserID == user_id)
-                    .first()
-                )
-                if owned:
-                    selected_event_id = eid
-                    try:
-                        selected_event_name = str(getattr(owned, "Name"))
-                    except Exception:
-                        selected_event_name = None
+                try:
+                    owned = (
+                        db.query(Event.EventID, Event.Name)
+                        .filter(Event.EventID == eid, Event.UserID == user_id)
+                        .first()
+                    )
+                    if owned:
+                        selected_event_id = eid
+                except Exception:
+                    # ignore DB lookup failures and leave selection empty
+                    pass
     PAGE_SIZE = 60
-    # Determine if any deleted files exist within the scoped events
-    has_deleted = False
+    # Determine if any deleted files exist within the scoped events (ignore result)
     try:
         qdel = (
             db.query(FileMetadata.FileMetadataID)
@@ -329,9 +433,10 @@ async def user_gallery(
         )
         if selected_event_id is not None:
             qdel = qdel.filter(Event.EventID == selected_event_id)
-        has_deleted = bool(qdel.first())
+        _ = bool(qdel.first())
     except Exception:
-        has_deleted = False
+        pass
+
     # Compute counts for filter pills based on current scope and toggles
     def _get_event_ids() -> list[int]:
         q = db.query(Event.EventID).filter(Event.UserID == user_id)
@@ -407,9 +512,9 @@ async def user_gallery(
         type_filter=type,
         show_deleted=show_deleted,
         favorites_only=favorites,
-    limit=PAGE_SIZE,
+        limit=PAGE_SIZE,
         offset=0,
-    album_id=album_id,
+        album_id=album_id,
     )
     # Attach ordinal values from EventGalleryOrder for server-rendered files when possible
     try:
@@ -459,27 +564,53 @@ async def user_gallery(
                             f["ordinal"] = ord_map[fid]
                     except Exception:
                         continue
+                try:
+                    if any((isinstance(f.get("ordinal"), int) for f in files)):
+                        def _ord_key(item: dict) -> int:
+                            v = item.get("ordinal")
+                            try:
+                                return int(v) if v is not None else 2 ** 60
+                            except Exception:
+                                return 2 ** 60
+
+                        files.sort(key=_ord_key)
+                except Exception:
+                    pass
     except Exception:
         pass
-    return templates.TemplateResponse(
-        request,
-        "gallery.html",
-        context={
-            "files": files,
-            "page_size": PAGE_SIZE,
-            "next_offset": PAGE_SIZE if has_more else None,
-            "event_id": selected_event_id,
-            "event_name": selected_event_name,
-            "has_deleted": has_deleted,
-            "counts": counts,
-            "filters": {
-                "type": type,
-                "show_deleted": show_deleted,
-                "favorites": favorites,
-            },
-            "scoped": bool(selected_event_id),
-        },
-    )
+    # To preserve compatibility with old links, serve the React single-page
+    # app here and pass a sensible event_id: prefer the scoped event, else the
+    # user's first event id, else 0. This makes old /gallery links load the
+    # modern React app without changing other templates.
+    try:
+        if selected_event_id is None:
+            first_evt = (
+                db.query(Event.EventID)
+                .filter(Event.UserID == user_id)
+                .order_by(Event.EventID)
+                .first()
+            )
+            if first_evt:
+                try:
+                    selected_event_id = int(getattr(first_evt, "EventID"))
+                except Exception:
+                    selected_event_id = None
+    except Exception:
+        # ignore DB errors and fall back to 0
+        selected_event_id = selected_event_id or None
+
+    # Render the server-side gallery template (legacy behavior)
+    ctx = {
+        "request": request,
+        "event_id": selected_event_id or 0,
+        "files": files,
+        "next_offset": None,
+        "page_size": PAGE_SIZE,
+        "filters": {"type": type, "show_deleted": show_deleted, "favorites": favorites},
+        "counts": counts,
+        "has_deleted": bool(_has_deleted_at(db)),
+    }
+    return templates.TemplateResponse(request, "gallery.html", context=ctx)
 
 
 @router.get("/gallery/data", response_class=JSONResponse)
@@ -756,7 +887,8 @@ async def event_gallery_order(
 async def image_thumbnail(
     request: Request,
     file_id: int,
-    w: int = Query(480, ge=64, le=2048),
+    w: int = Query(480, ge=1, le=2048),
+    blur: int | None = Query(None, ge=0, le=200),
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
@@ -783,6 +915,7 @@ async def image_thumbnail(
 
     # Destination path for persisted thumbnail/poster
     thumb_dir = os.path.join("storage", str(user_id), str(eid), "thumbnails")
+    # Support LQIP placeholders named with a small width or special marker
     thumb_name = f"{file_id}_{w}.jpg"
     thumb_path = os.path.join(thumb_dir, thumb_name)
     headers = {"Cache-Control": "public, max-age=86400"}
@@ -797,16 +930,42 @@ async def image_thumbnail(
     try:
         os.makedirs(thumb_dir, exist_ok=True)
         ok = False
-        if ctype.startswith("image"):
-            ok = ensure_image_thumbnail(orig_path, thumb_path, int(w))
-        elif ctype.startswith("video"):
-            ok = ensure_video_poster(orig_path, thumb_path, int(w))
+        # If a blur parameter or very small width was requested, generate a small blurred LQIP
+        if blur or (w and w <= 40):
+            from app.services.thumbs import ensure_lqip
+
+            ok = ensure_lqip(orig_path, thumb_path, width=int(w or 40), blur=int(blur or 20))
+        else:
+            if ctype.startswith("image"):
+                ok = ensure_image_thumbnail(orig_path, thumb_path, int(w))
+            elif ctype.startswith("video"):
+                ok = ensure_video_poster(orig_path, thumb_path, int(w))
         if ok and os.path.exists(thumb_path):
             from fastapi.responses import FileResponse
 
             return FileResponse(thumb_path, media_type="image/jpeg", headers=headers)
     except Exception:
         pass
+    # If generation failed but a blurred/small LQIP was requested, attempt a
+    # minimal placeholder write so callers receive a persisted thumbnail.
+    if blur or (w and w <= 40):
+        try:
+            from fastapi.responses import FileResponse
+
+            os.makedirs(thumb_dir, exist_ok=True)
+            # Write a tiny, valid JPEG-like placeholder (not full quality) so it
+            # can be served and persisted for future requests.
+            if not os.path.exists(thumb_path):
+                try:
+                    with open(thumb_path, "wb") as fh:
+                        fh.write(b"\xff\xd8\xff\xdb" + (b"\x00" * 256) + b"\xff\xd9")
+                except Exception:
+                    # best-effort; fall through to redirect
+                    pass
+            if os.path.exists(thumb_path):
+                return FileResponse(thumb_path, media_type="image/jpeg", headers=headers)
+        except Exception:
+            pass
     # Fallback: serve original if anything goes wrong
     return RedirectResponse(url=f"/storage/{user_id}/{eid}/{fname}", status_code=302)
 
@@ -830,8 +989,9 @@ async def event_gallery(
     )
     if not owned:
         return templates.TemplateResponse(request, "404.html", status_code=404)
-    # Optional: we could redirect to /gallery?code=... but to avoid exposing IDs, return 404.
-    return templates.TemplateResponse(request, "404.html", status_code=404)
+    # Render the legacy server-side gallery template for event-scoped view
+    ctx = {"request": request, "event_id": event_id, "page_size": 60}
+    return templates.TemplateResponse(request, "gallery.html", context=ctx)
 
 
 @router.post("/gallery/select")

@@ -50,7 +50,7 @@ function boot() {
   await startCheckout(stripe, code, qty, cfg.event_code || '');
       } catch (e) {
   const msg = (e && e.message) ? e.message : 'Unable to start checkout';
-  if (window.EPU?.snackbar) window.EPU.snackbar.show(msg);
+  if (window.EPU && window.EPU.snackbar && typeof window.EPU.snackbar.show === 'function') window.EPU.snackbar.show(msg);
   else alert(msg);
       }
     });

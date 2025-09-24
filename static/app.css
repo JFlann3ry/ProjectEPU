@@ -770,3 +770,32 @@ label { font-weight: 600; color: var(--color-text); }
 
 /* Utility */
 .is-hidden { display: none !important; }
+
+/* Live preview: make the preview non-interactive so clicking links/buttons in the
+   admin 'Live Preview' won't navigate or trigger actions. Keep scrollable content
+   usable (pointer-events allowed on the scroll container). */
+.web-preview, #preview-root {
+  /* allow scrolling/selection but disable clicks on interactive children */
+  -webkit-user-select: text;
+  user-select: text;
+}
+.web-preview a,
+.web-preview button,
+.web-preview input,
+.web-preview select,
+.web-preview textarea,
+#preview-root a,
+#preview-root button,
+#preview-root input,
+#preview-root select,
+#preview-root textarea {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+
+/* allow pointer events on the preview container itself for dragging/zoom controls if needed */
+.web-preview *[data-preview-clickable],
+#preview-root *[data-preview-clickable] {
+  pointer-events: auto !important;
+  cursor: pointer;
+}

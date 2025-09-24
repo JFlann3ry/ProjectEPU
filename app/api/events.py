@@ -521,10 +521,21 @@ async def edit_event_submit(
         form = await request.form()
         qr_fill_val = form.get('qr_fill') if form is not None else None
         qr_back_val = form.get('qr_back') if form is not None else None
+        qr_remove_logo_val = form.get('qr_remove_logo') if form is not None else None
         if qr_fill_val is not None:
             setattr(custom, "QRFillColour", (str(qr_fill_val) or '').strip() or None)
         if qr_back_val is not None:
             setattr(custom, "QRBackColour", (str(qr_back_val) or '').strip() or None)
+        # Checkbox posts 'on' or '1' when checked; absent when unchecked. Normalize.
+        try:
+            if qr_remove_logo_val is not None:
+                val = str(qr_remove_logo_val)
+                setattr(custom, "RemoveWebsiteLogo", val in ("1", "on", "true"))
+            else:
+                # Explicit unchecked: ensure false when checkbox absent in some clients
+                setattr(custom, "RemoveWebsiteLogo", False)
+        except Exception:
+            pass
     except Exception:
         pass
 

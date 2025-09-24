@@ -19,6 +19,7 @@
 | Upload time from event                       | ❌           | 2 months            | 12 months              |
 | Download time from event                     | ❌           | 12 months           | 12 months              |
 | Choose from themes for guest upload page      | ❌           | ✅ (preset only)    | ✅ (fully custom)      |
+| Remove website logo from QR code              | ❌           | ❌                  | ✅                     |
 
 ## 2. Enforcement Plan
 

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div id="root"></div>
+  <script>
+    // Expose the event id to the client app
+    window.__GALLERY_EVENT_ID__ = {{ event_id | default(0) }};
+  </script>
+  <!-- The built frontend assets should be placed under static/gallery/ by CI/deploy -->
+  <script type="module" src="/static/gallery/main.js"></script>
+{% endblock %}

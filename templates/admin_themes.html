@@ -415,7 +415,8 @@
       if (coverWrap && tCover){
         coverWrap.style.display = tCover.checked ? '' : 'none';
         // Use the banner image as a blurred page background to simulate frosted backdrop
-        const src = document.getElementById('pv-cover-img')?.currentSrc;
+  const pvImg = document.getElementById('pv-cover-img');
+  const src = pvImg && pvImg.currentSrc ? pvImg.currentSrc : '';
         if (tCover.checked && src){
           root.style.setProperty('--bg-image', `url('${src}')`);
           root.style.setProperty('--bg-size', 'cover');

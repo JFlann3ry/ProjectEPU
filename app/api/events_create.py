@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -259,5 +260,25 @@ async def create_event_submit(
             "request_id": getattr(request.state, "request_id", None),
         },
     )
+
+    # Create storage folders for this event: uploads/ and thumbnails/
+    try:
+        uid = int(getattr(user, "UserID", 0))
+        eid = int(getattr(new_event, "EventID"))
+        base = os.path.join("storage", str(uid), str(eid))
+        uploads_dir = os.path.join(base, "uploads")
+        thumbs_dir = os.path.join(base, "thumbnails")
+        os.makedirs(uploads_dir, exist_ok=True)
+        os.makedirs(thumbs_dir, exist_ok=True)
+    except Exception:
+        # Non-fatal: event was created successfully; log and continue
+        try:
+            event_id = getattr(new_event, "EventID", None)
+            logging.exception(
+                "Failed to create storage folders for event %s",
+                event_id,
+            )
+        except Exception:
+            pass
 
     return RedirectResponse(url=f"/events/{new_event.EventID}", status_code=303)

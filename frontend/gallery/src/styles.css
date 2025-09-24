@@ -1,0 +1,7 @@
+:root{--gap:8px;--thumb-size:180px}
+body{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,'Helvetica Neue',Arial}
+.gallery-app{padding:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--thumb-size),1fr));gap:var(--gap)}
+.thumb{border:1px solid #ddd;padding:6px;border-radius:6px;overflow:hidden;background:#fff}
+.thumb img{width:100%;height:160px;object-fit:cover;display:block}
+.thumb .meta{font-size:12px;color:#333;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
