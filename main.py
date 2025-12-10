@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 import traceback
 import uuid
@@ -86,6 +87,9 @@ app.state.s3_service = s3_service
 
 # Mount static folders
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Create storage directory if it doesn't exist (for local filesystem fallback)
+os.makedirs("storage", exist_ok=True)
 app.mount("/storage", StaticFiles(directory="storage"), name="storage")
 
 app.include_router(uploads.router)
