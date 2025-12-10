@@ -170,28 +170,51 @@ async def login(
 # --- Pages: login/signup ---
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    token = issue_csrf_token(request.cookies.get("session_id"))
+    # Ensure session_id exists before issuing CSRF token
+    sid = request.cookies.get("session_id")
+    if not sid:
+        import uuid
+        sid = str(uuid.uuid4())
+    
+    token = issue_csrf_token(sid)
     resp = templates.TemplateResponse(request, "log_in.html", context={"csrf_token": token})
     set_csrf_cookie(resp, token, httponly=True)
-    sid = request.cookies.get("session_id")
-    if sid:
-        resp.set_cookie(
-            key="session_id",
-            value=str(sid),
-            httponly=True,
-            samesite="lax",
-            secure=bool(getattr(settings, "COOKIE_SECURE", False)),
-            max_age=60 * 60 * 24,
-            path="/",
-        )
+    
+    # Always set session_id cookie to match CSRF token binding
+    resp.set_cookie(
+        key="session_id",
+        value=str(sid),
+        httponly=True,
+        samesite="lax",
+        secure=bool(getattr(settings, "COOKIE_SECURE", False)),
+        max_age=60 * 60 * 24,
+        path="/",
+    )
     return resp
 
 
 @router.get("/signup", response_class=HTMLResponse)
 async def signup_page(request: Request):
-    token = issue_csrf_token(request.cookies.get("session_id"))
+    # Ensure session_id exists before issuing CSRF token
+    sid = request.cookies.get("session_id")
+    if not sid:
+        import uuid
+        sid = str(uuid.uuid4())
+    
+    token = issue_csrf_token(sid)
     resp = templates.TemplateResponse(request, "sign_up.html", context={"csrf_token": token})
     set_csrf_cookie(resp, token, httponly=True)
+    
+    # Always set session_id cookie to match CSRF token binding
+    resp.set_cookie(
+        key="session_id",
+        value=str(sid),
+        httponly=True,
+        samesite="lax",
+        secure=bool(getattr(settings, "COOKIE_SECURE", False)),
+        max_age=60 * 60 * 24,
+        path="/",
+    )
     return resp
 
 
@@ -370,13 +393,30 @@ async def verify_notice_alias(request: Request):
 # --- Password Reset: request link (GET/POST) ---
 @router.get("/forgot-password", response_class=HTMLResponse)
 async def forgot_password_page(request: Request):
-    token = issue_csrf_token(request.cookies.get("session_id"))
+    # Ensure session_id exists before issuing CSRF token
+    sid = request.cookies.get("session_id")
+    if not sid:
+        import uuid
+        sid = str(uuid.uuid4())
+    
+    token = issue_csrf_token(sid)
     resp = templates.TemplateResponse(
         request,
         "forgot_password.html",
         context={"csrf_token": token},
     )
     set_csrf_cookie(resp, token, httponly=True)
+    
+    # Always set session_id cookie to match CSRF token binding
+    resp.set_cookie(
+        key="session_id",
+        value=str(sid),
+        httponly=True,
+        samesite="lax",
+        secure=bool(getattr(settings, "COOKIE_SECURE", False)),
+        max_age=60 * 60 * 24,
+        path="/",
+    )
     return resp
 
 
@@ -441,13 +481,31 @@ async def reset_password_page(request: Request, token: str):
             "reset_password.html",
             context={"error": "Invalid or expired link.", "token": token},
         )
-    csrf = issue_csrf_token(request.cookies.get("session_id"))
+    
+    # Ensure session_id exists before issuing CSRF token
+    sid = request.cookies.get("session_id")
+    if not sid:
+        import uuid
+        sid = str(uuid.uuid4())
+    
+    csrf = issue_csrf_token(sid)
     resp = templates.TemplateResponse(
         request,
         "reset_password.html",
         context={"token": token, "csrf_token": csrf},
     )
     set_csrf_cookie(resp, csrf, httponly=True)
+    
+    # Always set session_id cookie to match CSRF token binding
+    resp.set_cookie(
+        key="session_id",
+        value=str(sid),
+        httponly=True,
+        samesite="lax",
+        secure=bool(getattr(settings, "COOKIE_SECURE", False)),
+        max_age=60 * 60 * 24,
+        path="/",
+    )
     return resp
 
 
