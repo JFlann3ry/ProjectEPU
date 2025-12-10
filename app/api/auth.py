@@ -1,5 +1,6 @@
 # ruff: noqa: I001
 import logging
+import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -173,7 +174,6 @@ async def login_page(request: Request):
     # Ensure session_id exists before issuing CSRF token
     sid = request.cookies.get("session_id")
     if not sid:
-        import uuid
         sid = str(uuid.uuid4())
     
     token = issue_csrf_token(sid)
@@ -198,7 +198,6 @@ async def signup_page(request: Request):
     # Ensure session_id exists before issuing CSRF token
     sid = request.cookies.get("session_id")
     if not sid:
-        import uuid
         sid = str(uuid.uuid4())
     
     token = issue_csrf_token(sid)
@@ -396,7 +395,6 @@ async def forgot_password_page(request: Request):
     # Ensure session_id exists before issuing CSRF token
     sid = request.cookies.get("session_id")
     if not sid:
-        import uuid
         sid = str(uuid.uuid4())
     
     token = issue_csrf_token(sid)
@@ -485,7 +483,6 @@ async def reset_password_page(request: Request, token: str):
     # Ensure session_id exists before issuing CSRF token
     sid = request.cookies.get("session_id")
     if not sid:
-        import uuid
         sid = str(uuid.uuid4())
     
     csrf = issue_csrf_token(sid)
