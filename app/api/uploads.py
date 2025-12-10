@@ -382,21 +382,39 @@ async def guest_upload_post(
                 )
 
         # Proceed with writes and metadata after enforcement
+        # Get S3 service if configured
+        s3_service = getattr(request.app.state, "s3_service", None)
+        
         for contents, sniffed, orig_name in prechecked_files:
             fname = safe_name(orig_name)
-            # We'll compute metadata first to get checksum for duplicate detection
-            # Store uploaded files under the uploads/ subfolder
-            tmp_path = unique_path(uploads_base, fname)
-            with open(tmp_path, "wb") as buffer:
-                buffer.write(contents)
             total_bytes += len(contents)
-            # Extract metadata
-            if sniffed.startswith("image"):
-                meta = extract_image_metadata(tmp_path)
-            elif sniffed.startswith("video"):
-                meta = extract_video_metadata(tmp_path)
-            else:
+            
+            # Extract metadata (requires temporary file or in-memory processing)
+            tmp_path = None
+            try:
+                if sniffed.startswith("image") or sniffed.startswith("video"):
+                    # Create temp file for metadata extraction
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(fname)[1]) as tf:
+                        tf.write(contents)
+                        tmp_path = tf.name
+                    
+                    if sniffed.startswith("image"):
+                        meta = extract_image_metadata(tmp_path)
+                    else:
+                        meta = extract_video_metadata(tmp_path)
+                else:
+                    meta = {"datetime_taken": None, "gps_lat": None, "gps_long": None, "checksum": None}
+            except Exception as e:
+                logging.warning(f"Failed to extract metadata: {e}")
                 meta = {"datetime_taken": None, "gps_lat": None, "gps_long": None, "checksum": None}
+            finally:
+                if tmp_path and os.path.exists(tmp_path):
+                    try:
+                        os.remove(tmp_path)
+                    except Exception:
+                        pass
+            
             # Duplicate detection: same checksum within the same event
             checksum = meta.get("checksum")
             is_duplicate = False
@@ -413,16 +431,11 @@ async def guest_upload_post(
                 if exists:
                     is_duplicate = True
             if is_duplicate:
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
                 duplicate_count += 1
                 continue
-            file_path = tmp_path
+            
             # Save metadata
-            # Persist only the uploads-relative filename (stored in uploads/)
-            stored_name = os.path.basename(file_path)
+            stored_name = fname
             metadata = FileMetadata(
                 EventID=event_id,
                 GuestID=guest_id,
@@ -435,6 +448,26 @@ async def guest_upload_post(
                 Checksum=meta.get("checksum"),
             )
             db.add(metadata)
+            db.flush()  # Flush to get FileMetadataID
+            
+            # Upload to S3 if configured, otherwise save to local filesystem
+            if s3_service:
+                s3_key = f"uploads/{user_id}/{event_id}/{metadata.FileMetadataID}/{stored_name}"
+                try:
+                    s3_service.upload_file(contents, s3_key, sniffed)
+                    logging.info(f"Uploaded {s3_key} to S3")
+                except Exception as e:
+                    logging.error(f"S3 upload failed for {s3_key}: {e}")
+                    # Fall back to local filesystem
+                    tmp_path = unique_path(uploads_base, fname)
+                    with open(tmp_path, "wb") as buffer:
+                        buffer.write(contents)
+            else:
+                # Fall back to local filesystem
+                tmp_path = unique_path(uploads_base, fname)
+                with open(tmp_path, "wb") as buffer:
+                    buffer.write(contents)
+            
             uploaded.append(stored_name)
             upload_count += 1
 
