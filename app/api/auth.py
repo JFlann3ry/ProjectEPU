@@ -41,6 +41,7 @@ def validate_password(password: str) -> list:
         errors.append("Password must contain at least 1 capital letter")
     if not any(char in "!@#$%^&*()_+-=[]{}|;':\"\\,./<>?" for char in password):
         errors.append("Password must contain at least 1 special character")
+    # Note: passwords longer than 72 bytes will be silently truncated (bcrypt limitation)
     return errors
 
 
