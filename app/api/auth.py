@@ -260,6 +260,12 @@ async def signup(
                 },
                 status_code=400,
             )
+    
+    # Truncate password to 72 bytes early to prevent bcrypt errors
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        password = password_bytes[:72].decode('utf-8', errors='ignore')
+    
     password_errors = validate_password(password)
     if password_errors:
         error_message = "Password requirements not met: " + "; ".join(password_errors)
@@ -321,6 +327,26 @@ async def signup(
             "verify_notice.html",
             context={"email": email},
             status_code=200,
+        )
+    except ValueError as e:
+        # Handle bcrypt or password validation errors
+        db.rollback()
+        error_msg = str(e)
+        if "72 bytes" in error_msg or "too long" in error_msg:
+            error_msg = "Password is too long. Please use a shorter password."
+        audit.exception(
+            "auth.signup.error",
+            extra={
+                "email": email,
+                "error_type": "ValueError",
+                "client": request.client.host if request.client else None,
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
+        return templates.TemplateResponse(
+            request,
+            "sign_up.html",
+            context={"error": f"Signup failed: {error_msg}"},
         )
     except Exception as e:
         db.rollback()
@@ -544,6 +570,12 @@ async def reset_password(
             "reset_password.html",
             context={"error": "Passwords do not match.", "token": token},
         )
+    
+    # Truncate password to 72 bytes early to prevent bcrypt errors
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        password = password_bytes[:72].decode('utf-8', errors='ignore')
+    
     password_errors = validate_password(password)
     if password_errors:
         return templates.TemplateResponse(
