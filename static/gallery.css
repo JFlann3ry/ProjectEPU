@@ -66,10 +66,21 @@
     cursor: pointer;
     transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
     display: block;
-    /* Provide a sensible minimum height to avoid very thin tiles while JS computes exact height */
-    min-height: 140px;
     /* Remove text/inline-image whitespace below images */
     line-height: 0;
+}
+
+/* Defensive overrides: ensure no upload/progress bars or theme overrides leak into tiles */
+.dynamic-gallery .gallery-item {
+    background: #0f0f10 !important;
+    padding: 0 !important;
+}
+.dynamic-gallery .gallery-item .progress-bar,
+.dynamic-gallery .gallery-item .progress-fill,
+.dynamic-gallery .gallery-item .bar,
+.dynamic-gallery .gallery-item .tile-footer,
+.dynamic-gallery .gallery-item .tile-progress {
+    display: none !important;
 }
 
 /* Support for items that span multiple columns when using JS row-first masonry
@@ -119,11 +130,19 @@
 
 .gallery-img, .gallery-video {
     width: 100%;
-    height: auto; /* allow aspect-ratio to determine height */
+    /* force media to fill the tile container height so there is no leftover gap */
+    height: 100%;
     display: block;
     object-fit: cover;
     background: #0b0b0c;
     margin: 0;
+}
+
+/* Ensure the media's background can't show through in any theme */
+.dynamic-gallery .gallery-item img.gallery-img,
+.dynamic-gallery .gallery-item video.gallery-video {
+    background: #0b0b0c !important;
+    height: 100% !important;
 }
 .gallery-video {
     /* Videos will occupy the full tile and be cropped if necessary so their tile size matches portrait photos */

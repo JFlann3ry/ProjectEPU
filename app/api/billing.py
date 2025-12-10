@@ -1143,12 +1143,16 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                                             UserID=getattr(eap, "UserID"),
                                             Key="purchase_extras",
                                             State="done",
-                                            CompletedAt=datetime.now(timezone.utc),
+                                            CompletedAt=datetime.now(timezone.utc).replace(tzinfo=None),
                                         )
                                         db.add(et)
                                     else:
                                         setattr(et, "State", "done")
-                                        setattr(et, "CompletedAt", datetime.now(timezone.utc))
+                                        setattr(
+                                            et,
+                                            "CompletedAt",
+                                            datetime.now(timezone.utc).replace(tzinfo=None),
+                                        )
                                     # save in nested transaction to avoid rolling back outer
                                     with db.begin_nested():
                                         _safe_commit()

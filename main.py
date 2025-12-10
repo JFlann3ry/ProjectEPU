@@ -16,6 +16,7 @@ from app.api import (
     admin,
     auth,
     billing,
+    live,
     events,
     events_create,
     extras,
@@ -35,6 +36,7 @@ from app.core.settings import settings
 from app.core.templates import templates
 from app.models import AppErrorLog
 from app.services.auth import get_user_id_from_request
+from app.services.s3_storage import S3StorageService
 from db import get_db
 
 try:
@@ -53,6 +55,23 @@ add_compression_middleware(app)
 configure_logging(settings)
 logger = logging.getLogger("app")
 
+# Initialize S3 storage service (optional; uses local filesystem fallback)
+s3_service = None
+if getattr(settings, "S3_UPLOADS_BUCKET", ""):
+    try:
+        s3_service = S3StorageService(
+            region=settings.AWS_REGION,
+            bucket=settings.S3_UPLOADS_BUCKET,
+            access_key=getattr(settings, "AWS_ACCESS_KEY_ID", None),
+            secret_key=getattr(settings, "AWS_SECRET_ACCESS_KEY", None),
+        )
+        logger.info("S3 storage service initialized")
+    except Exception as e:
+        logger.warning(f"S3 initialization failed; falling back to local filesystem: {e}")
+        s3_service = None
+else:
+    logger.info("S3_UPLOADS_BUCKET not configured; using local filesystem")
+
 # Initialize Sentry if DSN provided
 if getattr(settings, "SENTRY_DSN", "") and sentry_sdk is not None:
     sentry_sdk.init(
@@ -61,6 +80,10 @@ if getattr(settings, "SENTRY_DSN", "") and sentry_sdk is not None:
         traces_sample_rate=float(getattr(settings, "SENTRY_TRACES_SAMPLE_RATE", 0.0) or 0.0),
         send_default_pii=False,
     )
+
+# Store S3 service in app state for dependency injection in routes
+app.state.s3_service = s3_service
+
 # Mount static folders
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/storage", StaticFiles(directory="storage"), name="storage")
@@ -74,6 +97,7 @@ app.include_router(profile_edit.router)
 app.include_router(auth.router)
 app.include_router(guest.router)
 app.include_router(account.router)
+app.include_router(live.router)
 app.include_router(gallery.router)
 app.include_router(photo_order.router)
 app.include_router(misc.router)

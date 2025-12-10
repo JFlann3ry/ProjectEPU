@@ -9,13 +9,44 @@
   {% if error %}
     {{ notice(error, 'error') }}
   {% endif %}
+  <style>
+    .contact-narrow { max-width: 580px; margin: 0 auto; }
+    .contact-banner { text-align:left; margin: 0 auto 16px; }
+    .contact-gap { height: 8px; }
+    .contact-banner .cb-title { margin-bottom: 8px; }
+    .contact-banner .cb-grid { display: grid; gap: 6px; }
+  .contact-banner .cb-row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: baseline; }
+    .contact-banner .cb-label { color: #ffe6a8; font-weight: 600; }
+    .contact-banner .cb-value code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; word-break: break-all; display:inline-block; max-width:100%; }
+    .contact-banner .cb-copy { border: 1px solid rgba(255,255,255,0.25); background: rgba(0,0,0,0.15); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:.85rem; }
+    .contact-banner .cb-copy:hover { background: rgba(0,0,0,0.25); }
+    /* Inline clear control style */
+    .contact-clear-btn { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:999px; border:1px solid transparent; background: var(--color-danger, #c62828); color: #fff; font-size:.85em; line-height:1; cursor:pointer; transition: filter .15s ease, transform .02s ease; vertical-align: middle; }
+    .contact-clear-btn:hover { filter: brightness(1.05); }
+    .contact-clear-btn:active { transform: translateY(1px); }
+    .contact-clear-btn:focus { outline: 2px solid #ffd2d2; outline-offset: 2px; }
+  </style>
+  <div class="contact-narrow">
   {% if request_id %}
-    {% call notice('', 'warn', 'style="text-align:left; max-width:620px; margin: 0 auto 12px;"') %}
-      We detected a recent error on your request. This is already included in your message.
-      <div class="muted" style="margin-top:4px;">Request ID: <code>{{ request_id }}</code></div>
+    {% call notice('', 'warn', 'class="contact-banner"') %}
+      <div class="cb-title">We detected a recent error on your request. We’ll include details in your message automatically in a moment.</div>
+      <div class="cb-grid">
+        <div class="cb-row">
+          <div class="cb-label">Request ID</div>
+          <div class="cb-value"><code id="cb-rqid">{{ request_id }}</code></div>
+        </div>
+        {% if request_url %}
+        <div class="cb-row">
+          <div class="cb-label">Page</div>
+          <div class="cb-value"><a id="cb-url" href="{{ request_url }}" target="_blank" rel="noopener noreferrer"><code>{{ request_url }}</code></a></div>
+        </div>
+        {% endif %}
+      </div>
     {% endcall %}
   {% endif %}
-  <form class="card form center" method="post" style="max-width:620px;">
+  <div id="contact-meta" hidden data-request-id="{{ request_id or '' }}" data-request-url="{{ request_url or '' }}"></div>
+  <div class="contact-gap" aria-hidden="true"></div>
+  <form class="card form center contact-narrow" method="post">
       <div class="floating-field">
         <label for="contact_name" class="fl-label">Name</label>
         <input class="input-field" type="text" id="contact_name" name="name" required autocomplete="name" maxlength="80" value="{{ (form.name if form else '') | e }}">
@@ -58,7 +89,9 @@
         </div>
       </div>
       <div class="floating-field">
-        <label for="contact_message" class="fl-label">How can we help?</label>
+        <label for="contact_message" class="fl-label">How can we help?
+          <button id="clear-inserted" type="button" class="contact-clear-btn" hidden aria-label="Remove error details" style="margin-left:8px;">Remove error details</button>
+        </label>
         <textarea class="input-field" id="contact_message" name="message" rows="8" style="resize: vertical;" maxlength="2000" required placeholder="Tell us how we can help…">{{ (form.message if form else '') | e }}</textarea>
         <div class="muted" style="text-align:right; margin-top:4px;"><small id="message-counter">0/2000</small></div>
       </div>
@@ -71,6 +104,7 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">
   <button class="btn primary block" type="submit">Send</button>
   </form>
+  </div>
 </div>
 {% block extra_js %}
 <script>
@@ -109,6 +143,73 @@
     bindCounter(document.getElementById('contact_message'), document.getElementById('message-counter'), 2000);
     // Initial sync after potential server-side prefill
     sync();
+
+    // Delayed auto-insert of Request ID and page into the message
+    try {
+      var meta = document.getElementById('contact-meta');
+      var rqid = meta ? (meta.dataset.requestId || null) : null;
+      var rqurl = meta ? (meta.dataset.requestUrl || null) : null;
+      if (msg && rqid) {
+        setTimeout(function(){
+          var text = msg.value || '';
+          var hasId = /Request ID\s*:/i.test(text);
+          var hasPage = /Page\s*:/i.test(text);
+          var parts = [];
+          if (!hasId) parts.push('Request ID: ' + rqid);
+          if (rqurl && !hasPage) parts.push('Page: ' + rqurl);
+          if (parts.length) {
+            msg.value = parts.join('\n') + (text ? ('\n\n' + text) : '');
+            // Move cursor to end for convenience
+            try { msg.selectionStart = msg.selectionEnd = msg.value.length; } catch(e){}
+            // Update counter
+            var msgCounter = document.getElementById('message-counter');
+            if (msgCounter) msgCounter.textContent = (msg.value.length) + '/2000';
+          }
+          // Toggle clear button visibility based on presence of error details
+          if (clearBtn) { clearBtn.hidden = !detectInserted(msg.value); }
+        }, 800); // slight delay so user can start typing if they want
+      }
+    } catch (e) { /* no-op */ }
+
+    // Clear inserted details control
+    var clearBtn = document.getElementById('clear-inserted');
+    function detectInserted(text){
+      var str = text || '';
+      var lines = str.split(/\r?\n/);
+      var i = 0;
+      var hasId = !!(lines[i] && /^\s*Request ID\s*:/i.test(lines[i]));
+      if (hasId) i++;
+      var hasPage = !!(lines[i] && /^\s*Page\s*:/i.test(lines[i]));
+      return hasId || hasPage;
+    }
+    function clearInserted(){
+      if (!msg) return;
+      var text = msg.value || '';
+      // Remove leading Request ID/Page lines if present, preserving user content
+      var lines = text.split(/\r?\n/);
+      // Remove up to first two lines if they match patterns
+      var start = 0;
+      if (lines[start] && /^\s*Request ID\s*:/i.test(lines[start])) start++;
+      if (lines[start] && /^\s*Page\s*:/i.test(lines[start])) start++;
+      // Also remove a single empty line after those, if present
+      if (lines[start] === '') start++;
+      var rest = lines.slice(start).join('\n');
+      msg.value = rest;
+      try { msg.selectionStart = msg.selectionEnd = msg.value.length; } catch(e){}
+      var msgCounter = document.getElementById('message-counter');
+      if (msgCounter) msgCounter.textContent = (msg.value.length) + '/2000';
+      // Hide then remove the button after clearing
+      if (clearBtn) { clearBtn.hidden = true; setTimeout(function(){ if (clearBtn && clearBtn.parentNode) { try { clearBtn.remove(); } catch(e) { clearBtn.style.display = 'none'; } } }, 0); }
+    }
+    if (clearBtn){ clearBtn.addEventListener('click', clearInserted); }
+
+    // Keep button visibility in sync if user edits the message
+    if (msg && clearBtn){
+      clearBtn.hidden = !detectInserted(msg.value);
+      msg.addEventListener('input', function(){ clearBtn.hidden = !detectInserted(msg.value); });
+    }
+
+    // copy buttons removed by request
   })();
 </script>
 {% endblock %}

@@ -212,7 +212,7 @@ def build_user_export_zip(db: Session, user: User, storage_root: str = "storage"
 
         # Update job
         setattr(job, "Status", "completed")
-        # Store naive UTC
+        # Store naive UTC for DB columns that are naive
         now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
         setattr(job, "CompletedAt", now_utc)
         setattr(job, "ExpiresAt", now_utc + timedelta(days=7))

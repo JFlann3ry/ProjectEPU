@@ -28,11 +28,11 @@ ADDONS = [
     {
         "Code": "qr_cards",
         "Name": "QR Cards",
-        "Description": "Printed cards with your event QR code (set of 50/100/200)",
+        "Description": "Printed cards with your event QR code (packs of 10)",
         "PriceCents": 0,  # price determined by quantity option; handled at checkout
         "Currency": "gbp",
         "AllowQuantity": True,
-        "MinQuantity": 50,
+        "MinQuantity": 10,
         "MaxQuantity": 500,
     },
     {

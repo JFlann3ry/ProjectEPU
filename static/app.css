@@ -1,7 +1,8 @@
 
 /* Share modal tweaks: centre the share buttons and make the URL text wrap/center nicely */
 .modal #modal-body .btn-row { justify-content: center; align-items: center; }
-.modal #modal-body .btn-row .btn { min-width: 120px; }
+/* Limit wide buttons to share modal (opt-in class) to avoid oversized buttons in other modals */
+.modal.share-modal #modal-body .btn-row .btn { min-width: 120px; }
 .modal #modal-body .small.muted { text-align: center; word-break: break-word; max-width: 100%; margin-left: auto; margin-right: auto; }
 
 /* Prevent long event titles from overlapping the absolutely positioned share button

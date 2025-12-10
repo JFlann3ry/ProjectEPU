@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% from "components/macros.html" import page_hero, notice %}
+
+{% block title %}{{ addon.name }} · Extras{% endblock %}
+
+{% block content %}
+<div class="container section center">
+  {{ page_hero(addon.name, addon.desc or 'Learn more and purchase this extra for your event.', True) }}
+  <div style="max-width:920px; margin: 6px auto 0; text-align:left;">
+    {% set ec = request.query_params.get('event_code') or '' %}
+    {% if back_href %}
+      <a class="btn" href="{{ back_href }}" style="min-height: 36px; padding:6px 10px;">{{ back_label }}</a>
+    {% else %}
+      <a class="btn" href="/extras{% if ec %}?event_code={{ ec }}{% endif %}" style="min-height: 36px; padding:6px 10px;">Back to Extras</a>
+    {% endif %}
+  </div>
+
+  <section class="section" style="max-width:920px; margin: 0 auto;">
+    <article class="card extras-detail" style="display:flex; flex-direction:column; align-items:stretch;">
+      <div style="display:flex; flex-wrap:wrap; gap:18px; align-items:flex-start; padding:16px;">
+        <picture class="detail-img" style="flex:0 0 280px; max-width:100%; display:block;">
+          <img src="{{ addon.image or '/static/images/examples/corporate1.svg' }}" alt="{{ addon.name }}" style="width:100%; height:auto; max-height:180px; object-fit:contain;" loading="lazy">
+        </picture>
+        <div style="flex:1 1 280px; min-width:260px;">
+          <h2 style="margin:0 0 8px;">{{ addon.name }}</h2>
+          {% if addon.desc %}
+          <p class="muted" style="margin:0 0 12px;">{{ addon.desc }}</p>
+          {% endif %}
+          {% set c = (addon.currency or 'gbp')|lower %}
+          {% set sym = '£' if c == 'gbp' else ('$' if c == 'usd' else c|upper ~ ' ') %}
+          {% set price = (addon.price_cents or 0) / 100 %}
+          <div class="p-bold" style="font-size:18px; margin: 6px 0 14px;">{{ sym }}{{ '%.2f'|format(price) }}</div>
+
+          {% if addon.allow_qty %}
+          <div class="floating-field" style="margin:8px 0 14px; max-width:260px;">
+            <label class="fl-label" for="qty-{{ addon.code }}">Quantity</label>
+            <select id="qty-{{ addon.code }}" class="input-field">
+              {% set mn = addon.min_qty or 1 %}
+              {% set mx = addon.max_qty or mn %}
+              {% set step10 = (mn >= 10) and (mn % 10 == 0) and (mx % 10 == 0) %}
+              {% if step10 %}
+                {% for i in range(mn, mx + 1, 10) %}
+                <option value="{{ i }}" {% if i == mn %}selected{% endif %}>{{ i }}</option>
+                {% endfor %}
+              {% else %}
+                {% for i in range(mn, mx + 1) %}
+                <option value="{{ i }}" {% if i == mn %}selected{% endif %}>{{ i }}</option>
+                {% endfor %}
+              {% endif %}
+            </select>
+          </div>
+          {% endif %}
+
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            {% if request.cookies.get('session_id') %}
+            <button class="btn primary js-buy-extra" data-code="{{ addon.code }}" data-allowqty="{{ '1' if addon.allow_qty else '0' }}" style="min-width: 170px;">Purchase</button>
+            {% else %}
+            <a class="btn primary" href="/signup" role="button" style="display:inline-flex; align-items:center; justify-content:center; min-width: 170px;">Sign up to purchase</a>
+            {% endif %}
+            <a class="btn" href="/extras">Back to Extras</a>
+            {% if back_href %}
+              <a class="btn" href="{{ back_href }}">{{ back_label }}</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {% if addon.code == 'live_gallery' %}
+      <div style="padding:0 16px 16px; display:grid; gap:14px;">
+        <div>
+          <h3 style="margin:0 0 6px;">Overview</h3>
+          <p class="muted" style="margin:0;">Live Gallery displays new photos the moment they’re uploaded—perfect for receptions, conferences, and activations. Share a single link with guests or put it on a big screen using slideshow mode.</p>
+        </div>
+        <div>
+          <h3 style="margin:0 0 6px;">Key benefits</h3>
+          <ul style="margin:0; padding-left: 18px;">
+            <li>Real-time updates (no manual refresh needed)</li>
+            <li>Works with on-site screens via our slideshow mode</li>
+            <li>Organiser controls for content visibility and moderation</li>
+          </ul>
+        </div>
+        <div>
+          <h3 style="margin:0 0 6px;">How it works</h3>
+          <ol style="margin:0; padding-left: 18px;">
+            <li>Enable Live Gallery for your event (purchase above).</li>
+            <li>As uploads arrive, the gallery updates automatically.</li>
+            <li>Connect a projector or display it on a big screen in slideshow mode for continuous display.</li>
+          </ol>
+        </div>
+        <div>
+          <h3 style="margin:0 0 6px;">Specs & notes</h3>
+          <ul style="margin:0; padding-left: 18px;">
+            <li>Supported on modern browsers (mobile and desktop)</li>
+            <li>Respects browser accessibility settings (e.g., reduced motion)</li>
+            <li>Requires an active event with guest uploads enabled</li>
+          </ul>
+        </div>
+        <details>
+          <summary><strong>FAQs</strong></summary>
+          <ul style="margin:8px 0 0; padding-left: 18px;">
+            <li><em>How fast do photos appear?</em> Typically within a few seconds after upload.</li>
+            <li><em>Can I hide a photo?</em> Yes, organisers can remove or hide content at any time.</li>
+          </ul>
+        </details>
+      </div>
+      {% elif addon.code == 'qr_cards' %}
+      <div style="padding:0 16px 16px; display:grid; gap:14px;">
+        <div>
+          <h3 style="margin:0 0 6px;">Overview</h3>
+          <p class="muted" style="margin:0;">Hand out QR Cards to help guests jump straight into your event—no typing, no confusion. Each card links directly to your event page.</p>
+        </div>
+        <div>
+          <h3 style="margin:0 0 6px;">What you get</h3>
+          <ul style="margin:0; padding-left: 18px;">
+            <li>Packs of 10 (choose from 10 up to 500)</li>
+            <li>Standard business card size with a matte finish</li>
+            <li>Clean QR code pointing to your event URL</li>
+          </ul>
+        </div>
+        <div>
+          <h3 style="margin:0 0 6px;">Specs & options</h3>
+          <ul style="margin:0; padding-left: 18px;">
+            <li>Size: ~85 × 55 mm (3.35 × 2.17 in)</li>
+            <li>Finish: Matte; optimized for quick scanning</li>
+            <li>Quantity: multiples of 10 (10–500)</li>
+          </ul>
+        </div>
+        <div>
+          <h3 style="margin:0 0 6px;">Delivery</h3>
+          <ul style="margin:0; padding-left: 18px;">
+            <li>Typical lead time: 3–5 business days (varies by region)</li>
+            <li>We’ll notify you by email when your order ships</li>
+          </ul>
+        </div>
+        <details>
+          <summary><strong>FAQs</strong></summary>
+          <ul style="margin:8px 0 0; padding-left: 18px;">
+            <li><em>Is a logo included?</em> Cards include your event name; logo branding may be offered separately.</li>
+            <li><em>Can I reorder later?</em> Yes—your event URL/QR stays consistent, making reorders easy.</li>
+            <li><em>Do you offer different paper stocks?</em> If you need something specific, contact support.</li>
+          </ul>
+        </details>
+      </div>
+      {% endif %}
+    </article>
+  </section>
+</div>
+
+{% block extra_css %}
+<style>
+  /* Detail page polish to match grid */
+  .extras-detail { transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease; }
+  .extras-detail:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,0.25); border-color: rgba(255,255,255,0.24); }
+  .extras-detail h3 a { text-decoration: none; }
+  .extras-detail h3 a:hover, .extras-detail h3 a:focus { text-decoration: underline; }
+  .extras-detail .detail-img { min-height: 160px; display:block; }
+  @media (max-width: 520px){ .extras-detail .detail-img img { max-height: 150px; } }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://js.stripe.com/v3/"></script>
+<script id="extras-config" type="application/json">{
+  "stripe_pk": "{{ STRIPE_PUBLISHABLE_KEY }}",
+  "preselect_code": "{{ addon.code }}",
+  "event_code": "{{ request.query_params.get('event_code') or '' }}"
+}</script>
+<script type="module" src="{{ url_for('static', path='js/pages/extras.js') }}?v={{ now() if now else '' }}" defer></script>
+{% endblock %}
+{% endblock %}

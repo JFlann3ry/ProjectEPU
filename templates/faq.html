@@ -6,26 +6,85 @@
 <div class="container section center">
   {% from 'components/macros.html' import page_hero %}
   {{ page_hero('Frequently Asked Questions', 'Quick answers about uploading, privacy, plans, and more.') }}
-  <div class="card center" style="max-width:900px;">
-    <div class="accordion" role="tablist">
-      {% for item in qas %}
-      <div class="accordion-item">
-        <button class="accordion-header" id="acc-h-{{ loop.index }}" aria-expanded="false" aria-controls="acc-p-{{ loop.index }}" role="tab">
-          <span class="q">{{ item.q }}</span>
-          <span class="chev" aria-hidden="true">▾</span>
-        </button>
-        <div class="accordion-panel" id="acc-p-{{ loop.index }}" role="region" aria-labelledby="acc-h-{{ loop.index }}">
-          <div class="a">{{ item.a }}</div>
+  <div class="faq-wrap center" style="max-width:980px;">
+    {% if sections %}
+      <div class="card faq-toc-card">
+        <div class="faq-toc-row">
+          <div class="faq-search">
+            <label for="faq-search">Search FAQs</label>
+            <input id="faq-search" type="search" placeholder="Search questions..." autocomplete="off" />
+          </div>
+          <nav class="faq-toc" aria-label="FAQ sections">
+            <strong class="muted">Jump to:</strong>
+            <ul>
+              {% for sec in sections %}
+                <li><a class="chip" data-target="{{ sec['id'] }}" href="#{{ sec['id'] }}">{{ sec['title'] }}</a></li>
+              {% endfor %}
+            </ul>
+          </nav>
         </div>
+        <p class="faq-empty muted" hidden>No results. Try different keywords.</p>
       </div>
-      {% endfor %}
-    </div>
+      <div class="faq-sections">
+        {% for sec in sections %}
+        <section id="{{ sec['id'] }}" class="faq-section">
+          <div class="card faq-section-card">
+            <h2 class="faq-h2">{{ sec['title'] }}</h2>
+            <div class="accordion" role="tablist">
+              {% for item in sec['items'] %}
+              <div class="accordion-item">
+                <button class="accordion-header" id="acc-h-{{ sec['id'] }}-{{ loop.index }}" aria-expanded="false" aria-controls="acc-p-{{ sec['id'] }}-{{ loop.index }}" role="tab">
+                  <span class="q">{{ item.q }}</span>
+                  <span class="chev" aria-hidden="true">▾</span>
+                </button>
+                <div class="accordion-panel" id="acc-p-{{ sec['id'] }}-{{ loop.index }}" role="region" aria-labelledby="acc-h-{{ sec['id'] }}-{{ loop.index }}">
+                  <div class="a">{{ item.a }}</div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </section>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="accordion" role="tablist">
+        {% for item in qas %}
+        <div class="accordion-item">
+          <button class="accordion-header" id="acc-h-{{ loop.index }}" aria-expanded="false" aria-controls="acc-p-{{ loop.index }}" role="tab">
+            <span class="q">{{ item.q }}</span>
+            <span class="chev" aria-hidden="true">▾</span>
+          </button>
+          <div class="accordion-panel" id="acc-p-{{ loop.index }}" role="region" aria-labelledby="acc-h-{{ loop.index }}">
+            <div class="a">{{ item.a }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}
 
 {% block extra_css %}
 <style>
+  html { scroll-behavior: smooth; }
+  .faq-wrap { width: 100%; }
+  .faq-toc-card { margin: 0 auto 16px; position: sticky; top: 64px; z-index: 10; backdrop-filter: blur(4px); background: color-mix(in srgb, var(--color-surface), transparent 20%); border: 1px solid var(--color-border); }
+  .faq-toc-row { display:flex; align-items: center; justify-content: space-between; gap:12px; flex-wrap: wrap; }
+  .faq-search { display: inline-flex; align-items: center; gap: 8px; }
+  .faq-search label { color: var(--color-text); font-weight: 500; }
+  .faq-search input { padding:8px 10px; border-radius: 8px; border:1px solid var(--color-border); background: var(--color-surface-2); color: var(--color-text); min-width: 220px; }
+  .faq-search input::placeholder { color: var(--color-text-muted); }
+  .faq-toc { display:flex; align-items: center; gap:10px; font-size: .95rem; }
+  .faq-toc ul { display:flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .faq-toc .chip { display:inline-flex; align-items:center; padding:6px 10px; border-radius:999px; border:1px solid var(--color-border); background: var(--color-surface-2); color: var(--color-text); text-decoration:none; font-size:.9rem; transition: background .15s ease, border-color .15s ease; }
+  .faq-toc .chip:hover { background: var(--color-surface-3); }
+  .faq-toc .chip.active { background: var(--color-brand, #4458ff); color:#fff; border-color: transparent; }
+  .faq-sections { display: grid; gap: 16px; }
+  .faq-section { scroll-margin-top: var(--faq-offset, 120px); }
+  .faq-section-card { text-align: left; }
+  .faq-h2 { font-size: 1.1rem; font-weight: 600; margin: 4px 0 6px; color: var(--color-text); }
   .accordion { width: 100%; }
   .accordion-item { border-bottom: 1px solid rgba(255,255,255,0.08); }
   .accordion-header { width: 100%; text-align: left; display:flex; justify-content: space-between; align-items: center; background: transparent; border: none; color: var(--color-text); padding: 14px 0; cursor: pointer; font-size: 1.05rem; }
@@ -35,6 +94,7 @@
   .accordion-panel { max-height: 0; overflow: hidden; transition: max-height .22s ease; }
   .accordion-panel .a { padding: 0 0 14px 0; color: var(--color-text-muted, #cdd3df); }
   .accordion-item.open .accordion-panel { /* max-height set inline by JS to content height */ will-change: max-height; }
+  .faq-empty { margin: 8px 0 0; }
 </style>
 {% endblock %}
 
@@ -42,20 +102,164 @@
 <script>
   (function(){
     var items = document.querySelectorAll('.accordion-item');
-    function closeAll(){ items.forEach(function(it){ it.classList.remove('open'); var hdr = it.querySelector('.accordion-header'); var pnl = it.querySelector('.accordion-panel'); if (hdr) hdr.setAttribute('aria-expanded','false'); if (pnl){ pnl.style.maxHeight = '0px'; } }); }
     function onToggle(e){
       var btn = e.currentTarget;
       var item = btn.closest('.accordion-item');
       var panel = item ? item.querySelector('.accordion-panel') : null;
       var expanded = btn.getAttribute('aria-expanded') === 'true';
-      // Allow multiple open? For now single-open for simplicity
-      if (!expanded){ closeAll(); }
+      // Multiple open allowed: only toggle the current item
       var now = !expanded;
       btn.setAttribute('aria-expanded', now ? 'true' : 'false');
       if (item) item.classList.toggle('open', now);
       if (panel){ panel.style.maxHeight = now ? (panel.scrollHeight + 'px') : '0px'; }
     }
     items.forEach(function(it){ var btn = it.querySelector('.accordion-header'); if (btn){ btn.addEventListener('click', onToggle); btn.addEventListener('keydown', function(ev){ if (ev.key==='Enter' || ev.key===' ') { ev.preventDefault(); onToggle({ currentTarget: btn }); } }); } });
+
+    // Precise scroll for TOC chips to account for sticky bar height
+    var tocCard = document.querySelector('.faq-toc-card');
+    var siteHeader = document.querySelector('header.header');
+    var chips = Array.prototype.slice.call(document.querySelectorAll('.faq-toc .chip'));
+    function getMaxScrollTop(){ return Math.max(0, (document.documentElement.scrollHeight || 0) - window.innerHeight); }
+    function computeStickyOffset(){
+      var h = siteHeader ? siteHeader.offsetHeight : 0;
+      var t = tocCard ? tocCard.offsetHeight : 0;
+      return h + t + 28; // extra breathing room to avoid title being covered
+    }
+    // Expose offset to CSS for native anchor jumps
+    function applyCssOffset(){
+      document.documentElement.style.setProperty('--faq-offset', computeStickyOffset() + 'px');
+    }
+    applyCssOffset();
+    window.addEventListener('resize', applyCssOffset);
+    function getTargetTopFor(id){
+      var sec = document.getElementById(id);
+      if (!sec) return null;
+      var secTop = sec.getBoundingClientRect().top + window.scrollY;
+      return Math.max(0, secTop - computeStickyOffset());
+    }
+    function scrollToSection(id){
+      var sec = document.getElementById(id);
+      if (!sec) return;
+      var target = getTargetTopFor(id);
+      if (target === null) return;
+      window.scrollTo({ top: target, behavior: 'smooth' });
+      if (history && history.replaceState){ history.replaceState(null, '', '#' + id); }
+    }
+    var lockedActiveId = null; // When at bottom and target clamps, keep clicked chip highlighted
+    chips.forEach(function(ch){
+      ch.addEventListener('click', function(ev){
+        var id = ch.getAttribute('data-target');
+        if (id){
+          ev.preventDefault();
+          // Immediately reflect UI state
+          setActive(id);
+          // Determine if scroll will clamp to bottom
+          var target = getTargetTopFor(id);
+          var maxTop = getMaxScrollTop();
+          if (target !== null && target >= (maxTop - 1)) { lockedActiveId = id; } else { lockedActiveId = null; }
+          scrollToSection(id);
+        }
+      });
+    });
+
+    // Active section highlighting via scroll position (robust near bottom)
+    var sectionEls = Array.prototype.slice.call(document.querySelectorAll('.faq-section'));
+    var chipById = {};
+    chips.forEach(function(ch){ chipById[ch.getAttribute('data-target')] = ch; });
+    function setActive(id){
+      chips.forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-target') === id); });
+    }
+    function isSectionVisible(sec){
+      var card = sec.querySelector('.faq-section-card');
+      if (!card) return false;
+      if (card.offsetParent === null) return false; // hidden via display:none
+      var rect = card.getBoundingClientRect();
+      return rect.height > 0;
+    }
+    var ticking = false;
+    function updateActiveByScroll(){
+      ticking = false;
+      if (!sectionEls.length) return;
+      var doc = document.documentElement;
+      var atBottom = Math.ceil(window.scrollY + window.innerHeight) >= Math.floor(doc.scrollHeight - 2);
+      var visibleSecs = sectionEls.filter(isSectionVisible);
+      if (!visibleSecs.length) return;
+      // If we're at bottom due to clamped scroll from a chip click, honor the locked id
+      if (atBottom && lockedActiveId){ setActive(lockedActiveId); return; }
+      var offset = computeStickyOffset();
+      var pivot = window.scrollY + offset + 1; // just below sticky UI
+      var current = visibleSecs[0];
+      for (var i=0; i<visibleSecs.length; i++){
+        var s = visibleSecs[i];
+        var top = s.offsetTop; // relative to document
+        if (top <= pivot){ current = s; } else { break; }
+      }
+      if (current) setActive(current.id);
+      // Clear lock once we leave bottom
+      if (!atBottom) { lockedActiveId = null; }
+    }
+    window.addEventListener('scroll', function(){ if (!ticking){ ticking = true; window.requestAnimationFrame(updateActiveByScroll); } });
+    window.addEventListener('resize', function(){ updateActiveByScroll(); });
+    // Initial highlight
+    updateActiveByScroll();
+
+    // On load with hash, adjust initial scroll
+    if (location.hash && location.hash.length > 1){
+      var tgt = location.hash.substring(1);
+      setTimeout(function(){
+        setActive(tgt);
+        var target = getTargetTopFor(tgt);
+        var maxTop = getMaxScrollTop();
+        if (target !== null && target >= (maxTop - 1)) { lockedActiveId = tgt; }
+        scrollToSection(tgt);
+        updateActiveByScroll();
+      }, 0);
+    }
+
+    // Live search filtering
+    var q = document.getElementById('faq-search');
+    var empty = document.querySelector('.faq-empty');
+    function norm(t){ return (t||'').toLowerCase(); }
+    function matches(text, query){
+      var parts = norm(query).split(/\s+/).filter(Boolean);
+      var nt = norm(text);
+      return parts.every(function(p){ return nt.indexOf(p) !== -1; });
+    }
+    function doFilter(){
+      var query = q ? q.value : '';
+      var any = false;
+      // per section
+      sectionEls.forEach(function(sec){
+        var card = sec.querySelector('.faq-section-card');
+        var list = sec.querySelectorAll('.accordion-item');
+        var anyInSection = false;
+        list.forEach(function(it){
+          var title = it.querySelector('.q');
+          var body = it.querySelector('.a');
+          var text = (title ? title.textContent : '') + ' ' + (body ? body.textContent : '');
+          var ok = !query || matches(text, query);
+          if (!ok){
+            // collapse and hide
+            it.classList.remove('open');
+            var hdr = it.querySelector('.accordion-header');
+            var pnl = it.querySelector('.accordion-panel');
+            if (hdr) hdr.setAttribute('aria-expanded','false');
+            if (pnl) pnl.style.maxHeight = '0px';
+          }
+          it.style.display = ok ? '' : 'none';
+          anyInSection = anyInSection || ok;
+          any = any || ok;
+        });
+        card.style.display = anyInSection ? '' : 'none';
+      });
+      if (empty){ empty.hidden = any; }
+    }
+    if (q){ q.addEventListener('input', doFilter); }
+  
+    // Ensure proper maxHeight after window resize for opened panels
+    window.addEventListener('resize', function(){
+      document.querySelectorAll('.accordion-item.open .accordion-panel').forEach(function(pnl){ pnl.style.maxHeight = pnl.scrollHeight + 'px'; });
+    });
   })();
 </script>
 {% endblock %}

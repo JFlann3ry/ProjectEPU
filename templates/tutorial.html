@@ -8,12 +8,21 @@
   {{ page_hero('How to upload as a guest', 'Follow these quick steps to join an event and share your photos or videos.') }}
 
   <div class="card center" style="max-width:980px;">
+    <p class="muted" style="margin:0 0 12px;">This page includes short, silent clips (1–15s) and screenshots to show each step. If a video is present, it will play inline on supported browsers.</p>
     <ol class="steps">
       {% for s in steps %}
       <li id="step-{{ s.id }}" class="step">
         <div class="step-grid">
           <div class="shot">
-            <div class="placeholder">Screenshot {{ loop.index }}</div>
+            {# Media placeholders — replace with real assets under /static/tutorial when available #}
+            {% set shot_img = "/static/tutorial/" ~ s.id ~ ".png" %}
+            {% set shot_mp4 = "/static/tutorial/" ~ s.id ~ ".mp4" %}
+            <figure class="media" data-step="{{ s.id }}">
+              <div class="placeholder" aria-hidden="true">Screenshot {{ loop.index }} (preview coming soon)</div>
+              <video class="clip" src="{{ shot_mp4 }}" playsinline muted loop preload="metadata" aria-label="{{ s.title }} demo" onloadedmetadata="this.currentTime=0.01"></video>
+              <img class="screenshot" src="{{ shot_img }}" alt="{{ s.title }} screenshot" loading="lazy">
+              <figcaption class="muted small" style="margin-top:6px;">{{ s.title }}</figcaption>
+            </figure>
           </div>
           <div class="copy">
             <h3 class="step-title">{{ loop.index }}. {{ s.title }}</h3>
@@ -38,10 +47,44 @@
   .step { border-bottom: 1px solid rgba(255,255,255,0.08); padding: 14px 0; }
   .step:last-child { border-bottom: 0; }
   .step-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 16px; align-items: center; }
-  .placeholder { background: rgba(255,255,255,0.06); border: 1px dashed rgba(255,255,255,0.2); border-radius: 10px; min-height: 160px; display:flex; align-items:center; justify-content:center; color: rgba(255,255,255,0.75); font-size: 0.95rem; }
+  .media { margin: 0; }
+  .screenshot, .clip { width: 100%; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); display:block; }
+  .clip { max-height: 420px; object-fit: cover; }
+  .screenshot { max-height: 420px; object-fit: contain; }
+  .media .clip + .screenshot { margin-top: 6px; }
   .step-title { margin: 0 0 6px; }
   .step-desc { margin: 0 0 10px; color: var(--color-text-muted, #cdd3df); }
   .step-cta .btn { margin-right: 8px; }
   @media (max-width: 900px){ .step-grid { grid-template-columns: 1fr; } }
 </style>
+<script>
+// Show best-available media; fall back to a placeholder if files are missing
+(function(){
+  try {
+    var figures = document.querySelectorAll('.media');
+    figures.forEach(function(fig){
+      var ph = fig.querySelector('.placeholder');
+      var vid = fig.querySelector('video');
+      var img = fig.querySelector('img');
+      var anyShown = false;
+      function show(el){ if (el) { el.style.display = 'block'; anyShown = true; if (ph) ph.style.display = 'none'; } }
+      function hide(el){ if (el) el.style.display = 'none'; }
+      // Initialize hidden; reveal when loaded
+      if (vid) {
+        hide(vid);
+        vid.addEventListener('loadeddata', function(){ show(vid); try { vid.muted = true; vid.play().catch(function(){}); } catch(e){} }, { once: true });
+        vid.addEventListener('error', function(){ hide(vid); if (!anyShown && img && img.complete && img.naturalWidth > 0) { show(img); } });
+      }
+      if (img) {
+        hide(img);
+        if (img.complete) { if (img.naturalWidth > 0) show(img); }
+        img.addEventListener('load', function(){ show(img); }, { once: true });
+        img.addEventListener('error', function(){ hide(img); if (!anyShown && vid && vid.readyState >= 2) { show(vid); } });
+      }
+      // If neither loads within ~1.2s, keep placeholder
+      setTimeout(function(){ if (!anyShown && ph) ph.style.display = 'block'; }, 1200);
+    });
+  } catch(e){}
+})();
+</script>
 {% endblock %}

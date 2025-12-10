@@ -78,82 +78,212 @@ async def privacy_page(request: Request):
 @router.get("/faq", response_class=HTMLResponse)
 async def faq_page(request: Request):
     """Frequently Asked Questions page with simple accordion UI."""
-    qas = [
+    # Group FAQs into themed sections. Keep answers concise; link to deeper docs.
+    sections = [
         {
-            "q": "How do I upload photos or videos?",
-            "a": (
-                "Go to your event page and click Upload. You can drag and drop files "
-                "or select them from your device. Progress is shown in real time."
-            ),
+            "id": "getting-started",
+            "title": "Getting started",
+            "items": [
+                {
+                    "q": "How do I upload photos or videos?",
+                    "a": (
+                        "Open your event page and click Upload. Drag & drop files or "
+                        "select them from your device. Progress is shown in real time. "
+                        "New here? See the tutorial at /tutorial."
+                    ),
+                },
+                {
+                    "q": "Do guests need an account?",
+                    "a": (
+                        "Usually no. Guests can upload using the event link or code. "
+                        "Hosts can optionally require a password in Event Settings."
+                    ),
+                },
+                {
+                    "q": "How do I share my event with guests?",
+                    "a": (
+                        "Use the Share button on your event to copy a link or generate "
+                        "a QR code for invites and signage."
+                    ),
+                },
+            ],
         },
         {
-            "q": "What file types are supported?",
-            "a": (
-                "We support common image formats (JPG, JPEG, PNG, HEIC) and videos "
-                "(MP4, MOV). Raw formats aren’t supported at this time."
-            ),
+            "id": "uploads-media",
+            "title": "Uploads and media",
+            "items": [
+                {
+                    "q": "What file types are supported?",
+                    "a": (
+                        "Images: JPG, JPEG, PNG, HEIC. Videos: MP4, MOV. Raw formats "
+                        "aren’t supported right now."
+                    ),
+                },
+                {
+                    "q": "Is there a file size or length limit?",
+                    "a": (
+                        "Images up to about 25 MB and short videos (a few minutes) work "
+                        "well. Exact limits can vary by plan and network."
+                    ),
+                },
+                {
+                    "q": "Can I upload from mobile?",
+                    "a": (
+                        "Yes. The uploader works on modern mobile browsers. Large videos "
+                        "may take longer depending on your connection."
+                    ),
+                },
+                {
+                    "q": "Can I delete or restore files?",
+                    "a": (
+                        "Event owners can soft-delete items from the gallery and restore "
+                        "them from the Deleted view before they’re purged."
+                    ),
+                },
+            ],
         },
         {
-            "q": "Is there a file size or length limit?",
-            "a": (
-                "Images up to ~25 MB and short videos up to a few minutes typically "
-                "work well. Exact limits may depend on your plan and network speed."
-            ),
+            "id": "gallery-features",
+            "title": "Gallery and features",
+            "items": [
+                {
+                    "q": "Who can see uploads to my event?",
+                    "a": (
+                        "Only people with your event’s share link/code (and password if "
+                        "enabled). You can lock or unpublish anytime from Event Settings."
+                    ),
+                },
+                {
+                    "q": "Does the gallery support slideshows?",
+                    "a": (
+                        "Yes. Use the dedicated Live Slideshow at /live/{code} for a "
+                        "full‑screen display that auto‑advances and picks up new uploads. "
+                        "Keyboard: Space to pause/resume, ←/→ for previous/next, +/- to change delay."
+                    ),
+                },
+                {
+                    "q": "Can I favorite or bulk select items?",
+                    "a": (
+                        "Yes. Use the selection toolbar for bulk actions like Delete, "
+                        "ZIP, or Add to album. Favorites update immediately."
+                    ),
+                },
+            ],
         },
         {
-            "q": "Who can see uploads to my event?",
-            "a": (
-                "Only people with your event’s share link (or code) can view the "
-                "gallery. You can lock the event or unpublish it at any time from "
-                "Event Settings."
-            ),
+            "id": "plans-billing",
+            "title": "Plans and billing",
+            "items": [
+                {
+                    "q": "Do you offer refunds?",
+                    "a": (
+                        "If something went wrong with your purchase, contact support "
+                        "with your order number. Eligibility depends on usage and time "
+                        "since purchase."
+                    ),
+                },
+                {
+                    "q": "How long are files stored?",
+                    "a": (
+                        "Files remain available for the duration of your plan. If you "
+                        "cancel or downgrade, we’ll notify you of any storage changes "
+                        "in advance."
+                    ),
+                },
+                {
+                    "q": "Where can I view or change my plan?",
+                    "a": (
+                        "See the pricing page for plan details. Billing changes are "
+                        "managed from your account’s billing section."
+                    ),
+                },
+            ],
         },
         {
-            "q": "Can I delete files or my data?",
-            "a": (
-                "Yes. Event owners can remove files from the gallery. You can request "
-                "account or data deletion from your Profile or by contacting support."
-            ),
+            "id": "privacy-security",
+            "title": "Privacy and security",
+            "items": [
+                {
+                    "q": "How is my data protected?",
+                    "a": (
+                        "We use industry-standard practices. Event POST actions include "
+                        "CSRF protection. See /privacy for details."
+                    ),
+                },
+                {
+                    "q": "Can I request data deletion?",
+                    "a": (
+                        "Yes. Request account or data deletion from your Profile or by "
+                        "contacting support."
+                    ),
+                },
+                {
+                    "q": "Do you track guests?",
+                    "a": (
+                        "We minimize personal data. Guests can upload without accounts; "
+                        "hosts may require a password for extra privacy."
+                    ),
+                },
+            ],
         },
         {
-            "q": "Do you offer refunds?",
-            "a": (
-                "If something went wrong with your purchase, contact us with your "
-                "order number and we’ll help. Refund eligibility depends on usage and "
-                "time since purchase."
-            ),
+            "id": "troubleshooting",
+            "title": "Troubleshooting",
+            "items": [
+                {
+                    "q": "Uploads are slow or stuck",
+                    "a": (
+                        "Check your network and try fewer files at once. Very large "
+                        "videos upload more slowly on mobile connections."
+                    ),
+                },
+                {
+                    "q": "A video won’t play in the gallery",
+                    "a": (
+                        "Make sure it’s MP4 or MOV. Some rare codecs may not play in all "
+                        "browsers. Converting to H.264/AAC usually helps."
+                    ),
+                },
+                {
+                    "q": "I can’t find my event",
+                    "a": (
+                        "Confirm the share link or event code with the host, or ask them "
+                        "to re-share the QR code."
+                    ),
+                },
+            ],
         },
-        {
-            "q": "How do I share my event with guests?",
-            "a": (
-                "Use the Share button on your event to copy a link or generate a QR "
-                "code for invites and signage."
-            ),
-        },
-        {
-            "q": "How long are files stored?",
-            "a": (
-                "We aim to keep your files available for the duration of your plan. "
-                "If you cancel or downgrade, we’ll notify you about any storage "
-                "changes in advance."
-            ),
-        },
-        {
-            "q": "Do guests need an account?",
-            "a": (
-                "Usually no—guests can upload via the event link/code. You can "
-                "require a password for extra privacy in Event Settings."
-            ),
-        },
-        {
-            "q": "How do I contact support?",
-            "a": (
-                "Visit our Contact page to send us a message. We typically respond "
-                "within one business day."
-            ),
-        },
+        # Note: removed the previous 'For developers' FAQ section per request.
     ]
-    return templates.TemplateResponse(request, "faq.html", context={"qas": qas})
+
+    # Wrap sections to support both bracket and dot access without colliding with dict methods
+    class _SectionAdapter:
+        __slots__ = ("_data",)
+
+        def __init__(self, data: dict):
+            self._data = data
+
+        def __getitem__(self, key):
+            return self._data[key]
+
+        def __getattr__(self, name):
+            # Allow attribute-style access like sec.id, sec.title, and crucially sec.items
+            if name in self._data:
+                return self._data[name]
+            raise AttributeError(name)
+
+        def get(self, key, default=None):
+            return self._data.get(key, default)
+
+    sections_wrapped = [_SectionAdapter(sec) for sec in sections]
+
+    # Provide a flat list for templates/tests that expect `qas`.
+    qas_flat = [item for sec in sections for item in sec["items"]]
+    return templates.TemplateResponse(
+        request,
+        "faq.html",
+        context={"sections": sections_wrapped, "qas": qas_flat},
+    )
 
 
 @router.get("/about", response_class=HTMLResponse)

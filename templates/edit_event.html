@@ -523,7 +523,7 @@
           {% include "_theme_vars.html" %}
           <div class="web-preview" data-base="1400">
             <div class="container center" style="padding-top: 12px;">
-              <div class="frost-wrap" style="max-width:860px;margin:0 auto; border-radius:12px;">
+              <div id="pv-frost-wrap" class="frost-wrap" style="--bg-image: {% if custom and custom.CoverPhotoPath %}url('{{ custom.CoverPhotoPath }}'){% else %}none{% endif %}; --bg-size: contain; --bg-position: center top; --bg-blur: 14px; max-width:860px;margin:0 auto; border-radius:12px;">
                 <div class="theme-card card guest-card rounded radius-{{ 'subtle' if cr=='subtle' else ('sharp' if cr=='sharp' else 'rounded') }} center">
                   {% if custom and custom.WelcomeMessage %}
                   <h2 id="guest-title" class="login-title heading-{{ hs }}" style="margin-bottom:6px; text-align:center;">{{ custom.WelcomeMessage }}</h2>
@@ -662,11 +662,12 @@ document.addEventListener('DOMContentLoaded', function(){
   const welcome = document.getElementById('welcome_message');
   const instructions = document.getElementById('upload_instructions');
   const banner = document.getElementById('banner_image');
-  // No standalone #preview; use pv-cover-img for banner and pRoot for background
+  // Use pv-cover-img to display banner inside the card, and pv-frost-wrap for the frosted background behind the form
   const pTitle = document.getElementById('guest-title');
   const pDesc = document.getElementById('guest-instructions');
   const pBtn = document.getElementById('pre22view-button');
   const pRoot = document.getElementById('preview-root');
+  const frostWrap = document.getElementById('pv-frost-wrap');
   const pvBanner = document.getElementById('pv-banner');
   const pvProgress = document.getElementById('pv-progress');
   const pvUploads = document.getElementById('pv-uploads');
@@ -1002,12 +1003,12 @@ document.addEventListener('DOMContentLoaded', function(){
         if (ap) { ap.src = e.target.result; ap.removeAttribute('hidden'); }
         // Tick and lock the Banner toggle
         if (pvBanner) { pvBanner.checked = true; pvBanner.disabled = true; }
-        // Set frosted background using CSS vars on theme root (quote URL to be safe)
-        if (pRoot) {
-          pRoot.style.setProperty('--bg-image', `url('${e.target.result}')`);
-          pRoot.style.setProperty('--bg-size', 'cover');
-          pRoot.style.setProperty('--bg-position', 'center');
-          pRoot.style.setProperty('--bg-blur', '44px');
+        // Set frosted background on the local frost wrapper (match upload page behavior)
+        if (frostWrap) {
+          frostWrap.style.setProperty('--bg-image', `url('${e.target.result}')`);
+          frostWrap.style.setProperty('--bg-size', 'contain');
+          frostWrap.style.setProperty('--bg-position', 'center top');
+          frostWrap.style.setProperty('--bg-blur', '14px');
         }
         updatePreview();
       };
@@ -1026,7 +1027,7 @@ document.addEventListener('DOMContentLoaded', function(){
                 const p = j.path + '?v=' + Date.now();
                 const ap = document.getElementById('asset-banner-preview'); if (ap) { ap.src = p; ap.removeAttribute('hidden'); }
                 const img = document.getElementById('pv-cover-img'); if (img) { img.src = p; img.removeAttribute('hidden'); }
-                if (pRoot) { pRoot.style.setProperty('--bg-image', `url(${p})`); }
+                if (frostWrap) { frostWrap.style.setProperty('--bg-image', `url(${p})`); frostWrap.style.setProperty('--bg-size', 'contain'); frostWrap.style.setProperty('--bg-position', 'center top'); frostWrap.style.setProperty('--bg-blur', '14px'); }
               } else {
                 if (window.snackbar && window.snackbar.show){ window.snackbar.show(j && j.error ? j.error : 'Upload failed'); }
               }
@@ -1041,7 +1042,7 @@ document.addEventListener('DOMContentLoaded', function(){
       if (removeBannerHidden) removeBannerHidden.value = '1';
       if (pvBanner){ pvBanner.checked = false; pvBanner.disabled = false; }
       if (coverWrap){ coverWrap.style.display = 'none'; const im=document.getElementById('pv-cover-img'); if (im){ im.removeAttribute('src'); im.setAttribute('hidden',''); } }
-      if (pRoot){ pRoot.style.removeProperty('--bg-image'); pRoot.style.removeProperty('--bg-size'); pRoot.style.removeProperty('--bg-position'); pRoot.style.removeProperty('--bg-blur'); }
+  if (frostWrap){ frostWrap.style.removeProperty('--bg-image'); frostWrap.style.removeProperty('--bg-size'); frostWrap.style.removeProperty('--bg-position'); frostWrap.style.removeProperty('--bg-blur'); }
       const ap = document.getElementById('asset-banner-preview'); if (ap){ ap.setAttribute('hidden',''); ap.removeAttribute('src'); }
       const nameEl = document.getElementById('banner_file_name'); if (nameEl){ nameEl.textContent = 'No file chosen'; }
       if (banner){ try{ banner.value = ''; }catch(e){} }
@@ -1233,10 +1234,12 @@ document.addEventListener('DOMContentLoaded', function(){
         if (pvBanner) { pvBanner.checked = true; pvBanner.disabled = true; }
         if (coverWrap) { coverWrap.style.display = ''; }
         if (pRoot) {
-          pRoot.style.setProperty('--bg-image', `url(${initialBanner})`);
-          pRoot.style.setProperty('--bg-size', 'cover');
-          pRoot.style.setProperty('--bg-position', 'center');
-          pRoot.style.setProperty('--bg-blur', '44px');
+          if (frostWrap) {
+            frostWrap.style.setProperty('--bg-image', `url(${initialBanner})`);
+            frostWrap.style.setProperty('--bg-size', 'contain');
+            frostWrap.style.setProperty('--bg-position', 'center top');
+            frostWrap.style.setProperty('--bg-blur', '14px');
+          }
         }
       }
       applyToggles();

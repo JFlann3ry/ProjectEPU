@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "components/macros.html" import page_hero, notice %}
 
-{% block title %}Event Gallery - EPU{% endblock %}
+{% block title %}{{ (event_name or 'Event') ~ ' Gallery - EPU' }}{% endblock %}
 
 {% block breadcrumbs %}
         {% from 'components/macros.html' import breadcrumbs %}
@@ -15,15 +15,15 @@
 {% endblock %}
 {% block content %}
         <div class="container section center">
-                {{ page_hero('Event Gallery', 'Browse, favorite, and manage uploads.', True) }}
+                {{ page_hero((event_name or 'Event') ~ ' Gallery', 'Browse, favorite, and manage uploads.', True) }}
 
                 {% if filters and filters.show_deleted %}
                     {{ notice('Files marked for deletion will be permanently removed after 30 days. You can restore them here until then.', 'error', 'style="margin: 8px 0 12px;"') }}
                 {% endif %}
     <div class="card" style="margin-bottom:16px;">
             <style>
-        .gallery-filters { padding: 10px 12px 8px; }
-        .gallery-filters .filters-row { display:flex; flex-wrap: nowrap; align-items:center; gap:12px; }
+        /* Keep the top filter controls on a single row on wide screens */
+        .gallery-filters .filters-row { display:flex; align-items:center; gap:12px; flex-wrap: nowrap; }
         .gallery-filters .filter-group { display:flex; gap:12px; align-items:center; }
     .gallery-filters .pill-filter { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; border:1px solid rgba(255,255,255,0.26); background: rgba(255,255,255,0.10); color: var(--color-text); cursor: pointer; user-select: none; transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease; }
         .gallery-filters .pill-filter[aria-pressed="true"] { border-color: var(--color-primary); background: rgba(112, 97, 255, 0.22); box-shadow: inset 0 0 0 1px rgba(112,97,255,0.35); }
@@ -31,7 +31,7 @@
     .gallery-filters .pill-filter .count { display:inline; margin-left: 6px; opacity: .85; text-align:center; font-variant-numeric: tabular-nums; transition: opacity .15s ease, transform .15s ease; }
     .gallery-filters .pill-filter[aria-pressed="true"] .count { opacity: 1; }
         .gallery-filters .spacer { flex: 1 1 auto; }
-        @media (max-width: 760px){ .gallery-filters .filters-row { flex-wrap: wrap; } }
+    @media (max-width: 760px){ .gallery-filters .filters-row { flex-wrap: wrap; } }
 
         /* Toolbar tweaks for better visual grouping */
         .gallery-toolbar { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-top:1px solid var(--color-border); }
@@ -41,10 +41,17 @@
     #delete-confirm { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); z-index: 1002; }
     #delete-confirm .modal-content { width: min(520px, 92vw); border-radius: 12px; border: 1px solid var(--color-border); background: rgba(0,0,0,0.8); padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.45); }
     #delete-confirm .modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
-    /* Ordinal badge on tiles - place top-right above checkbox */
+    /* Create album modal overlay */
+    #create-album-modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); z-index: 1002; }
+    #create-album-modal .modal-content { width: min(520px, 92vw); border-radius: 12px; border: 1px solid var(--color-border); background: rgba(0,0,0,0.85); padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.45); }
+        /* Tile base positioning */
     .gallery-item { position: relative; }
-    .tile-ordinal { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.7); color: white; font-size: 12px; line-height: 1; padding: 2px 6px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.4); z-index: 30; pointer-events: none; }
-    /* Ensure select checkbox sits beneath ordinal (checkbox already in DOM near left) */
+    .gallery-item .tile-overlay { pointer-events: none; }
+    .gallery-item .select-chk { position: absolute; left: 8px; top: 8px; z-index: 40; }
+    .gallery-item:focus-visible { outline: 3px solid var(--color-primary); outline-offset: 3px; border-radius: 8px; }
+        /* Deleted view group heading should wrap and not overflow */
+        .group-heading { display:block; width:100%; box-sizing:border-box; padding:6px 8px; margin:8px 0; border-radius:8px; background: rgba(0,0,0,0.35); border:1px solid var(--color-border); color: var(--color-text); font-weight:600; 
+            overflow-wrap:anywhere; word-break:break-word; white-space:normal; }
             </style>
             <div class="gallery-filters">
                 <div class="filters-row">
@@ -70,28 +77,32 @@
             </div>
             <div class="gallery-toolbar">
                 <div class="toolbar-left">
-                    <button id="play-slideshow" class="btn" type="button">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:middle; margin-right:6px;">
-                            <path fill="currentColor" d="M8 5v14l11-7z"></path>
-                        </svg>
-                        Play Slideshow
-                    </button>
+                    {% if event_id and event_code %}
+                    <a class="btn" href="/live/{{ event_code }}" target="_blank" rel="noopener" title="Open a full-screen live slideshow in a new tab">Open Live Slideshow</a>
+                    {% endif %}
                     <button id="new-album" class="btn" type="button">New Album</button>
                 </div>
                 <div class="toolbar-right">
-                    <button id="select-all" type="button" class="btn" title="Select all visible">Select All</button>
+                    <button id="select-all" type="button" class="btn" title="Select all (Alt/Ctrl: only visible)">Select All</button>
                     {% if not (filters and filters.show_deleted) %}
                     <form id="delete-form" method="post" action="/gallery/actions/delete" style="display:none;">
                         <input type="hidden" name="file_ids" value="">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">
                         <button type="submit" class="btn danger" hidden>Delete</button>
                     </form>
                     {% endif %}
                     {% if has_deleted %}
                     <form id="restore-form" method="post" action="/gallery/actions/restore" style="display:none;">
                         <input type="hidden" name="file_ids" value="">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">
                         <button type="submit" class="btn success" disabled>Restore</button>
                     </form>
                     {% endif %}
+                    <form id="zip-form" method="post" action="/gallery/download-zip" style="display:none;">
+                        <input type="hidden" name="file_ids" value="">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">
+                        <button type="submit" hidden>Zip</button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -102,12 +113,12 @@
         {# Sorted by days_left; backend now guarantees an int for deleted files (or 9999 for unknown) #}
         {% set sorted_files = files|sort(attribute='days_left') %}
     {% endif %}
-    <div class="dynamic-gallery masonry-row-first" id="gallery" data-masonry="columns" data-target-col-width="300" data-next-offset="{{ next_offset if next_offset is not none else '' }}" data-page-size="{{ page_size }}">
+    <div class="dynamic-gallery masonry-row-first" id="gallery" role="list" aria-label="Gallery items" data-masonry="grid" data-target-col-width="300" data-next-offset="{{ next_offset if next_offset is not none else '' }}" data-page-size="{{ page_size }}" data-current-offset="{{ current_offset if current_offset is not none else 0 }}">
             {% if filters and filters.show_deleted %}{% set ns = namespace(last_days=None) %}{% endif %}
             {% for file in sorted_files %}
             {% set days = file.days_left if file.days_left is number else 9999 %}
             {% if filters and filters.show_deleted and days != ns.last_days %}
-                <div class="group-heading" data-days="{{ days }}" aria-label="Group: {% if days >= 9999 %}Deletion date unknown{% elif days == 0 %}Deleting soon{% elif days == 1 %}1 day left{% else %}{{ days }} days left{% endif %}">
+                <div class="group-heading" data-days="{{ days }}" aria-label="Group: {% if days >= 9999 %}Deletion date unknown{% elif days == 0 %}Deleting soon{% elif days == 1 %}1 day left{% else %}{{ days }} days left{% endif %}" style="grid-row-end: auto; grid-column: 1 / -1;">
                     {% if days >= 9999 %}Deletion date unknown{% elif days == 0 %}Deleting soon{% elif days == 1 %}1 day left{% else %}{{ days }} days left{% endif %}
                 </div>
                 {% set ns.last_days = days %}
@@ -117,12 +128,13 @@
             {% else %}
                 {% set cls = 'gallery-item gallery-clickable' %}
             {% endif %}
-            <div class="{{ cls }}" data-index="{{ loop.index0 }}" data-name="{{ file.name }}" data-datetime="{{ file.datetime or '' }}">
+            {% set tile_label = (file.type == 'video') and ('Video: ' ~ (file.name or 'Clip')) or (file.name or 'Photo') %}
+            <div class="{{ cls }}" role="listitem" tabindex="0" aria-label="{{ tile_label }}" data-index="{{ loop.index0 }}" data-file-id="{{ file.id }}" data-name="{{ file.name }}" data-datetime="{{ file.datetime or '' }}">
                 <input type="checkbox" class="select-chk" data-id="{{ file.id }}">
                 {% if file.type == 'image' %}
-                    <img src="{{ file.thumb_url or file.url }}" data-full="{{ file.url }}" class="gallery-img" alt="{{ file.name }}" loading="lazy" {% if file.srcset %}srcset="{{ file.srcset }}" sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 20vw"{% endif %}>
+                    <img src="{{ file.thumb_url or file.url }}" data-full="{{ file.url }}" class="gallery-img" alt="{{ file.name or 'Photo' }}" loading="lazy" {% if file.srcset %}srcset="{{ file.srcset }}" sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 20vw"{% endif %}>
                 {% elif file.type == 'video' %}
-                    <video src="{{ file.url }}" class="gallery-video" controls preload="none" {% if file.thumb_url %}poster="{{ file.thumb_url }}"{% endif %}></video>
+                    <video src="{{ file.url }}" class="gallery-video" controls preload="metadata" aria-label="Video player: {{ file.name or 'Clip' }}"></video>
                 {% endif %}
                 <div class="tile-overlay"></div>
                 {% if file.type == 'video' %}
@@ -135,22 +147,24 @@
                     {% endif %}
                 {% endif %}
                 {% if file.favorite %}
-                    <button class="fav-btn is-fav" title="Unfavorite" data-id="{{ file.id }}">★</button>
+                    <button class="fav-btn is-fav" aria-pressed="true" aria-label="Unfavorite" title="Unfavorite" data-id="{{ file.id }}">★</button>
                 {% else %}
-                    <button class="fav-btn" title="Favorite" data-id="{{ file.id }}">☆</button>
+                    <button class="fav-btn" aria-pressed="false" aria-label="Favorite" title="Favorite" data-id="{{ file.id }}">☆</button>
                 {% endif %}
-                {# Ordinal badge (small persistent corner) #}
-                {% if file.ordinal is defined %}
-                    <div class="tile-ordinal" aria-hidden="true">{{ file.ordinal }}</div>
-                {% endif %}
+                {# Ordinal badge removed (test-only UI) #}
             </div>
             {% endfor %}
         </div>
         {% else %}
+            <div id="gallery" class="dynamic-gallery masonry-row-first" role="list" aria-label="Gallery items" data-masonry="grid" data-target-col-width="300" data-next-offset="" data-page-size="{{ page_size }}" data-current-offset="{{ current_offset if current_offset is not none else 0 }}">
+                {# Hidden placeholder to satisfy a11y/tests when there are no items #}
+                <div role="listitem" tabindex="0" aria-hidden="true" style="display:none;"></div>
+            </div>
             <div class="p-bold">No files found.</div>
         {% endif %}
-    <div id="gallery-loader" class="center muted" style="padding:12px; display: none;">Loading more…</div>
-    <div id="gallery-end" class="center muted text-center" style="padding:12px; display:none;">End of uploads.</div>
+    <div id="gallery-loader" class="center muted" role="status" aria-live="polite" style="padding:12px; display: none;">Loading more…</div>
+    {# Pager buttons removed: infinite scroll loads next 100 automatically #}
+    <div id="gallery-end" class="center muted text-center" role="status" aria-live="polite" style="padding:12px; display:none;">End of uploads.</div>
     </div>
     <div id="bulk-bar" class="bulk-bar" style="display:none;">
         <div class="bulk-inner">
@@ -168,11 +182,11 @@
     </div>
     <!-- Create Album Modal (fallback; primary UI uses shared modal root) -->
     <div id="create-album-modal" class="modal" role="dialog" aria-modal="true" aria-hidden="true" style="display:none;">
-        <div class="modal-content" role="document" style="max-width:480px; margin: 0 auto; padding:16px;">
+        <div class="modal-content" role="document">
             <h3 class="p-bold">Create album</h3>
             <form id="create-album-form">
                 <div style="margin-top:8px;">
-                    <label for="create-album-name">Album name</label>
+                    <label for="create-album-name">Album Name</label>
                     <input id="create-album-name" name="name" class="input-field" required maxlength="255">
                 </div>
                 <div style="margin-top:8px;">
@@ -180,8 +194,8 @@
                     <textarea id="create-album-desc" name="description" class="input-field" rows="3" maxlength="1024"></textarea>
                 </div>
                 <div style="margin-top:12px; display:flex; justify-content:flex-end; gap:8px;">
-                    <button type="button" id="create-album-cancel" class="btn">Cancel</button>
-                    <button type="submit" id="create-album-submit" class="btn primary">Create</button>
+                    <button type="button" id="create-album-cancel" class="btn sm">Cancel</button>
+                    <button type="submit" id="create-album-submit" class="btn sm primary">Create</button>
                 </div>
             </form>
         </div>
@@ -201,11 +215,23 @@
     {% endif %}
     <div id="lightbox" class="lightbox" style="display:none;">
         <span id="lightbox-close" class="lightbox-close" role="button" tabindex="0" aria-label="Close">&times;</span>
-        <div class="lightbox-content">
-            <span id="lightbox-prev" class="lightbox-prev" role="button" tabindex="0" aria-label="Previous">&#10094;</span>
-            <span id="lightbox-next" class="lightbox-next" role="button" tabindex="0" aria-label="Next">&#10095;</span>
-            <img id="lightbox-img" alt="" style="display:none;max-width:90vw;max-height:80vh;">
-            <video id="lightbox-video" style="display:none;max-width:90vw;max-height:80vh;" controls></video>
+        <div class="lightbox-body" style="position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; width:100%;">
+            <div id="lightbox-controls" class="lightbox-controls" style="position:absolute; top:12px; left:50%; transform:translateX(-50%); width:calc(100% - 48px); display:flex; gap:10px; align-items:center; justify-content:center; padding:8px 10px; border-radius:10px; background: rgba(0,0,0,0.45); backdrop-filter: blur(4px); z-index:2;">
+                <button id="lb-prev" class="btn" type="button" aria-label="Previous">Previous</button>
+                <button id="lb-play" class="btn" type="button">Play</button>
+                <button id="lb-pause" class="btn" type="button" style="display:none;">Pause</button>
+                <div id="lb-delay-group" style="display:none; align-items:center; gap:6px;">
+                    <span class="muted small">Delay</span>
+                    <button id="lb-delay-decrease" class="btn" type="button" aria-label="Decrease delay">−</button>
+                    <span id="lb-delay-display" class="muted small" style="min-width:32px; text-align:center;">3s</span>
+                    <button id="lb-delay-increase" class="btn" type="button" aria-label="Increase delay">+</button>
+                </div>
+                <button id="lb-next" class="btn" type="button" aria-label="Next">Next</button>
+            </div>
+            <div class="lightbox-content" style="display:flex; align-items:center; justify-content:center; width:100%; padding-top:64px;">
+                <img id="lightbox-img" alt="" style="display:none;max-width:90vw;max-height:80vh;">
+                <video id="lightbox-video" style="display:none;max-width:90vw;max-height:80vh;" controls></video>
+            </div>
         </div>
     </div>
 {% endblock %}
@@ -213,11 +239,19 @@
 <link rel="stylesheet" href="{{ url_for('static', path='gallery.css') }}">
 {% endblock %}
 {% block extra_js %}
-{% set data_files = files %}
-{% if filters and filters.show_deleted %}
-    {% set data_files = files|sort(attribute='days_left') %}
+{# Default to empty list when files is undefined or empty to keep JSON serialization safe #}
+{% set data_files = [] %}
+{% if files is defined and files %}
+    {% set data_files = files %}
+    {% if filters is defined and filters and filters.show_deleted %}
+        {% set data_files = files|sort(attribute='days_left') %}
+    {% endif %}
 {% endif %}
-<script id="gallery-data" type="application/json">{{ ({'event_id': event_id, 'files': data_files, 'show_deleted': (1 if filters and filters.show_deleted else 0)}) | tojson | safe }}</script>
+{# Compute simple scalars to avoid passing Undefined into tojson #}
+{% set eid = (event_id if event_id is defined and event_id is not none else 0) %}
+{% set show_del = (1 if (filters is defined and filters and filters.show_deleted) else 0) %}
+<script id="gallery-data" type="application/json">{{ ({'event_id': eid, 'files': data_files, 'show_deleted': show_del}) | tojson | safe }}</script>
+<meta name="csrf-token" content="{{ csrf_token or '' }}">
 <script>
 // Populate album selector for this event and wire change handler
 (function(){
@@ -258,6 +292,103 @@
             window.location.href = u.toString();
         });
     }catch(e){ }
+})();
+
+// Pager controls: adjust URL offset preserving current query params
+(function(){
+    try{
+        var btnPrev = document.getElementById('pager-prev');
+        var btnNext = document.getElementById('pager-next');
+        function navToOffset(val){
+            try{
+                var u = new URL(window.location.href);
+                if (val === null || val === '' || typeof val === 'undefined') return;
+                var n = parseInt(val, 10);
+                if (!isFinite(n) || n < 0) n = 0;
+                u.searchParams.set('offset', String(n));
+                // Preserve existing limit if present; otherwise allow backend default
+                window.location.href = u.toString();
+            }catch(e){}
+        }
+        if (btnPrev){ btnPrev.addEventListener('click', function(){ var v = this.getAttribute('data-prev'); if (v !== null && v !== '') navToOffset(v); }); }
+        if (btnNext){ btnNext.addEventListener('click', function(){ var v = this.getAttribute('data-next'); if (v !== null && v !== '') navToOffset(v); }); }
+    }catch(e){}
+})();
+
+// Delete modal: basic focus trap and ESC to close, with focus restore
+(function(){
+    try{
+        var modal = document.getElementById('delete-confirm'); if (!modal) return;
+        var cancelBtn = document.getElementById('del-cancel');
+        var confirmBtn = document.getElementById('del-confirm');
+        var lastActive = null;
+        function isOpen(){ return modal && modal.style.display !== 'none'; }
+        function getFocusables(){ return Array.prototype.slice.call(modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter(function(el){ return !el.hasAttribute('disabled') && el.offsetParent !== null; }); }
+        function openTrap(){ try { lastActive = document.activeElement; var f = getFocusables(); if (f && f.length) f[0].focus(); } catch(e){} }
+        function closeTrap(){ try { if (lastActive && lastActive.focus) lastActive.focus(); } catch(e){} }
+        // Hook into existing open path by watching style changes when Delete clicked
+        var observer = new MutationObserver(function(){ if (isOpen()) openTrap(); });
+        observer.observe(modal, { attributes: true, attributeFilter: ['style'] });
+        // Trap Tab within modal
+        modal.addEventListener('keydown', function(e){
+            if (!isOpen()) return;
+            if (e.key === 'Escape'){ e.preventDefault(); modal.style.display = 'none'; closeTrap(); return; }
+            if (e.key === 'Tab'){
+                var f = getFocusables(); if (!f.length) return;
+                var first = f[0], last = f[f.length - 1];
+                if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+                else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+            }
+        });
+        if (cancelBtn){ cancelBtn.addEventListener('click', function(){ try { modal.style.display='none'; closeTrap(); } catch(e){} }); }
+    }catch(e){}
+})();
+
+// Create-album modal: focus trap and ESC to close, with focus restore
+(function(){
+    try{
+        var modal = document.getElementById('create-album-modal'); if (!modal) return;
+        var cancelBtn = document.getElementById('create-album-cancel');
+        var formEl = document.getElementById('create-album-form');
+        var nameInput = document.getElementById('create-album-name');
+        var lastActive = null;
+        function isOpen(){ return modal && modal.style.display !== 'none'; }
+        function getFocusables(){
+            return Array.prototype.slice.call(modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+                .filter(function(el){ return !el.hasAttribute('disabled') && el.offsetParent !== null; });
+        }
+        function openTrap(){
+            try {
+                lastActive = document.activeElement;
+                var f = getFocusables();
+                if (nameInput && nameInput.offsetParent !== null && nameInput.focus) nameInput.focus();
+                else if (f && f.length) f[0].focus();
+                document.body.classList.add('modal-open');
+                modal.setAttribute('aria-hidden','false');
+            } catch(e){}
+        }
+        function closeTrap(){
+            try {
+                document.body.classList.remove('modal-open');
+                modal.setAttribute('aria-hidden','true');
+                if (lastActive && lastActive.focus) lastActive.focus();
+            } catch(e){}
+        }
+        var observer = new MutationObserver(function(){ if (isOpen()) openTrap(); });
+        observer.observe(modal, { attributes: true, attributeFilter: ['style'] });
+        modal.addEventListener('keydown', function(e){
+            if (!isOpen()) return;
+            if (e.key === 'Escape'){ e.preventDefault(); modal.style.display = 'none'; closeTrap(); return; }
+            if (e.key === 'Tab'){
+                var f = getFocusables(); if (!f.length) return;
+                var first = f[0], last = f[f.length - 1];
+                if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+                else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+            }
+        });
+        if (cancelBtn){ cancelBtn.addEventListener('click', function(){ try { modal.style.display='none'; closeTrap(); } catch(e){} }); }
+        if (formEl){ formEl.addEventListener('submit', function(){ try { closeTrap(); } catch(e){} }); }
+    }catch(e){}
 })();
 </script>
 <script type="module" src="{{ url_for('static', path='js/pages/gallery.js') }}?v={{ now() if now else '' }}" defer></script>

@@ -1,5 +1,7 @@
+# ruff: isort: skip_file
 import logging
 from decimal import Decimal
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -17,6 +19,31 @@ log = logging.getLogger(__name__)
 @router.get("/extras", response_class=HTMLResponse)
 async def extras_marketplace(request: Request, db: Session = Depends(get_db)):
     addons = []
+    # Determine a context-aware back link (None => hide button)
+    back_href = None
+    back_label = None
+    try:
+        ref = request.headers.get("referer") or ""
+        if ref:
+            pu = urlparse(ref)
+            # Only use same-origin or relative refs, comparing to the runtime host
+            current_netloc = request.url.netloc or ""
+            same_origin = (not pu.netloc) or (pu.netloc == current_netloc)
+            if same_origin:
+                ref_path = pu.path or "/"
+                if pu.query:
+                    ref_path = ref_path + "?" + pu.query
+                # Avoid pointing to the same page
+                if ref_path != str(request.url.path):
+                    back_href = ref_path
+                    if pu.path.startswith("/events"):
+                        back_label = "Back to My Events"
+                    elif pu.path.startswith("/pricing"):
+                        back_label = "Back to Pricing"
+                    else:
+                        back_label = "Back"
+    except Exception:
+        pass
     try:
         rows = (
             db.query(AddonCatalog)
@@ -46,7 +73,80 @@ async def extras_marketplace(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(
         request,
         "extras.html",
-        context={"addons": addons, "STRIPE_PUBLISHABLE_KEY": settings.STRIPE_PUBLISHABLE_KEY},
+        context={
+            "addons": addons,
+            "STRIPE_PUBLISHABLE_KEY": settings.STRIPE_PUBLISHABLE_KEY,
+            "back_href": back_href,
+            "back_label": back_label,
+        },
+    )
+
+
+@router.get("/extras/{code}", response_class=HTMLResponse)
+async def extras_detail(code: str, request: Request, db: Session = Depends(get_db)):
+    # Only certain addons have dedicated detail pages for now
+    code = (code or "").strip().lower()
+    allowed_detail = {"qr_cards", "live_gallery"}
+    if code not in allowed_detail:
+        raise HTTPException(status_code=404, detail="Addon detail not available")
+
+    # Determine a context-aware back link
+    back_href = None
+    back_label = None
+    try:
+        ref = request.headers.get("referer") or ""
+        if ref:
+            pu = urlparse(ref)
+            current_netloc = request.url.netloc or ""
+            same_origin = (not pu.netloc) or (pu.netloc == current_netloc)
+            if same_origin:
+                ref_path = pu.path or "/"
+                if pu.query:
+                    ref_path = ref_path + "?" + pu.query
+                if ref_path != str(request.url.path):
+                    back_href = ref_path
+                    if pu.path.startswith("/extras"):
+                        back_label = "Back to Extras"
+                    elif pu.path.startswith("/events"):
+                        back_label = "Back to My Events"
+                    elif pu.path.startswith("/pricing"):
+                        back_label = "Back to Pricing"
+                    else:
+                        back_label = "Back"
+    except Exception:
+        pass
+
+    addon = (
+        db.query(AddonCatalog)
+        .filter(
+            AddonCatalog.Code == code,
+            AddonCatalog.IsActive == True,  # noqa: E712
+        )
+        .first()
+    )
+    if not addon:
+        raise HTTPException(status_code=404, detail="Addon not found")
+    a = {
+        "id": int(getattr(addon, "AddonID")),
+        "code": str(getattr(addon, "Code")),
+        "name": str(getattr(addon, "Name")),
+        "desc": str(getattr(addon, "Description") or ""),
+        "price_cents": int(getattr(addon, "PriceCents") or 0),
+        "currency": (getattr(addon, "Currency") or "gbp").lower(),
+        "allow_qty": bool(getattr(addon, "AllowQuantity")),
+        "min_qty": int(getattr(addon, "MinQuantity") or 1),
+        "max_qty": int(getattr(addon, "MaxQuantity") or 1),
+        "image": "/static/images/examples/corporate1.svg",
+    }
+    return templates.TemplateResponse(
+        request,
+        "extras_detail.html",
+        context={
+            "addon": a,
+            "STRIPE_PUBLISHABLE_KEY": settings.STRIPE_PUBLISHABLE_KEY,
+            "back_href": back_href,
+            "back_label": back_label or "Back to Extras",
+        },
     )
 
 
@@ -116,10 +216,21 @@ async def addons_checkout(
     allow_qty = bool(getattr(addon, "AllowQuantity"))
     if not allow_qty:
         qty = 1
-    qty = max(
-        int(getattr(addon, "MinQuantity") or 1),
-        min(qty, int(getattr(addon, "MaxQuantity") or 1)),
-    )
+    # Clamp to min/max first
+    min_q = int(getattr(addon, "MinQuantity") or 1)
+    max_q = int(getattr(addon, "MaxQuantity") or 1)
+    qty = max(min_q, min(qty, max_q))
+    # If the addon is intended for tens (10..500 and divisible by 10),
+    # coerce quantity to the nearest lower multiple of 10 within bounds.
+    try:
+        if allow_qty and min_q >= 10 and (min_q % 10 == 0) and (max_q % 10 == 0):
+            if qty % 10 != 0:
+                qty = qty - (qty % 10)
+                if qty < min_q:
+                    qty = min_q
+    except Exception:
+        # On any unexpected error, fall back to the clamped qty above
+        pass
     unit_cents = int(getattr(addon, "PriceCents") or 0)
     currency = str(getattr(addon, "Currency") or "gbp").lower()
     amount_cents = unit_cents * qty

@@ -9,6 +9,8 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import Session
 
+from app.api.gallery import DELETION_LOGS
+from app.core.settings import settings
 from app.core.templates import templates
 from app.models import AppErrorLog
 from app.models.billing import Purchase
@@ -200,6 +202,34 @@ async def admin_errors_page(
             "request_id": request_id or "",
             "since": since or "",
             "until": until or "",
+        },
+    )
+
+
+@router.get("/admin/mini-dashboard", response_class=HTMLResponse)
+async def admin_mini_dashboard(
+    request: Request,
+    db: Session = Depends(get_db),
+    user=Depends(require_admin),
+):
+    # Recent AppErrorLog entries
+    rows = (
+        db.query(AppErrorLog)
+        .order_by(AppErrorLog.OccurredAt.desc())
+        .limit(10)
+        .all()
+    )
+    # Recent delete/restore operations captured in-memory
+    recent_actions = list(DELETION_LOGS[-10:])
+    return templates.TemplateResponse(
+        request,
+        "admin_mini_dashboard.html",
+        context={
+            "error_rows": rows,
+            "recent_actions": recent_actions,
+            "debug_routes_enabled": bool(
+                getattr(settings, "DEBUG_ROUTES_ENABLED", False)
+            ),
         },
     )
 

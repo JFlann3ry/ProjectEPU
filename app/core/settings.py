@@ -55,6 +55,16 @@ class Settings(BaseSettings):
     # Redis (for shared rate limiting)
     REDIS_URL: str = ""
 
+    # AWS S3 Storage (optional; local filesystem if not configured)
+    AWS_REGION: str = ""
+    AWS_ACCESS_KEY_ID: str = ""  # Optional; uses IAM role on EC2
+    AWS_SECRET_ACCESS_KEY: str = ""  # Optional; uses IAM role on EC2
+    S3_UPLOADS_BUCKET: str = ""  # If empty, uses local filesystem
+
+    # Debug/dev-only routes flag
+    # Enable in development; should be disabled in production deployments.
+    DEBUG_ROUTES_ENABLED: bool = True
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

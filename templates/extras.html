@@ -5,6 +5,20 @@
 
 {# Breadcrumbs removed for a cleaner extras marketplace view #}
 
+{% block extra_css %}
+<style>
+  /* Extras page scoped tweaks */
+  .extras-grid .card { transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease; }
+  .extras-grid .card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,0.25); border-color: rgba(255,255,255,0.24); }
+  .extras-grid .card:focus-within { outline: 2px solid rgba(255,255,255,0.25); outline-offset: 2px; }
+  .extras-grid .card h3 a { text-decoration: none; }
+  .extras-grid .card h3 a:hover, .extras-grid .card h3 a:focus { text-decoration: underline; }
+  .extras-grid .img-wrap { height: 140px; display:flex; align-items:center; justify-content:center; padding:12px 12px 0; }
+  .extras-grid .img-wrap img { max-height: 120px; }
+  @media (max-width: 520px){ .extras-grid { gap: 12px !important; } .extras-grid .img-wrap { height: 120px; } }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container section center">
   {{ page_hero('Extras Marketplace', 'Enhance your event with extras like live gallery links, QR cards, and more.', True) }}
@@ -18,39 +32,56 @@
 
   {% if addons and addons|length > 0 %}
   <section class="section">
-    <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px;">
+    <div class="grid extras-grid" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
       {% for a in addons %}
       {% set c = (a.currency or 'gbp')|lower %}
       {% set sym = '£' if c == 'gbp' else ('$' if c == 'usd' else c|upper ~ ' ') %}
       {% set price = (a.price_cents or 0) / 100 %}
       <article class="card" style="display:flex; flex-direction:column; align-items:stretch;">
-        <div style="display:flex; align-items:center; justify-content:center; padding:10px 10px 0;">
+        <div class="img-wrap">
           <img src="{{ a.image or '/static/images/examples/corporate1.svg' }}" alt="{{ a.name }}" style="width:100%; max-width: 160px; height: auto; object-fit: contain; display:block;" loading="lazy">
         </div>
-        <div style="padding: 10px 12px;">
-          <h3 style="margin:0 0 6px; text-align:center;">{{ a.name }}</h3>
+        <div style="padding: 12px; text-align:left;">
+          {% if a.code in ['live_gallery','qr_cards'] %}
+            <h3 style="margin:0 0 6px;"><a href="/extras/{{ a.code }}{% if request.query_params.get('event_code') %}?event_code={{ request.query_params.get('event_code') }}{% endif %}" class="link" style="text-decoration:none;">{{ a.name }}</a></h3>
+          {% else %}
+            <h3 style="margin:0 0 6px;">{{ a.name }}</h3>
+          {% endif %}
+          {% if a.allow_qty and (a.price_cents or 0) > 0 %}
+            <div class="muted" style="font-size:12px; opacity:0.85; margin: 0 0 6px;">from {{ sym }}{{ '%.2f'|format(price) }}</div>
+          {% endif %}
           {% if a.desc %}
-          <p class="muted" style="margin: 0 0 10px; text-align:center;">{{ a.desc }}</p>
+          <p class="muted" style="margin: 0 0 8px;">{{ a.desc }}</p>
+          {% endif %}
+          {% if a.code in ['live_gallery','qr_cards'] %}
+          <p style="margin: 0 0 8px; font-size: 0.95em;"><a class="link" href="/extras/{{ a.code }}{% if request.query_params.get('event_code') %}?event_code={{ request.query_params.get('event_code') }}{% endif %}">Learn more</a></p>
           {% endif %}
           {% if a.allow_qty %}
-          <div class="floating-field" style="margin-top:8px;">
-            <label class="fl-label" for="qty-{{ a.code }}">Quantity</label>
-            <select id="qty-{{ a.code }}" class="input-field">
+          <div class="floating-field" style="margin-top:8px; max-width:240px;">
+            <label class="fl-label" for="qty-{{ a.code }}" style="text-align:left;">Quantity</label>
+            <select id="qty-{{ a.code }}" class="input-field" style="width:100%;">
               {% set mn = a.min_qty or 1 %}
               {% set mx = a.max_qty or mn %}
-              {% for i in range(mn, mx + 1) %}
-              <option value="{{ i }}" {% if i == mn %}selected{% endif %}>{{ i }}</option>
-              {% endfor %}
+              {% set step10 = (mn >= 10) and (mn % 10 == 0) and (mx % 10 == 0) %}
+              {% if step10 %}
+                {% for i in range(mn, mx + 1, 10) %}
+                <option value="{{ i }}" {% if i == mn %}selected{% endif %}>{{ i }}</option>
+                {% endfor %}
+              {% else %}
+                {% for i in range(mn, mx + 1) %}
+                <option value="{{ i }}" {% if i == mn %}selected{% endif %}>{{ i }}</option>
+                {% endfor %}
+              {% endif %}
             </select>
           </div>
           {% endif %}
         </div>
-        <div style="margin-top:auto; padding: 10px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+        <div style="margin-top:auto; padding: 12px; display:flex; flex-direction:column; align-items:stretch; gap:10px; border-top: 1px solid rgba(255,255,255,0.08);">
           <div class="p-bold" style="font-size:18px;">{{ sym }}{{ '%.2f'|format(price) }}</div>
           {% if request.cookies.get('session_id') %}
-          <button class="btn primary js-buy-extra" data-code="{{ a.code }}" data-allowqty="{{ '1' if a.allow_qty else '0' }}">Purchase</button>
+          <button class="btn primary js-buy-extra" data-code="{{ a.code }}" data-allowqty="{{ '1' if a.allow_qty else '0' }}" style="width: 100%;">Purchase</button>
           {% else %}
-          <a class="btn primary" href="/signup" role="button">Sign up to purchase</a>
+          <a class="btn primary" href="/signup" role="button" style="display:inline-flex; align-items:center; justify-content:center; width: 100%;">Sign up to purchase</a>
           {% endif %}
         </div>
       </article>
@@ -82,10 +113,11 @@
   {% endif %}
 
   {% from 'components/macros.html' import btn_row %}
-  {# Simplified back button: always return to events list #}
-  {% call btn_row('style="margin-top:16px;"') %}
-    <a class="btn" href="/events">Back to My Events</a>
-  {% endcall %}
+  {% if back_href %}
+    {% call btn_row('style="margin-top:16px;"') %}
+      <a class="btn" href="{{ back_href }}">{{ back_label }}</a>
+    {% endcall %}
+  {% endif %}
 </div>
 
 {% block extra_js %}

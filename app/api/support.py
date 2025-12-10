@@ -22,13 +22,16 @@ async def contact_page(request: Request):
     qp = dict(request.query_params)
     rqid = qp.get("request_id") or getattr(getattr(request, "state", object()), "request_id", None)
     form = {"topic": qp.get("topic", "")}
-    # If request_id supplied, pre-fill message intro and include a banner
-    if rqid:
-        form["message"] = f"Request ID: {rqid}\n\nPlease describe what happened:"
     resp = templates.TemplateResponse(
         request,
         "contact.html",
-        context={"csrf_token": token, "form": form, "request_id": rqid},
+        context={
+            "csrf_token": token,
+            "form": form,
+            "request_id": rqid,
+            # Provide a best-effort page URL (referer) if available
+            "request_url": request.headers.get("referer") or "",
+        },
     )
     set_csrf_cookie(resp, token, httponly=True)
     return resp

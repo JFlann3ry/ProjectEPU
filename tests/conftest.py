@@ -2,6 +2,7 @@ import os
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 from sqlalchemy.orm import Session as _Session
 
 from db import engine
@@ -82,12 +83,39 @@ def db_session():
     This pattern ensures each test runs inside a DB transaction that is rolled back at teardown,
     keeping tests isolated and avoiding persistent test data.
     """
-    # Connect and start a transaction
+    # Connect and start a transaction (outer transaction per test)
     connection = engine.connect()
     transaction = connection.begin()
 
-    # Bind a session to the connection
+    # Bind a session to the same connection
     session = _Session(bind=connection)
+
+    # Start a nested transaction (SAVEPOINT) so tests can call commit()
+    # without finalizing the outer transaction. This avoids SAWarning about
+    # deassociated transactions at teardown.
+    try:
+        session.begin_nested()
+    except Exception:
+        pass
+
+    # Re-open a nested SAVEPOINT whenever the previous one ends
+    try:
+        @event.listens_for(session, "after_transaction_end")
+        def _restart_savepoint(sess, trans):  # noqa: N802 (callback name)
+            try:
+                is_nested = getattr(trans, "nested", False)
+                parent = getattr(trans, "_parent", None)
+                parent_nested = (
+                    getattr(parent, "nested", False) if parent is not None else False
+                )
+                if is_nested and not parent_nested:
+                    sess.begin_nested()
+            except Exception:
+                # If we cannot restart a nested transaction (DB/driver limitation), ignore.
+                pass
+    except Exception:
+        # If event registration fails (unlikely), continue without it.
+        pass
     # expose to db.get_db
     try:
         import db as dbmod
@@ -99,12 +127,22 @@ def db_session():
     try:
         yield session
     finally:
-        # rollback any changes and close everything
+        # Rollback any open transaction on the connection first to avoid
+        # deassociated transaction warnings, then close the session/connection.
         try:
-            session.rollback()
+            # Prefer connection-level rollback if a transaction is present
+            if hasattr(connection, "in_transaction") and connection.in_transaction():
+                connection.rollback()
+            elif getattr(transaction, "is_active", False):
+                transaction.rollback()
         except Exception:
             pass
-        session.close()
+
+        # Close the session and clear the injected test session
+        try:
+            session.close()
+        except Exception:
+            pass
         try:
             import db as dbmod
 
@@ -112,11 +150,9 @@ def db_session():
         except Exception:
             pass
         try:
-            transaction.rollback()
+            connection.close()
         except Exception:
-            # If already rolled back/committed, ignore
             pass
-        connection.close()
 
 
 @pytest.fixture(autouse=True)
@@ -126,15 +162,19 @@ def ensure_test_user(db_session):
     Runs inside the same transactional session so data will be rolled back after each test.
     """
     try:
-        from app.models.user import Users
+        from app.models.user import User
 
-        existing = db_session.query(Users).filter(Users.UserID == 1).first()
+        existing = db_session.query(User).filter(User.UserID == 1).first()
         if not existing:
-            u = Users(Email='testuser@example.com', PasswordHash='x', CreatedAt=None)
-            # If Users.UserID is autoincrement, we can't force ID reliably across DBs;
-            # try to insert and leave it.
+            # Create a minimal user; on a clean DB this should receive UserID=1
+            u = User(
+                Email="testuser@example.com",
+                HashedPassword="x",
+                FirstName="Test",
+                LastName="User",
+            )
             db_session.add(u)
             db_session.flush()
     except Exception:
-        # If Users model or table isn't available in this test environment, ignore silently.
+        # If User model or table isn't available in this test environment, ignore silently.
         pass

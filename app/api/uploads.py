@@ -523,7 +523,7 @@ async def guest_upload_post(
                 storage_limit_mb = int(effective_limit_mb or 0)
             except Exception:
                 storage_limit_mb = 0
-            now = datetime.now(timezone.utc)
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
             if es is None:
                 es = EventStorage(
                     EventID=event_id,

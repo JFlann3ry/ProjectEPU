@@ -42,3 +42,13 @@ alembic stamp <revision_id>
 - Keep migrations small and review SQL before applying to prod.
 - For destructive changes (DROP column): schedule maintenance and backups.
 - Add tests that exercise upgraded schema where possible.
+
+## Verify head is applied (local/dev)
+- To ensure your schema is up to date:
+
+```powershell
+alembic upgrade head
+```
+
+- In VS Code: run the “db:migrate” task.
+- If you have multiple heads, resolve them first (see section above), then upgrade again.

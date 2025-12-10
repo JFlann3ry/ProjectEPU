@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Live Slideshow — {{ event_name or 'Event' }}{% endblock %}
+{% block extra_css %}
+<style>
+  /* Full-bleed canvas */
+  body, html { background: #000; }
+  header.header { display:none; }
+  .live-wrap { position: fixed; inset: 0; background: #000; color: #fff; }
+  .live-stage { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden; }
+  .live-media { max-width: 98vw; max-height: 94vh; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border-radius: 10px; }
+  /* Crossfade: new media fades in over the previous */
+  .fade-enter { opacity: 0; transform: scale(0.985); position: absolute; }
+  .fade-enter.fade-enter-active { opacity: 1; transform: scale(1); transition: opacity 450ms ease, transform 450ms ease; }
+  /* Reduced motion: disable scale/opacity animation */
+  @media (prefers-reduced-motion: reduce){
+    .fade-enter { opacity: 1; transform: none; position: absolute; }
+    .fade-enter.fade-enter-active { opacity: 1; transform: none; transition: none; }
+  }
+  .hud { position: absolute; left: 16px; bottom: 12px; display: flex; align-items: center; gap: 10px; color: #fff; opacity: 0.9; }
+  .hud .pill { background: rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.25); border-radius:999px; padding:6px 10px; }
+  .hud button { background: rgba(255,255,255,0.12); color:#fff; border:1px solid rgba(255,255,255,0.25); border-radius: 999px; padding: 6px 10px; cursor: pointer; }
+  .hud { transition: opacity .2s ease; }
+  .hud button:focus-visible { outline:2px solid #fff; outline-offset:2px; box-shadow:0 0 0 3px rgba(255,255,255,0.35); }
+  .topbar { position: absolute; left: 12px; top: 10px; color: #fff; opacity: 0.85; font-size: 14px; }
+  .topbar a { color: #fff; text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,0.4); }
+  /* Hide chrome in fullscreen */
+  .live-wrap[data-fullscreen="true"] .hud,
+  .live-wrap[data-fullscreen="true"] .topbar { display: none; }
+  /* Auto-hide controls on idle (non-fullscreen) */
+  .live-wrap[data-idle="true"] .hud { opacity: 0; pointer-events: none; }
+  @media (max-width: 520px){ .hud { left: 8px; right: 8px; flex-wrap: wrap; } }
+</style>
+{% endblock %}
+{% block extra_meta %}
+<meta name="robots" content="noindex">
+{% endblock %}
+
+{% block breadcrumbs %}{% endblock %}
+{% block content %}
+<div class="live-wrap" data-event-code="{{ event_code }}">
+  <div class="topbar">Live Slideshow — {{ event_name or event_code }} · <a href="/guest/upload/{{ event_code }}" target="_blank" rel="noopener">Upload link</a></div>
+  <div class="live-stage" id="live-stage" aria-live="polite" aria-atomic="true">
+    <!-- media injected here -->
+  </div>
+  <div class="hud" role="group" aria-label="Slideshow controls">
+    <span class="pill" id="status">Connecting…</span>
+    <button type="button" id="prev">Prev</button>
+    <button type="button" id="play">Play</button>
+    <button type="button" id="pause" style="display:none;">Pause</button>
+    <button type="button" id="next">Next</button>
+    <span class="pill">Delay: <span id="delay-display">3s</span></span>
+    <button type="button" id="dec">−</button>
+    <button type="button" id="inc">+</button>
+    <button type="button" id="fs">Fullscreen</button>
+  </div>
+</div>
+
+<script src="{{ url_for('static', path='js/pages/live_slideshow.js') }}?v={{ now() if now else '' }}" defer></script>
+<script>
+  window.EPU = window.EPU || {}; EPU.liveCfg = {
+    code: '{{ event_code }}'
+  };
+</script>
+{% endblock %}

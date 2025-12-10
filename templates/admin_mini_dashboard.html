@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Mini-Dashboard - EPU{% endblock %}
+
+{% block breadcrumbs %}
+{% from 'components/macros.html' import breadcrumbs %}
+<div class="container section" style="padding-bottom:0;">
+  {{ breadcrumbs([], 'Admin Mini-Dashboard') }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container section">
+  {% from 'components/macros.html' import page_hero, badge %}
+  {{ page_hero('Admin Mini-Dashboard', 'Recent errors and gallery actions (read-only).') }}
+
+  <div class="grid grid-2 equal-heights">
+    <div class="card full-height">
+      <h3>Recent App Errors</h3>
+      <ul>
+        {% for r in error_rows %}
+          <li>
+            <span class="muted">{{ r.OccurredAt }}</span> —
+            <strong>{{ r.StatusCode or '' }}</strong>
+            <code>{{ r.Method or '' }} {{ r.Path or '' }}</code>
+            <div class="muted" style="white-space: pre-wrap;">{{ (r.Message or '')[:240] }}</div>
+          </li>
+        {% else %}
+          <li class="muted">No errors in AppErrorLog.</li>
+        {% endfor %}
+      </ul>
+      <div class="section"><a class="btn" href="/admin/errors">View all errors</a></div>
+    </div>
+
+    <div class="card full-height">
+      <h3>Recent Delete/Restore</h3>
+      <ul>
+        {% for a in recent_actions %}
+          <li>
+            <span class="badge">{{ a.action }}</span>
+            <span class="muted">{{ a.ts }}</span>
+            <span>#{{ a.user_id }}</span>
+            <div class="muted">IDs: {{ a.matched_ids or a.incoming_ids }}</div>
+            <div class="muted">Affected: {{ a.affected }}</div>
+          </li>
+        {% else %}
+          <li class="muted">No recent delete/restore actions.</li>
+        {% endfor %}
+      </ul>
+  {% if debug_routes_enabled %}
+  <div class="section"><a class="btn" href="/debug/gallery/delete_logs">Raw logs (JSON)</a></div>
+  {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

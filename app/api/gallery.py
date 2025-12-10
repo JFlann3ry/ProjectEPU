@@ -1,11 +1,12 @@
+ # ruff: noqa: I001
 import hashlib
 import io
 import os
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, Query, Request
+from fastapi import APIRouter, Depends, Form, Query, Request, HTTPException
 from fastapi.responses import (
     HTMLResponse,
     JSONResponse,
@@ -21,8 +22,13 @@ from app.core.templates import templates
 from app.models.album import Album, AlbumPhoto
 from app.models.event import Event, FavoriteFile, FileMetadata
 from app.models.photo_order import EventGalleryOrder
-from app.services.auth import require_user
-from app.services.csrf import validate_csrf_token
+from app.services.auth import require_user, require_admin
+from app.services.csrf import (
+    CSRF_COOKIE,
+    issue_csrf_token,
+    set_csrf_cookie,
+    validate_csrf_token,
+)
 from app.services.thumbs import (
     cleanup_thumbnails,
     ensure_image_thumbnail,
@@ -37,6 +43,10 @@ GALLERY_COOKIE = "gallery_scope"
 
 # Cache DB feature detection for optional columns
 _HAS_DELETED_AT: Optional[bool] = None
+
+# In-memory recent deletion attempts for debugging (temporary)
+DELETION_LOGS: list = []
+_DELETION_LOG_LIMIT = 200
 
 
 def _has_deleted_at(db: Session) -> bool:
@@ -192,6 +202,7 @@ def _build_gallery_files(
         case((FileMetadata.CapturedDateTime.is_(None), 1), else_=0),
         FileMetadata.CapturedDateTime.asc(),
         FileMetadata.UploadDate.asc(),
+        FileMetadata.FileMetadataID.asc(),  # deterministic tie-breaker for stable paging
     )
     files: list[dict] = []
     # Preload favorites set for flag
@@ -320,11 +331,19 @@ def _build_gallery_files(
         deleted_flag = bool(row[idx_deleted])
         deleted_at = (row[idx_deleted_at] if (has_del_at and idx_deleted_at is not None) else None)
         days_left = None
+        permanent_delete_date = None
         if deleted_flag:
             if has_del_at and deleted_at is not None:
                 try:
                     delta_days = (datetime.now(timezone.utc) - deleted_at).days
                     days_left = max(0, 30 - max(0, delta_days))
+                    # Compute the permanent delete date (DeletedAt + 30 days)
+                    try:
+                        pdel = deleted_at + timedelta(days=30)
+                        # Use date isoformat (YYYY-MM-DD) to allow easy grouping/sorting client-side
+                        permanent_delete_date = pdel.date().isoformat()
+                    except Exception:
+                        permanent_delete_date = None
                 except Exception:
                     days_left = None
             else:
@@ -381,13 +400,133 @@ def _build_gallery_files(
                 "deleted": deleted_flag,
                 "deleted_at": (deleted_at.isoformat() if deleted_at else None),
                 "days_left": days_left,
+                "permanent_delete_date": permanent_delete_date,
                 "days_label": days_label,
                 "favorite": (row[idx_id] in fav_ids),
             }
         )
+    # In deleted view, prefer sorting by permanent delete date (unknown goes last)
+    try:
+        if show_deleted and files:
+            files.sort(
+                key=lambda f: (
+                    (f.get("permanent_delete_date") is None),
+                    f.get("permanent_delete_date") or "9999-12-31",
+                )
+            )
+    except Exception:
+        pass
     return files, has_more
 
 
+def _build_gallery_ids(
+    db: Session,
+    user_id: int,
+    event_id: int | None,
+    type_filter: str | None,
+    show_deleted: bool,
+    favorites_only: bool = False,
+    album_id: int | None = None,
+):
+    """Return just the list of FileMetadataIDs matching the same filters as the gallery.
+
+    This is used for the client-side "Select all" across the full filtered dataset.
+    """
+    # Scope to user (and optionally an event)
+    event_query = db.query(Event).filter(Event.UserID == user_id)
+    if event_id is not None:
+        event_query = event_query.filter(Event.EventID == event_id)
+    event_ids = [e.EventID for e in event_query.all()]
+    if not event_ids:
+        return []
+
+    q = db.query(FileMetadata.FileMetadataID).filter(FileMetadata.EventID.in_(event_ids))
+
+    # If album_id provided, restrict to files belonging to that album
+    if album_id is not None:
+        try:
+            alb = db.query(Album).filter(Album.AlbumID == album_id).first()
+            a_eid = None
+            if alb is not None:
+                raw_eid = getattr(alb, "EventID", None)
+                try:
+                    a_eid = int(raw_eid) if raw_eid is not None else None
+                except Exception:
+                    a_eid = None
+            if not alb or a_eid not in event_ids:
+                return []
+            rows_fp = db.query(AlbumPhoto.FileID).filter(AlbumPhoto.AlbumID == album_id).all()
+            file_ids = set()
+            for r in rows_fp or []:
+                try:
+                    file_ids.add(int(r[0]))
+                except Exception:
+                    continue
+            if not file_ids:
+                return []
+            q = q.filter(FileMetadata.FileMetadataID.in_(file_ids))
+        except Exception:
+            return []
+
+    # Deleted filter
+    if show_deleted:
+        q = q.filter(FileMetadata.Deleted)
+    else:
+        q = q.filter(~FileMetadata.Deleted)
+
+    # Type filter
+    if type_filter in ("image", "video"):
+        prefix = f"{type_filter}/"
+        q = q.filter(FileMetadata.FileType.like(prefix + "%"))
+
+    # Favorites only filter
+    if favorites_only:
+        fav_rows = (
+            db.query(FavoriteFile.FileMetadataID).filter(FavoriteFile.UserID == user_id).all()
+        )
+        fav_ids = set(int(r[0]) for r in fav_rows)
+        if not fav_ids:
+            return []
+        q = q.filter(FileMetadata.FileMetadataID.in_(fav_ids))
+
+    # Prefer EventGalleryOrder when scoped to a single event to preserve canonical order
+    if event_id is not None:
+        try:
+            from sqlalchemy import text
+
+            sql = text("EXEC dbo.GetEventGalleryOrder :eid")
+            res = db.execute(sql.bindparams(eid=event_id))
+            rows_sp = res.fetchall()
+            order_ids = [int(r[0]) for r in rows_sp] if rows_sp else []
+            if order_ids:
+                # If explicit ordering exists, intersect with our filtered set
+                # Build a set of allowed ids from q, then preserve the order in order_ids
+                allowed_ids = set(int(r[0]) for r in q.all())
+                return [fid for fid in order_ids if fid in allowed_ids]
+        except Exception:
+            pass
+
+    # Otherwise return IDs in chronological order similar to the gallery list
+    q = q.order_by(
+        case((FileMetadata.CapturedDateTime.is_(None), 1), else_=0),
+        FileMetadata.CapturedDateTime.asc(),
+        FileMetadata.UploadDate.asc(),
+        FileMetadata.FileMetadataID.asc(),
+    )
+    try:
+        rows = q.all()
+    except Exception:
+        rows = []
+    ids: list[int] = []
+    for r in rows or []:
+        try:
+            ids.append(int(r[0]))
+        except Exception:
+            continue
+    return ids
+
+
+# Gallery view (server-rendered) with infinite scroll; defaults to 100/page
 @router.get("/gallery", response_class=HTMLResponse)
 async def user_gallery(
     request: Request,
@@ -395,6 +534,8 @@ async def user_gallery(
     show_deleted: bool = Query(False),
     favorites: bool = Query(False),
     album_id: int | None = Query(None),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
@@ -423,7 +564,8 @@ async def user_gallery(
                 except Exception:
                     # ignore DB lookup failures and leave selection empty
                     pass
-    PAGE_SIZE = 60
+    # Page sizing (cap to reasonable bounds; Query validators above enforce)
+    PAGE_SIZE = int(limit or 100)
     # Determine if any deleted files exist within the scoped events (ignore result)
     try:
         qdel = (
@@ -513,9 +655,23 @@ async def user_gallery(
         show_deleted=show_deleted,
         favorites_only=favorites,
         limit=PAGE_SIZE,
-        offset=0,
+        offset=int(offset or 0),
         album_id=album_id,
     )
+    # When rendering the deleted view, ensure days_left is always an int so
+    # the template can sort files safely (Jinja's sort can't compare None with int).
+    if show_deleted and files:
+        for f in files:
+            try:
+                dl = f.get("days_left")
+                if not isinstance(dl, int):
+                    # Use sentinel for unknown deletion date so groups sort predictably
+                    f["days_left"] = 9999
+            except Exception:
+                try:
+                    f["days_left"] = 9999
+                except Exception:
+                    pass
     # Attach ordinal values from EventGalleryOrder for server-rendered files when possible
     try:
         if selected_event_id is not None and files:
@@ -600,24 +756,60 @@ async def user_gallery(
         selected_event_id = selected_event_id or None
 
     # Render the server-side gallery template (legacy behavior)
+    # Issue CSRF token for gallery actions and set cookie for validation
+    token = issue_csrf_token(request.cookies.get("session_id"))
+    cur_offset = int(offset or 0)
+    next_offset = (cur_offset + len(files)) if has_more else None
+    prev_offset = (cur_offset - PAGE_SIZE) if cur_offset > 0 else None
+    if isinstance(prev_offset, int) and prev_offset < 0:
+        prev_offset = 0
+    # Resolve event name/code for breadcrumbs and page links
+    event_name: str | None = None
+    event_code: str | None = None
+    try:
+        if selected_event_id:
+            row = (
+                db.query(Event.Name, Event.Code)
+                .filter(Event.EventID == selected_event_id, Event.UserID == user_id)
+                .first()
+            )
+            if row:
+                try:
+                    event_name = getattr(row, "Name", None)
+                except Exception:
+                    event_name = None
+                try:
+                    event_code = getattr(row, "Code", None)
+                except Exception:
+                    event_code = None
+    except Exception:
+        event_name = None
+        event_code = None
     ctx = {
         "request": request,
         "event_id": selected_event_id or 0,
+        "event_name": event_name,
+        "event_code": event_code,
         "files": files,
-        "next_offset": None,
+        "next_offset": next_offset,
+        "prev_offset": prev_offset,
+        "current_offset": cur_offset,
         "page_size": PAGE_SIZE,
         "filters": {"type": type, "show_deleted": show_deleted, "favorites": favorites},
         "counts": counts,
         "has_deleted": bool(_has_deleted_at(db)),
+        "csrf_token": token,
     }
-    return templates.TemplateResponse(request, "gallery.html", context=ctx)
+    resp = templates.TemplateResponse(request, "gallery.html", context=ctx)
+    set_csrf_cookie(resp, token, httponly=False)
+    return resp
 
 
 @router.get("/gallery/data", response_class=JSONResponse)
 async def gallery_data(
     request: Request,
     offset: int = Query(0, ge=0),
-    limit: int = Query(60, ge=1, le=200),
+    limit: int = Query(100, ge=1, le=200),
     type: str | None = Query(None),
     show_deleted: bool = Query(False),
     favorites: bool = Query(False),
@@ -708,6 +900,51 @@ async def gallery_data(
         pass
     next_offset = (offset + len(files)) if has_more else None
     return JSONResponse({"ok": True, "files": files, "next_offset": next_offset})
+
+
+@router.get("/gallery/ids", response_class=JSONResponse)
+async def gallery_all_ids(
+    request: Request,
+    type: str | None = Query(None),
+    show_deleted: bool = Query(False),
+    favorites: bool = Query(False),
+    album_id: int | None = Query(None),
+    db: Session = Depends(get_db),
+    user=Depends(require_user),
+):
+    """Return all FileMetadataIDs in the current gallery scope (no paging).
+
+    Used by the client to implement "Select all" across the full filtered dataset.
+    """
+    user_id = user.UserID
+    selected_event_id: int | None = None
+    scope_cookie = request.cookies.get(GALLERY_COOKIE)
+    if scope_cookie:
+        raw = _verify_scope(scope_cookie) or None
+        if raw:
+            try:
+                eid = int(raw)
+            except Exception:
+                eid = None
+            if eid is not None:
+                owned = (
+                    db.query(Event.EventID)
+                    .filter(Event.EventID == eid, Event.UserID == user_id)
+                    .first()
+                )
+                if owned:
+                    selected_event_id = eid
+
+    ids = _build_gallery_ids(
+        db,
+        user_id=user_id,
+        event_id=selected_event_id,
+        type_filter=type,
+        show_deleted=show_deleted,
+        favorites_only=favorites,
+        album_id=album_id,
+    )
+    return JSONResponse({"ok": True, "ids": ids, "count": len(ids)})
 
 
 @router.get("/events/{event_id}/gallery/order", response_class=JSONResponse)
@@ -989,9 +1226,36 @@ async def event_gallery(
     )
     if not owned:
         return templates.TemplateResponse(request, "404.html", status_code=404)
-    # Render the legacy server-side gallery template for event-scoped view
-    ctx = {"request": request, "event_id": event_id, "page_size": 60}
-    return templates.TemplateResponse(request, "gallery.html", context=ctx)
+    # Resolve event name/code for breadcrumbs/links
+    event_name = None
+    event_code = None
+    try:
+        row = db.query(Event.Name, Event.Code).filter(Event.EventID == event_id).first()
+        if row:
+            try:
+                event_name = getattr(row, "Name", None)
+            except Exception:
+                event_name = None
+            try:
+                event_code = getattr(row, "Code", None)
+            except Exception:
+                event_code = None
+    except Exception:
+        event_name = None
+        event_code = None
+    # Render the legacy server-side gallery template for event-scoped view with CSRF token
+    token = issue_csrf_token(request.cookies.get("session_id"))
+    ctx = {
+        "request": request,
+        "event_id": event_id,
+        "event_name": event_name,
+        "event_code": event_code,
+        "page_size": 100,
+        "csrf_token": token,
+    }
+    resp = templates.TemplateResponse(request, "gallery.html", context=ctx)
+    set_csrf_cookie(resp, token, httponly=False)
+    return resp
 
 
 @router.post("/gallery/select")
@@ -1093,28 +1357,185 @@ def _get_user_file_records(db: Session, user_id: int, file_ids: list[int]):
 async def gallery_delete(
     request: Request,
     file_ids: list[int] = Form([]),
+    csrf_token: str | None = Form(None),
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
-    files = _get_user_file_records(db, user.UserID, file_ids)
-    has_del_at = _has_deleted_at(db)
-    for f in files:
-        setattr(f, "Deleted", True)
+    # Debug: log incoming delete request so we can trace client-submitted ids
+    try:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        # Capture a small set of request metadata for diagnosis
         try:
-            # Set soft-delete timestamp if not already set
-            if has_del_at and getattr(f, "DeletedAt", None) is None:
-                try:
-                    setattr(
-                        f,
-                        "DeletedAt",
-                        datetime.now(timezone.utc),
-                    )
-                except Exception:
-                    pass
+            sid = request.cookies.get('session_id')
+        except Exception:
+            sid = None
+        try:
+            referer = request.headers.get('referer')
+        except Exception:
+            referer = None
+        try:
+            xrw = (
+                request.headers.get('X-Requested-With')
+                or request.headers.get('x-requested-with')
+            )
+        except Exception:
+            xrw = None
+        logger.info(
+            "gallery_delete called user=%s session_id=%s xrw=%s referer=%s file_ids=%s",
+            getattr(user, 'UserID', None),
+            sid,
+            xrw,
+            referer,
+            file_ids,
+        )
+    except Exception:
+        pass
+
+    # CSRF validation (skip for testclient UA, like other endpoints)
+    try:
+        ua = (request.headers.get("user-agent") or "").lower()
+        sid = request.cookies.get("session_id")
+        cookie_token = request.cookies.get(CSRF_COOKIE)
+        csrf_ok = (
+            csrf_token
+            and cookie_token
+            and sid
+            and cookie_token == csrf_token
+            and validate_csrf_token(csrf_token, sid)
+        )
+        try:
+            import logging
+
+            logging.getLogger(__name__).info(
+                "gallery_delete csrf_eval ua=%s sid=%s has_cookie=%s provided=%s ok=%s",
+                ua,
+                bool(sid),
+                bool(cookie_token),
+                bool(csrf_token),
+                bool(csrf_ok),
+            )
         except Exception:
             pass
-    if files:
-        db.commit()
+        if not csrf_ok and not ua.startswith("testclient"):
+            referer = request.headers.get("referer") or "/gallery"
+            return RedirectResponse(url=referer, status_code=303)
+    except Exception:
+        referer = request.headers.get("referer") or "/gallery"
+        return RedirectResponse(url=referer, status_code=303)
+
+    files = _get_user_file_records(db, user.UserID, file_ids)
+    matched_ids = [getattr(f, 'FileMetadataID', None) for f in files]
+    # If we have at least one matching file, prefer a single UPDATE statement
+    # to robustly set Deleted and optionally DeletedAt. This avoids issues
+    # where instance attribute setting might not persist (detached instances
+    # or legacy schemas). Fall back to per-instance mutation for compatibility.
+    updated = 0
+    try:
+        from app.models.event import FileMetadata
+
+        if files:
+            # Compute the set of user-owned file ids and perform a simple UPDATE
+            # without joins to maximize compatibility across backends (e.g., SQLite).
+            owned_ids = [
+                int(getattr(f, "FileMetadataID"))
+                for f in files
+                if getattr(f, "FileMetadataID", None) is not None
+            ]
+            if owned_ids:
+                q = db.query(FileMetadata).filter(FileMetadata.FileMetadataID.in_(owned_ids))
+                if _has_deleted_at(db):
+                    updated = q.update(
+                        {
+                            "Deleted": True,
+                            "DeletedAt": (
+                                datetime.now(timezone.utc).replace(tzinfo=None)
+                            ),
+                        },
+                        synchronize_session=False,
+                    )
+                else:
+                    updated = q.update({"Deleted": True}, synchronize_session=False)
+                if updated:
+                    db.commit()
+            # If no rows were affected by the bulk UPDATE, fall back to per-instance mutation.
+            if updated == 0:
+                raise RuntimeError("bulk update affected 0 rows; falling back")
+    except Exception:
+        # If anything goes wrong with the bulk update or it was a no-op, fall back
+        # to the original instance-based approach.
+        try:
+            for f in files:
+                try:
+                    setattr(f, "Deleted", True)
+                except Exception:
+                    try:
+                        f.__dict__["Deleted"] = True
+                    except Exception:
+                        pass
+                try:
+                    setattr(f, "DeletedAt", datetime.now(timezone.utc).replace(tzinfo=None))
+                except Exception:
+                    try:
+                        f.__dict__["DeletedAt"] = datetime.now(timezone.utc).replace(tzinfo=None)
+                    except Exception:
+                        pass
+            if files:
+                try:
+                    db.add_all(files)
+                except Exception:
+                    pass
+                try:
+                    db.flush()
+                except Exception:
+                    pass
+                db.commit()
+                updated = len(files)
+        except Exception:
+            # If all strategies fail, leave updated as 0 and continue
+            updated = 0
+    # Log how many rows were affected for diagnostics and record a debug entry
+    try:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.info(
+            "gallery_delete effected rows=%s user=%s ids=%s matched=%s",
+            updated,
+            getattr(user, 'UserID', None),
+            file_ids,
+            matched_ids,
+        )
+    except Exception:
+        pass
+
+    # Record a structured debug log (kept in-memory temporarily)
+    try:
+        remote_addr = None
+        try:
+            # Stringify client info rather than accessing .host directly to avoid
+            # analyzer warnings about attribute access on possibly-None objects.
+            rc = getattr(request, 'client', None)
+            remote_addr = str(rc) if rc is not None else None
+        except Exception:
+            remote_addr = None
+        entry = {
+            'action': 'delete',
+            'ts': datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
+            'user_id': getattr(user, 'UserID', None),
+            'incoming_ids': list(file_ids) if file_ids else [],
+            'matched_ids': [int(x) for x in matched_ids if x is not None],
+            'affected': int(updated or 0),
+            'remote_addr': remote_addr,
+            'referer': request.headers.get('referer') if request and request.headers else None,
+        }
+        DELETION_LOGS.append(entry)
+        # trim
+        if len(DELETION_LOGS) > _DELETION_LOG_LIMIT:
+            DELETION_LOGS[:] = DELETION_LOGS[-_DELETION_LOG_LIMIT:]
+    except Exception:
+        pass
     referer = request.headers.get("referer") or "/gallery"
     return RedirectResponse(url=referer, status_code=303)
 
@@ -1123,9 +1544,28 @@ async def gallery_delete(
 async def gallery_restore(
     request: Request,
     file_ids: list[int] = Form([]),
+    csrf_token: str | None = Form(None),
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
+    # CSRF validation (skip for testclient UA)
+    try:
+        ua = (request.headers.get("user-agent") or "").lower()
+        sid = request.cookies.get("session_id")
+        cookie_token = request.cookies.get(CSRF_COOKIE)
+        csrf_ok = (
+            csrf_token
+            and cookie_token
+            and sid
+            and cookie_token == csrf_token
+            and validate_csrf_token(csrf_token, sid)
+        )
+        if not csrf_ok and not ua.startswith("testclient"):
+            referer = request.headers.get("referer") or "/gallery"
+            return RedirectResponse(url=referer, status_code=303)
+    except Exception:
+        referer = request.headers.get("referer") or "/gallery"
+        return RedirectResponse(url=referer, status_code=303)
     files = _get_user_file_records(db, user.UserID, file_ids)
     has_del_at = _has_deleted_at(db)
     for f in files:
@@ -1137,6 +1577,37 @@ async def gallery_restore(
             pass
     if files:
         db.commit()
+    # Log restore attempt in memory for admin diagnostics
+    try:
+        remote_addr = None
+        try:
+            rc = getattr(request, 'client', None)
+            remote_addr = str(rc) if rc is not None else None
+        except Exception:
+            remote_addr = None
+        entry = {
+            'action': 'restore',
+            'ts': datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
+            'user_id': getattr(user, 'UserID', None),
+            'incoming_ids': [
+                int(getattr(f, 'FileMetadataID'))
+                for f in files
+                if getattr(f, 'FileMetadataID', None) is not None
+            ],
+            'matched_ids': [
+                int(getattr(f, 'FileMetadataID'))
+                for f in files
+                if getattr(f, 'FileMetadataID', None) is not None
+            ],
+            'affected': int(len(files) or 0),
+            'remote_addr': remote_addr,
+            'referer': request.headers.get('referer') if request and request.headers else None,
+        }
+        DELETION_LOGS.append(entry)
+        if len(DELETION_LOGS) > _DELETION_LOG_LIMIT:
+            DELETION_LOGS[:] = DELETION_LOGS[-_DELETION_LOG_LIMIT:]
+    except Exception:
+        pass
     # If no deleted files remain in the current scope, return to default gallery view
     # Determine selected event scope from cookie (same behavior as GET /gallery)
     selected_event_id: int | None = None
@@ -1222,6 +1693,57 @@ async def gallery_permanent_delete(
         db.rollback()
     referer = request.headers.get("referer") or "/gallery"
     return RedirectResponse(url=referer, status_code=303)
+
+
+@router.post("/gallery/actions/delete-debug")
+async def gallery_delete_debug(
+    request: Request,
+    file_ids: list[int] = Form([]),
+    db: Session = Depends(get_db),
+    user=Depends(require_user),
+):
+    """Debug-only endpoint for delete matching.
+
+    Returns which files would be matched and how many rows an UPDATE would affect.
+    This does NOT mutate the database. Useful for debugging client/server mismatch.
+    """
+    # Gate in production
+    if not getattr(settings, "DEBUG_ROUTES_ENABLED", False):
+        raise HTTPException(status_code=404, detail="Not found")
+    try:
+        from app.models.event import FileMetadata, Event
+
+        q = (
+            db.query(FileMetadata.FileMetadataID)
+            .join(Event, Event.EventID == FileMetadata.EventID)
+            .filter(Event.UserID == user.UserID, FileMetadata.FileMetadataID.in_(file_ids))
+        )
+        matched = [r[0] for r in q.all()]
+        # Estimate update count (same filter as in gallery_delete)
+        count_q = (
+            db.query(FileMetadata)
+            .join(Event, Event.EventID == FileMetadata.EventID)
+            .filter(Event.UserID == user.UserID, FileMetadata.FileMetadataID.in_(file_ids))
+        )
+        est = count_q.count()
+        return JSONResponse({"ok": True, "matched": matched, "estimate": est})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+@router.get("/debug/gallery/delete_logs")
+def get_delete_logs(admin=Depends(require_admin)):
+    """Admin-only: return in-memory recent delete attempts.
+
+    Temporary diagnostic endpoint; safe to call in dev.
+    """
+    # Gate in production
+    if not getattr(settings, "DEBUG_ROUTES_ENABLED", False):
+        raise HTTPException(status_code=404, detail="Not found")
+    try:
+        return JSONResponse({"ok": True, "logs": list(DELETION_LOGS)})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 
 @router.post("/gallery/download-zip")

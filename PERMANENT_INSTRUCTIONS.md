@@ -1,42 +1,86 @@
 Permanent Instructions for the Assistant
 
-Purpose
- This file defines persistent, human-readable instructions the assistant should follow when working in this repository. Treat it as the single source of truth for recurring preferences and project-specific conventions.
+Version: 2025-10-02  •  Owners: ProjectEPU maintainers  •  Canonical file: PERMANENT_INSTRUCTIONS.md
 
+Purpose
+This file is the single source of truth for how the assistant should work in this repo. It encodes expectations, safety rails, and workflow conventions.
+
+TL;DR — Assistant checklist
+- Before edits: plan todos, then gather minimal context needed; make at most 1–2 assumptions if details are missing.
+- Prefer VS Code Tasks for install/run/lint/test over ad‑hoc commands (Windows-friendly).
+- After changes: run Ruff and Pytest, and report results. Keep the repo green.
+- Keep diffs small; preserve style, public APIs, logging, and route order.
+- Use db.get_db() for DB access; avoid creating engines/sessions directly.
+- Always include CSRF where required (cookie + hidden input + verification on POSTs).
+- Schema changes require an Alembic revision and local upgrade verification (steps below).
 
 Assistant confirmation behavior
- When you prefix a user request with "Use PERMANENT_INSTRUCTIONS", the assistant will:
-	1. Read `PERMANENT_INSTRUCTIONS.md` from the repository root.
-	2. Reply with a one-paragraph summary of the specific rules it will apply to the requested task and any assumptions it made.
-	3. Ask one clarifying question only if a choice materially affects the implementation (for example: "enable CSP strict mode or allow known CDNs?").
-	4. Proceed to make edits and run checks (lint/tests) per the document. If changes are made, the assistant will list the edited files and the test/lint results.
+When a user prefixes a request with "Use PERMANENT_INSTRUCTIONS":
+1) Re-read this file and reply with a one-paragraph summary of the rules you’ll apply (plus assumptions if any).
+2) Ask exactly one clarifying question only if a choice materially affects implementation.
+3) Proceed with edits and run lint/tests. If changes were made, list edited files and the lint/test results.
 
-Rules 
+Quick commands (prefer Tasks)
+- Install runtime deps: use the VS Code task “install:runtime”.
+- Install dev deps: task “install:dev”.
+- Run dev server: task “run:dev”.
+- Lint: task “lint”.
+- Tests (fast path): task “test” or “lint+test (windows-safe)”.
+- DB migrate to head: task “db:migrate”.
+(These tasks are already defined in the workspace; they work with Windows PowerShell.)
 
- Always run lint and tests after making code changes, and report results.
- Use the project's existing style and formatting tools (black/ruff) when modifying Python files.
- When editing templates, keep changes minimal and maintain existing class names.
- For UI changes, run a quick visual sanity check and adjust spacing if needed.
+Quality gates (Done means all pass)
+1) Lint: ruff check . (no errors)
+2) Tests: pytest -q (non-flaky tests passing)
+3) Migrations: if schema changed, `alembic upgrade head` was applied locally
+4) No broken imports, obvious runtime errors, or unpinned breaking changes
 
-
+Change policies
+- Minimal diffs: touch only what’s necessary; avoid unrelated reformatting.
+- Preserve logging and request headers: keep X-Request-ID propagation and DB error logging.
+- Route order: don’t move router registration unless explicitly requested (static mounts and events_create before parameterized routes).
+- Security:
+  - CSRF: issue token (cookie + hidden input + meta) and validate on state-changing POSTs; allow TestClient UA bypass in tests.
+  - SQL: use ORM or sqlalchemy.text() with bound parameters; no string concatenation.
+  - Rate limiting: use provided settings; prefer Redis if configured; otherwise in-memory is acceptable.
+- DB access: prefer `db.get_db()` dependency injection in routers; do not construct engines/sessions inline.
 
 Alembic and schema change steps (one-at-a-time)
- When a change requires DB schema migration, follow these steps exactly to avoid migration conflicts and ensure reviewability:
-	1. Create a single Alembic revision for each logical schema change using `alembic revision --autogenerate -m "describe change"`.
-	2. Inspect the generated migration and edit it to ensure idempotency and safe downgrades.
-	3. Commit the migration file and push the branch. Keep migrations small and focused (one model/table change per revision when practical).
-	4. Run `alembic upgrade head` locally to verify the migration applies cleanly.
-	5. If multiple migrations are required, apply and test them one-by-one in order; do not batch multiple unrelated schema changes in a single revision.
-	6. For release: deploy code that can work with both pre- and post-migration schema if possible (backwards-compatible), then run migrations in production as a separate step.
+1) `alembic revision --autogenerate -m "describe change"`
+2) Inspect/edit migration for idempotency and safe downgrade
+3) Commit the migration; keep the revision focused
+4) Run `alembic upgrade head` locally
+5) If multiple are needed, apply and test one-by-one
+6) Prefer backward-compatible code that works pre/post migration
 
-Lint, tests, and new tests policy
- Every code change that modifies behavior or adds a feature must include tests. Follow this pattern:
-	1. Add or update unit/integration tests for the changed behavior in `tests/` (happy path + at least one failure/edge case).
-	2. Run lint and tests locally (`ruff check .` then `pytest -q`). Fix lint errors before committing.
-	3. Keep test scope focused and fast. If a new long-running integration test is required, mark it with a pytest marker (e.g., `@pytest.mark.integration`) and add a short note in the PR description.
-	4. When adding tests rely on fixtures already in the repo where possible; add new fixtures in `tests/conftest.py` if needed.
-	5. Document any non-obvious test setup steps in the PR description.
+Conventions and patterns
+- Templates: always pass `request` in context; keep class names stable; use ARIA roles for accessibility (gallery container role=list; tiles role=listitem; status regions have role=status and aria-live=polite).
+- Client JS: include CSRF token from `meta[name="csrf-token"]` or a hidden input for POSTs; avoid brittle selectors; add tiny focus traps for modals.
+- Files/storage: keep media under `storage/{userId}/{eventId}/`; don’t change paths without updating dependent services.
+- Admin and debug: admin routes require admin; debug routes behind explicit settings flags.
 
+Testing policy
+1) For behavior changes, add tests (happy path + one failure/edge case).
+2) Keep tests fast; mark true end-to-end or long ones with `@pytest.mark.integration`.
+3) Respect line length to avoid Ruff E501; split long assertions or strings.
+4) Prefer existing fixtures; extend `tests/conftest.py` only when needed.
+5) If a change can’t be fully tested quickly, add a focused smoke test and note follow-ups.
+
+Do / Don’t
+- Do: use db.get_db(), validate CSRF, preserve X-Request-ID, add migrations for schema changes, run tasks for lint/tests.
+- Don’t: reorder routers casually, remove error logging, execute raw SQL without params, or introduce React/SPA frameworks.
+
+Examples (snippets)
+- Server POST with CSRF validation (FastAPI):
+  - In endpoint signature: `request: Request, csrf_token: str | None = Form(None)`
+  - Validate: compare cookie CSRF to form token and call `validate_csrf_token(csrf_token, session_id)`; on failure, 303 back to referer (skip strict for TestClient UA).
+- Template with CSRF:
+  - Hidden input: `<input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">`
+  - Meta: `<meta name="csrf-token" content="{{ csrf_token or '' }}">`
+- JS POST with CSRF:
+  - `const csrf = (document.querySelector('meta[name="csrf-token"]').content || ''); fd.append('csrf_token', csrf);`
+- SQL stored procedure with params:
+  - `db.execute(text("EXEC dbo.GetEventGalleryOrder :eid").bindparams(eid=event_id))`
 
 Prompt template (copy/paste)
 Use PERMANENT_INSTRUCTIONS: <what to do>

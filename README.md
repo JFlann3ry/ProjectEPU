@@ -4,6 +4,10 @@
 
 A FastAPI web app where hosts create events and guests upload photos/videos via a shareable code or link. Hosts manage galleries, customize themes, and (later) pay for plans.
 
+New to the app? Read the step-by-step tutorial: TUTORIAL.md (includes Live Slideshow usage)
+
+👉 See the MVP plan and checklist: MVP_SPEC.md
+
 ## Stack
 - Backend: FastAPI, Starlette, Uvicorn
 - Templating: Jinja2
@@ -13,12 +17,30 @@ A FastAPI web app where hosts create events and guests upload photos/videos via 
 - Email: aiosmtplib (via app/services/email_utils.py)
 - Storage: Local filesystem under /storage
 
+## Live Slideshow (New)
+- Dedicated display experience at `/live/{event_code}` for on-site/projector use.
+- Full-quality originals (no thumbnails) with crossfade transitions.
+- Keyboard: ←/→ navigate, Space play/pause, `+`/`-` adjust delay, Esc exits fullscreen.
+- Fullscreen toggle hides chrome; HUD auto-hides when idle; reduced-motion respected.
+- Polls for new uploads; rate-limited and marked `noindex`.
+- Planned: password prompt when the event has a password; optional SSE/WebSocket updates.
+
 ## Setup (Local, Windows)
 1) Python env
 - py -3 -m venv venv
 - venv\Scripts\activate
 - pip install -r requirements.txt
  - (optional, for development) pip install -r requirements-dev.txt
+
+Quickstart with VS Code tasks (Windows):
+- Open the workspace in VS Code.
+- Press Ctrl+Shift+P → “Tasks: Run Task”. Then:
+  - install:runtime — installs requirements.txt
+  - install:dev — installs requirements-dev.txt (optional)
+  - lint — ruff check .
+  - test — pytest -q
+  - lint+test (windows-safe) — runs both via scripts/lint_and_test.py
+  - run:dev — starts Uvicorn on http://localhost:4200
 
 2) Environment
 Create .env (or fill existing) with:
@@ -52,6 +74,7 @@ REDIS_URL=redis://:password@127.0.0.1:6379/0
 2.5) Database migrations
 - Initialize/update schema with Alembic:
 - alembic upgrade head
+ - Or via VS Code task: “db:migrate”
 
 3) Run
 - uvicorn main:app --host 0.0.0.0 --port 4200 --reload
@@ -214,7 +237,8 @@ Goal
 
 Build
 - [x] Event gallery grid.
-- [x] Lightbox/slideshow; filter by type.
+- [x] Lightbox (modal viewer) with filters.
+- [x] Slideshow moved to dedicated Live Slideshow page (`/live/{code}`).
 - [x] Download selected or zip-all.
 - [x] Soft delete flag; undo.
 - [x] Favorites (mark/unmark; toggle favorites-only view).
@@ -362,6 +386,7 @@ Acceptance
 - [x] GET /events/{id}      -> event_details.html (protected)
 - [x] GET/POST /events/{id}/edit (protected)
 - [x] GET /gallery          -> gallery.html (protected)
+- [x] GET /live/{code}      -> live_slideshow.html (published events)
 - [x] GET /guest/login      -> guest_log_in.html
 - [x] GET/POST /guest/upload/{code} -> guest_upload.html
 - [x] GET /plans            -> pricing.html

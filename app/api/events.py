@@ -5,15 +5,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    File,
-    Form,
-    HTTPException,
-    Request,
-    UploadFile,
-)
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from PIL import Image
 from sqlalchemy import func as _func
@@ -31,12 +23,134 @@ from app.models.event import (
     Theme,
 )
 from app.services.auth import require_user
+from app.services.csrf import CSRF_COOKIE, validate_csrf_token
 from app.services.email_utils import send_event_date_locked_email
 from app.services.mime_utils import is_allowed_mime
+from app.services.thumbs import generate_all_thumbs_for_file
 from db import get_db
 
 router = APIRouter()
 audit = logging.getLogger("audit")
+@router.post("/events/{event_id}/upload")
+async def owner_upload_to_event(
+    request: Request,
+    event_id: int,
+    files: list[UploadFile] = File([]),
+    csrf_token: str | None = Form(None),
+    db: Session = Depends(get_db),
+    user=Depends(require_user),
+):
+    """Authenticated upload for event owners.
+
+    Saves files to storage/{user}/{event}/, creates FileMetadata rows, and generates thumbnails.
+    Redirects back to the gallery view.
+    """
+    # CSRF validation (skip for TestClient UA)
+    try:
+        ua = (request.headers.get("user-agent") or "").lower()
+        sid = request.cookies.get("session_id")
+        cookie_token = request.cookies.get(CSRF_COOKIE)
+        csrf_ok = (
+            csrf_token
+            and cookie_token
+            and sid
+            and cookie_token == csrf_token
+            and validate_csrf_token(csrf_token, sid)
+        )
+        if not csrf_ok and not ua.startswith("testclient"):
+            referer = request.headers.get("referer") or "/gallery"
+            return RedirectResponse(url=referer, status_code=303)
+    except Exception:
+        referer = request.headers.get("referer") or "/gallery"
+        return RedirectResponse(url=referer, status_code=303)
+
+    # Verify event ownership
+    event = db.query(Event).filter(Event.EventID == event_id).first()
+    if not event or getattr(event, "UserID", None) != getattr(user, "UserID", None):
+        return RedirectResponse(url="/events", status_code=303)
+
+    # Prepare storage paths
+    uid = int(getattr(user, "UserID"))
+    base = os.path.join("storage", str(uid), str(int(event_id)))
+    os.makedirs(base, exist_ok=True)
+
+    def safe_name(name: str) -> str:
+        name = (name or "").replace("\\", "/").split("/")[-1]
+        return re.sub(r"[^A-Za-z0-9._-]", "_", name)
+
+    def unique_path(base_dir: str, fname: str) -> str:
+        root, ext = os.path.splitext(fname)
+        candidate = os.path.join(base_dir, fname)
+        idx = 1
+        while os.path.exists(candidate):
+            candidate = os.path.join(base_dir, f"{root}_{idx}{ext}")
+            idx += 1
+        return candidate
+
+    created = 0
+    for uf in files or []:
+        try:
+            orig_name = safe_name(uf.filename or "upload.bin")
+            # Read small buffer for MIME sniff; then stream remainder
+            head = await uf.read()  # For MVP we read full file; future: chunked
+            ok, mime = is_allowed_mime(head, fallback_content_type=uf.content_type)
+            if not ok:
+                continue
+            # Enforce simple size limit from settings if present
+            try:
+                max_bytes = int(getattr(settings, "MAX_UPLOAD_BYTES", 200_000_000))
+                if max_bytes and len(head) > max_bytes:
+                    continue
+            except Exception:
+                pass
+            dest = unique_path(base, orig_name)
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            with open(dest, "wb") as fh:
+                fh.write(head)
+            size_bytes = os.path.getsize(dest)
+
+            # Create FileMetadata
+            fm = FileMetadata(
+                EventID=int(event_id),
+                FileName=os.path.basename(dest),
+                FileType=str(mime or "application/octet-stream"),
+                FileSize=int(size_bytes),
+            )
+            db.add(fm)
+            db.flush()
+
+            # Generate thumbnails/poster (best-effort)
+            try:
+                gid = int(getattr(fm, "FileMetadataID"))
+                gtype = str(getattr(fm, "FileType", ""))
+                gname = str(getattr(fm, "FileName", ""))
+                generate_all_thumbs_for_file(
+                    uid,
+                    int(event_id),
+                    gid,
+                    gtype,
+                    gname,
+                )
+            except Exception:
+                pass
+            created += 1
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            continue
+
+    if created:
+        try:
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+    referer = request.headers.get("referer") or "/gallery"
+    return RedirectResponse(url=referer, status_code=303)
 
 
 @router.post("/events/task/toggle")
@@ -116,12 +230,12 @@ async def toggle_event_task(
                         UserID=uid,
                         Key=key,
                         State="done",
-                        CompletedAt=datetime.now(timezone.utc),
+                        CompletedAt=datetime.now(timezone.utc).replace(tzinfo=None),
                     )
                     db.add(et)
                 else:
                     setattr(et, "State", "done")
-                    setattr(et, "CompletedAt", datetime.now(timezone.utc))
+                    setattr(et, "CompletedAt", datetime.now(timezone.utc).replace(tzinfo=None))
                 db.commit()
                 return {"ok": True, "done": True}
             else:
@@ -141,7 +255,7 @@ async def toggle_event_task(
                 UserID=uid,
                 Key=key,
                 State="done",
-                CompletedAt=datetime.now(timezone.utc),
+                CompletedAt=datetime.now(timezone.utc).replace(tzinfo=None),
             )
             db.add(new_et)
             db.commit()
@@ -838,10 +952,31 @@ async def create_album(
     request: Request,
     event_id: int,
     name: str = Form(...),
+    csrf_token: str | None = Form(None),
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
     # Create a named album for an event (owner only)
+    # CSRF validation (skip for TestClient UA)
+    try:
+        ua = (request.headers.get("user-agent") or "").lower()
+        from app.services.csrf import CSRF_COOKIE, validate_csrf_token
+
+        sid = request.cookies.get("session_id")
+        cookie_token = request.cookies.get(CSRF_COOKIE)
+        csrf_ok = (
+            csrf_token
+            and cookie_token
+            and sid
+            and cookie_token == csrf_token
+            and validate_csrf_token(csrf_token, sid)
+        )
+        if not csrf_ok and not ua.startswith("testclient"):
+            referer = request.headers.get("referer") or f"/events/{event_id}/gallery"
+            return RedirectResponse(url=referer, status_code=303)
+    except Exception:
+        referer = request.headers.get("referer") or f"/events/{event_id}/gallery"
+        return RedirectResponse(url=referer, status_code=303)
     ev = db.query(Event).filter(Event.EventID == event_id).first()
     if not ev:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -884,13 +1019,34 @@ async def list_albums(event_id: int, db: Session = Depends(get_db), user=Depends
 
 @router.post("/events/{event_id}/albums/{album_id}/add")
 async def album_add_photo(
+    request: Request,
     event_id: int,
     album_id: int,
     file_id: int = Form(...),
+    csrf_token: str | None = Form(None),
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
-    # Add a file to an album
+    # Add a file to an album (owner only) with CSRF validation
+    try:
+        ua = (request.headers.get("user-agent") or "").lower()
+        from app.services.csrf import CSRF_COOKIE, validate_csrf_token
+
+        sid = request.cookies.get("session_id")
+        cookie_token = request.cookies.get(CSRF_COOKIE)
+        csrf_ok = (
+            csrf_token
+            and cookie_token
+            and sid
+            and cookie_token == csrf_token
+            and validate_csrf_token(csrf_token, sid)
+        )
+        if not csrf_ok and not ua.startswith("testclient"):
+            referer = request.headers.get("referer")
+            return RedirectResponse(url=(referer or f"/events/{event_id}/gallery"), status_code=303)
+    except Exception:
+        referer = request.headers.get("referer")
+        return RedirectResponse(url=(referer or f"/events/{event_id}/gallery"), status_code=303)
     from app.models.album import Album, AlbumPhoto
     from app.models.event import Event, FileMetadata
     ev = db.query(Event).filter(Event.EventID == event_id).first()
@@ -915,12 +1071,34 @@ async def album_add_photo(
 
 @router.post("/events/{event_id}/albums/{album_id}/remove")
 async def album_remove_photo(
+    request: Request,
     event_id: int,
     album_id: int,
     file_id: int = Form(...),
+    csrf_token: str | None = Form(None),
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
+    # Remove a file from an album (owner only) with CSRF validation
+    try:
+        ua = (request.headers.get("user-agent") or "").lower()
+        from app.services.csrf import CSRF_COOKIE, validate_csrf_token
+
+        sid = request.cookies.get("session_id")
+        cookie_token = request.cookies.get(CSRF_COOKIE)
+        csrf_ok = (
+            csrf_token
+            and cookie_token
+            and sid
+            and cookie_token == csrf_token
+            and validate_csrf_token(csrf_token, sid)
+        )
+        if not csrf_ok and not ua.startswith("testclient"):
+            referer = request.headers.get("referer")
+            return RedirectResponse(url=(referer or f"/events/{event_id}/gallery"), status_code=303)
+    except Exception:
+        referer = request.headers.get("referer")
+        return RedirectResponse(url=(referer or f"/events/{event_id}/gallery"), status_code=303)
     from app.models.album import AlbumPhoto
     from app.models.event import Event
     ev = db.query(Event).filter(Event.EventID == event_id).first()

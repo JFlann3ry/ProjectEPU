@@ -4,30 +4,104 @@
 
 {% block content %}
 {% from 'components/macros.html' import page_hero %}
-<section class="section">
-    <div class="container center">
-        <div class="card" style="padding:28px;">
-            <div class="grid grid-2" style="align-items:center;">
+<style>
+    /* Home-only responsive tweaks and scroll polish */
+    #scroll-progress {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 3px;
+        background: var(--accent, var(--color-accent, #4f8cff));
+        width: 100%;
+        transform: scaleX(0);
+        transform-origin: 0 0;
+        opacity: 0;
+        transition: opacity .2s ease;
+        z-index: 999;
+    }
+    /* Native scroll-driven animation where supported */
+    @supports (animation-timeline: scroll()) {
+        #scroll-progress {
+            animation: home-scroll-grow linear both;
+            animation-timeline: scroll();
+            animation-range: 0 100%;
+        }
+        @keyframes home-scroll-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    }
+
+    /* Reveal on scroll (progressive enhancement) */
+    .reveal { opacity: 0; transform: translateY(10px); }
+    .reveal.reveal-in { opacity: 1; transform: translateY(0); transition: opacity .6s ease, transform .6s ease; }
+    @media (prefers-reduced-motion: reduce) {
+        .reveal { opacity: 1; transform: none; }
+    }
+
+    /* Responsive grid overrides for this page only */
+    .home-hero .grid.grid-2 { gap: 16px; }
+    .home-benefits .grid.grid-3 { gap: 16px; }
+        /* Hero typography clamp for small screens */
+        .page-hero .hero-title { font-size: clamp(22px, 5vw, 34px); line-height: 1.15; }
+        .page-hero .hero-sub { font-size: clamp(14px, 3.6vw, 18px); }
+        /* CTA row becomes vertical on phones with comfy touch targets */
+        .home-cta { display:flex; gap:8px; flex-wrap:wrap; }
+        .home-cta .btn { padding: 10px 14px; }
+        @media (max-width: 520px) {
+            .home-cta { flex-direction: column; }
+            .home-cta .btn { width: 100%; text-align:center; }
+        }
+        @media (max-width: 860px) {
+        .home-hero .grid.grid-2 { grid-template-columns: 1fr !important; }
+        .home-benefits .grid.grid-3 { grid-template-columns: 1fr 1fr !important; }
+    }
+    @media (max-width: 640px) {
+        .home-benefits .grid.grid-3 { grid-template-columns: 1fr !important; }
+    }
+    /* Badges wrap gracefully */
+    .home-badges { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .home-badges .badge { white-space: nowrap; }
+    @media (max-width: 640px) { .home-badges .badge { font-size: 12px; } }
+        /* Card padding scales down on small screens */
+        @media (max-width: 640px) {
+            .container .card { padding: 14px !important; }
+            .section { padding-top: 14px !important; padding-bottom: 14px !important; }
+        }
+        /* Constrain hero image height on mobile to avoid pushing CTAs below the fold */
+        .home-hero .thumb img { max-height: 260px; object-fit: contain; }
+        @media (max-width: 520px) { .home-hero .thumb img { max-height: 200px; } }
+</style>
+
+<div id="scroll-progress" aria-hidden="true"></div>
+<section class="section" style="padding-top:18px; padding-bottom:18px;">
+    <div class="container home-hero">
+        <div class="card" style="padding:20px;">
+            <div class="grid grid-2" style="align-items:center; gap:16px;">
                 <div>
-                    {{ page_hero('Collect event photos in minutes', 'EPU makes it easy to collect, review, and share guest photos and videos from any event. No apps. No friction.') }}
-                    <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+                    {{ page_hero('Collect every guest photo—fast', 'Share a link or QR. Guests upload in seconds. You review, organize, and share a beautiful gallery.') }}
+                                <div class="home-cta" style="margin-top:10px;">
                         {% if request.cookies.get('session_id') %}
                             <a class="btn primary" href="/events/create">Create an event</a>
-                            <a class="btn" href="/events">Go to my events</a>
+                            <a class="btn" href="/events">My events</a>
                         {% else %}
                             <a class="btn primary" href="/signup">Get started free</a>
                             <a class="btn" href="/pricing">See pricing</a>
                         {% endif %}
                     </div>
-                    <ul style="margin-top:14px; padding-left:18px; color: var(--color-text-muted);">
-                        <li>Simple guest upload links with QR codes</li>
-                        <li>Smart gallery with selection, restore, and ZIP download</li>
-                        <li>Themes and branded pages out of the box</li>
-                    </ul>
+                    <div class="home-badges">
+                        <div class="badge">No app for guests</div>
+                        <div class="badge">QR codes included</div>
+                        <div class="badge">ZIP download & restore</div>
+                    </div>
+                    <div class="card reveal" style="margin-top:12px; padding:10px;">
+                        <div class="grid grid-3" style="align-items:center; gap:8px;">
+                            <div><strong>1.</strong> Create an event</div>
+                            <div><strong>2.</strong> Share link or QR</div>
+                            <div><strong>3.</strong> Collect & share</div>
+                        </div>
+                    </div>
                 </div>
                 <div>
-                    <div class="thumb">
-                        <img src="/static/images/Logo.svg" alt="EPU preview" style="width:100%; object-fit:contain; background:#0f111b; padding:16px;">
+                    <div class="thumb reveal" style="background:#0f111b; padding:10px;">
+                        <img src="/static/images/Logo.svg" alt="EPU preview" style="width:100%; object-fit:contain;">
                     </div>
                 </div>
             </div>
@@ -35,67 +109,57 @@
     </div>
 </section>
 
-<section class="section">
-    <div class="container">
+<section class="section" style="padding-top:16px; padding-bottom:16px;">
+    <div class="container home-benefits">
         <style>
-            .benefit-icon { font-size: 28px; line-height: 1; }
-            .how-step .num { width: 28px; height: 28px; border-radius: 999px; display:inline-flex; align-items:center; justify-content:center; background: var(--color-surface-2); border:1px solid var(--color-border); font-weight:700; margin-right:8px; }
-            .testimonial blockquote { margin:0; }
+            .benefit-icon { font-size: 24px; line-height: 1; }
         </style>
         <div class="grid grid-3 equal-heights">
-            <div class="card full-height">
+            <div class="card full-height reveal">
                 <div class="benefit-icon">⚡</div>
-                <h3>Fast setup</h3>
-                <p>Create an event, pick a theme, and share a QR code in under a minute.</p>
+                <h3 style="margin-bottom:6px;">Fast setup</h3>
+                <p class="muted">Create an event and share a QR in under a minute.</p>
             </div>
-            <div class="card full-height">
+            <div class="card full-height reveal" style="transition-delay:.06s;">
                 <div class="benefit-icon">📱</div>
-                <h3>Guest-friendly</h3>
-                <p>No apps required. Guests upload straight from their camera roll.</p>
+                <h3 style="margin-bottom:6px;">Guest-friendly</h3>
+                <p class="muted">No apps required. Works great on mobile.</p>
             </div>
-            <div class="card full-height">
+            <div class="card full-height reveal" style="transition-delay:.12s;">
                 <div class="benefit-icon">🛠️</div>
-                <h3>Built-in controls</h3>
-                <p>Review, delete/restore, and bulk-download with one click.</p>
+                <h3 style="margin-bottom:6px;">Built-in controls</h3>
+                <p class="muted">Select, restore, and ZIP download built in.</p>
             </div>
         </div>
     </div>
 </section>
 
-<section class="section">
-    <div class="container">
-        <div class="card">
-            <h2 style="margin-top:0;">How it works</h2>
-            <div class="grid grid-3 equal-heights" style="margin-top:8px;">
-                <div class="card full-height how-step">
-                    <div class="num">1</div><strong>Create</strong>
-                    <p class="muted" style="margin-top:8px;">Create an event and choose a theme.</p>
-                </div>
-                <div class="card full-height how-step">
-                    <div class="num">2</div><strong>Share</strong>
-                    <p class="muted" style="margin-top:8px;">Share a link or QR code with your guests.</p>
-                </div>
-                <div class="card full-height how-step">
-                    <div class="num">3</div><strong>Collect & Share</strong>
-                    <p class="muted" style="margin-top:8px;">Review uploads and share the gallery.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-    </section>
+{# Inline quick-start is now under the hero; removing duplicate big section #}
 
-<section class="section">
+<section class="section" style="padding-top:16px; padding-bottom:16px;">
     <div class="container">
-        <div class="card">
-            <h2 style="margin-top:0;">Testimonials</h2>
-            <p class="muted" style="margin:6px 0 0;">Coming soon.</p>
+        <div class="card reveal" style="display:flex; align-items:center; gap:12px; justify-content:space-between; flex-wrap:wrap;">
+            <div>
+                <h2 style="margin:0 0 4px;">Getting started</h2>
+                <p class="muted" style="margin:0;">See a quick walkthrough of guest uploads and the gallery.</p>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <a class="btn primary" href="/tutorial">Open tutorial</a>
+                {% if request.cookies.get('session_id') %}
+                    <a class="btn" href="/events/create">Create your first event</a>
+                {% else %}
+                    <a class="btn" href="/guest/login">Try guest upload</a>
+                {% endif %}
+            </div>
         </div>
     </div>
 </section>
 
-<section class="section">
+{# Removed placeholder testimonials to reduce length #}
+
+<section class="section" style="padding-top:16px; padding-bottom:20px;">
     <div class="container">
-        <div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div class="card reveal" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
             <div>
                 <h3 style="margin:0 0 4px;">Ready to try it?</h3>
                 <p style="margin:0;" class="muted">Start free. Upgrade when you need more.</p>
@@ -110,4 +174,50 @@
         </div>
     </div>
 </section>
+
+<script>
+    (function(){
+        try {
+            // Progress bar opacity toggler and JS fallback if scroll-timeline unsupported
+            var prog = document.getElementById('scroll-progress');
+            var supportsScrollTimeline = CSS && CSS.supports && CSS.supports('animation-timeline: scroll()');
+            var last = -1;
+            function onScroll(){
+                var y = window.scrollY || window.pageYOffset || 0;
+                prog.style.opacity = y > 8 ? '1' : '0';
+                if (!supportsScrollTimeline) {
+                    var h = document.documentElement;
+                    var max = (h.scrollHeight - h.clientHeight) || 1;
+                    var p = Math.min(1, Math.max(0, y / max));
+                    if (p !== last) {
+                        prog.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+                        last = p;
+                    }
+                }
+            }
+            document.addEventListener('scroll', onScroll, { passive: true });
+            onScroll();
+
+            // Reveal on scroll, respecting reduced motion
+            var prm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (!prm && 'IntersectionObserver' in window) {
+                var io = new IntersectionObserver(function(entries){
+                    for (var i=0;i<entries.length;i++){
+                        var e = entries[i];
+                        if (e.isIntersecting) {
+                            e.target.classList.add('reveal-in');
+                            io.unobserve(e.target);
+                        }
+                    }
+                }, { rootMargin: '0px 0px -10% 0px', threshold: 0.05 });
+                var els = document.querySelectorAll('.reveal');
+                for (var j=0;j<els.length;j++){ io.observe(els[j]); }
+            } else {
+                // No animations: show all
+                var els2 = document.querySelectorAll('.reveal');
+                for (var k=0;k<els2.length;k++){ els2[k].classList.add('reveal-in'); }
+            }
+        } catch (_e) { /* no-op */ }
+    })();
+    </script>
 {% endblock %}

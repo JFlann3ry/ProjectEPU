@@ -33,6 +33,25 @@
     border: 1px solid var(--accent);
 }
 #guest-theme .guest-card::before { background: transparent; }
+/* Reduce top padding so the banner touches the top edge nicely */
+#guest-theme .guest-card { padding-top: 12px; }
+/* Remove default margins on the heading to avoid top gap */
+#guest-theme .guest-card .login-title { margin-top: 0; }
+/* Ensure the banner image hugs the top inside the rounded card */
+#guest-theme .guest-card + * img[alt="Event Banner"] { display:block; }
+/* Make the frosted background image span the full viewport width without stretching height.
+   Height stays bound to the frost wrapper (form area only), so it won’t grow with "Your uploads". */
+#guest-theme .frost-wrap::before {
+    /* Override theme defaults that set inset:0 to instead center a 100vw-wide bg layer */
+    left: 50% !important;
+    right: auto !important;
+    width: 100vw !important;
+    transform: translateX(-50%) scale(1.02) !important; /* keep subtle bloom without clipping */
+    /* Ensure the image fills width and keeps aspect ratio (no vertical stretch) */
+    background-size: 100% auto !important;
+    background-position: center top !important;
+    background-repeat: no-repeat !important;
+}
 /* Themed tile style for each upload thumb */
 #guest-theme .theme-tile {
     padding: 6px;
@@ -50,9 +69,8 @@
 {% set hs = (custom.HeadingSize if custom and custom.HeadingSize else 'm') %}
 {% set cr = (custom.CornerRadius if custom and custom.CornerRadius else 'rounded') %}
 <div class="theme-root section-bg-only {{ 'is-solid' if custom and custom.ButtonStyle=='solid' else 'is-gradient' }}">
-<div id="guest-theme" class="container center" style="padding-top: 12px;">
-    <div class="frost-wrap" style="--bg-image: {% if tv.bg_img %}url('{{ tv.bg_img }}'){% else %}none{% endif %}; --bg-size: contain; --bg-position: center top; --bg-blur: 14px; max-width:860px;margin:0 auto; border-radius:12px;">
-    <div class="theme-card card guest-card rounded radius-{{ 'subtle' if cr=='subtle' else ('sharp' if cr=='sharp' else 'rounded') }} center {% if not event %}guest-card--plain{% endif %}">
+<div id="guest-theme" class="center" style="padding-top: 0; padding-left: 0; padding-right: 0; width: 100vw; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw);">
+    <div class="frost-wrap" style="--bg-image: {% if tv.bg_img %}url('{{ tv.bg_img }}'){% else %}none{% endif %}; --bg-size: contain; --bg-position: center top; --bg-blur: 14px; max-width: var(--container); margin:0 auto;">
     <div class="theme-card card guest-card rounded radius-{{ 'subtle' if cr=='subtle' else ('sharp' if cr=='sharp' else 'rounded') }} center {% if not event %}guest-card--plain{% endif %}">
     {% if not event %}
     <h2 class="login-title">Guest Upload</h2>
@@ -137,7 +155,8 @@
             You’ll see your photos here after upload.
         </div>
     </div>
-    <div class="section" id="your-uploads-section" style="padding-top:16px;">
+    </div> {# close frost-wrap so background stays behind the main form only #}
+    <div class="section" id="your-uploads-section" style="padding-top:16px; max-width: var(--container); margin: 0 auto;">
     <div id="your-uploads-card" class="theme-card card {{ 'is-hidden' if not guest_files or guest_files|length == 0 else '' }}">
             <h3 style="margin:0 0 8px;">Your uploads</h3>
             {% call btn_row('style="margin-bottom:6px; align-items:center; justify-content:space-between;"') %}
