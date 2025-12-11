@@ -36,6 +36,7 @@ else:
     connection_string = (
         f"mssql+pyodbc://{username}:{password}@{hostpart}/{database}"
         f"?driver={driver.replace(' ', '+')}"
+        f"&TrustServerCertificate=yes"
     )
 
     engine = create_engine(connection_string)
