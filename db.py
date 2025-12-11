@@ -36,10 +36,15 @@ else:
     connection_string = (
         f"mssql+pyodbc://{username}:{password}@{hostpart}/{database}"
         f"?driver={driver.replace(' ', '+')}"
-        f"&TrustServerCertificate=yes"
     )
 
-    engine = create_engine(connection_string)
+    engine = create_engine(
+        connection_string,
+        connect_args={
+            "TrustServerCertificate": "yes",
+            "Encrypt": "yes",
+        }
+    )
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
