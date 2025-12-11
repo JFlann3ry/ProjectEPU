@@ -129,6 +129,7 @@ async def logging_middleware(request: Request, call_next):
     duration_ms: Optional[int] = None
     # Stash request_id for downstream handlers
     request.state.request_id = request_id
+    request.state.user_id = None
     user_id: Optional[int] = None
     try:
         # Best-effort extract user id without forcing DB if dependency available
@@ -139,6 +140,7 @@ async def logging_middleware(request: Request, call_next):
             db = next(db_gen)
             try:
                 user_id = get_user_id_from_request(request, db)
+                request.state.user_id = user_id
             finally:
                 try:
                     next(db_gen)

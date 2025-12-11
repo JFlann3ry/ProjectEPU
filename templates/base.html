@@ -31,7 +31,7 @@
           <a href="/pricing" {% if request and request.url and (request.url.path.startswith('/pricing') or request.url.path.startswith('/plans')) %}aria-current="page" class="active"{% endif %}>Pricing</a>
           <a href="/extras" {% if request and request.url and request.url.path.startswith('/extras') %}aria-current="page" class="active"{% endif %}>Extras</a>
           <a href="/guest/login" {% if request and request.url and request.url.path.startswith('/guest') %}aria-current="page" class="active"{% endif %}>Guest Upload</a>
-          {% if request.cookies.get('session_id') %}
+          {% if request.state and request.state.user_id %}
             <div class="user-menu">
               <button class="avatar-btn" id="avatar-btn" aria-haspopup="menu" aria-expanded="false" aria-label="User menu">
                 <!-- Person icon instead of initial letter -->
