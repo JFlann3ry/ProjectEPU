@@ -7,9 +7,8 @@ and pick up new uploads as they arrive. Guests can open it using the event's cod
 from __future__ import annotations
 
 import logging
-from typing import List, Tuple
 
-from fastapi import APIRouter, Depends, Path, Query, Request, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.orm import Session
 
@@ -93,7 +92,11 @@ async def live_slideshow_page(
 async def live_slideshow_data(
     request: Request,
     event_code: str,
-    since: int | None = Query(None, ge=0, description="Return items with FileID greater than this value"),
+    since: int | None = Query(
+        None,
+        ge=0,
+        description="Return items with FileID greater than this value",
+    ),
     limit: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
@@ -101,7 +104,7 @@ async def live_slideshow_data(
     try:
         client_ip = request.client.host if request.client else "anon"
         rl_key = f"live:data:{event_code}:{client_ip}"
-        if not rate_allow(rl_key, limit=60, window_seconds=60):
+        if not rate_allow(db, rl_key, limit=60, window_seconds=60):
             raise HTTPException(status_code=429, detail="rate_limited")
     except HTTPException:
         raise

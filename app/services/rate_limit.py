@@ -1,46 +1,37 @@
 from __future__ import annotations
 
-from collections import defaultdict, deque
 from time import time
 
-from app.core.settings import settings
+from sqlalchemy.orm import Session
 
-# Try to create a Redis client lazily; fallback to in-memory if unavailable
-_redis = None
-try:
-    import redis  # type: ignore
-
-    if settings.REDIS_URL:
-        _redis = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
-except Exception:
-    _redis = None
-
-_inmem_buckets = defaultdict(lambda: deque())
+from app.models.rate_limit import RateLimitCounter
 
 
-def allow(key: str, limit: int, window_seconds: int) -> bool:
-    """Return True if request is allowed under a token-bucket limit, else False.
-    Uses Redis if configured, otherwise falls back to in-memory per-process buckets.
+def allow(db: Session, key: str, limit: int, window_seconds: int) -> bool:
+    """Return True if request is allowed under a fixed-window counter.
+
+    Stores counters in the database so limits are shared across instances.
+    If the DB write fails, the request is allowed to avoid breaking primary flows.
     """
-    if _redis is not None:
-        try:
-            # Use a fixed window counter (simple and sufficient here)
-            now = int(time())
-            window = now // max(1, window_seconds)
-            field = f"{key}:{window}"
-            pipe = _redis.pipeline()
-            pipe.incr(field, 1)
-            pipe.expire(field, window_seconds + 5)
-            count, _ = pipe.execute()
-            return int(count) <= int(limit)
-        except Exception:
-            pass
-    # Fallback in-memory
-    q = _inmem_buckets[key]
-    nowf = time()
-    while q and q[0] < nowf - window_seconds:
-        q.popleft()
-    if len(q) >= limit:
-        return False
-    q.append(nowf)
-    return True
+    window = int(time()) // max(1, window_seconds)
+
+    try:
+        bucket = (
+            db.query(RateLimitCounter)
+            .with_for_update()
+            .filter(RateLimitCounter.Key == key, RateLimitCounter.Window == window)
+            .first()
+        )
+        if bucket is None:
+            bucket = RateLimitCounter(Key=key, Window=window, Count=1)
+            db.add(bucket)
+            db.commit()
+            return True
+
+        bucket.Count = int(bucket.Count or 0) + 1
+        db.commit()
+        return bucket.Count <= int(limit)
+    except Exception:
+        db.rollback()
+        # If rate limit storage fails, allow the request rather than blocking users
+        return True

@@ -15,7 +15,13 @@ except ImportError:
 class S3StorageService:
     """Handles file uploads to AWS S3 or local filesystem fallback."""
 
-    def __init__(self, region: str, bucket: str, access_key: Optional[str] = None, secret_key: Optional[str] = None):
+    def __init__(
+        self,
+        region: str,
+        bucket: str,
+        access_key: Optional[str] = None,
+        secret_key: Optional[str] = None,
+    ):
         """
         Initialize S3 client.
         
@@ -37,14 +43,20 @@ class S3StorageService:
                     aws_access_key_id=access_key or None,
                     aws_secret_access_key=secret_key or None,
                 )
-                logger.info(f"S3 storage initialized for bucket '{bucket}' in region '{region}'")
+                logger.info(
+                    "S3 storage initialized for bucket '%s' in region '%s'",
+                    bucket,
+                    region,
+                )
             except Exception as e:
                 logger.error(f"Failed to initialize S3 client: {e}")
                 self.enabled = False
         else:
             logger.info("S3 storage disabled; using local filesystem fallback")
 
-    def upload_file(self, file_data: bytes, s3_key: str, content_type: str = "application/octet-stream") -> str:
+    def upload_file(
+        self, file_data: bytes, s3_key: str, content_type: str = "application/octet-stream"
+    ) -> str:
         """
         Upload file to S3.
         

@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy.orm import Session
 
 from app.core.settings import settings
 from app.core.templates import templates
 from app.services.csrf import set_csrf_cookie
 from app.services.email_utils import send_support_email
+from db import get_db
 
 router = APIRouter()
 
@@ -49,6 +51,7 @@ async def contact_submit(
     captcha_token: str = Form(""),
     csrf_token: str = Form(""),
     hp: str = Form(""),
+    db: Session = Depends(get_db),
 ):
     client_ip = request.client.host if request.client else "unknown"
     # Lazy imports for env resilience
@@ -74,6 +77,7 @@ async def contact_submit(
         )  # type: ignore  # noqa: E402
     # Shared rate limit (Redis if configured)
     if not rl_allow(
+        db,
         f"contact:{client_ip}",
         int(getattr(settings, "CONTACT_RATE_LIMIT_ATTEMPTS", 3)),
         int(getattr(settings, "CONTACT_RATE_LIMIT_WINDOW_SECONDS", 60)),

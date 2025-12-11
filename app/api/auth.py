@@ -58,6 +58,7 @@ async def login(
 ):
     rl_key = f"login:{request.client.host if request.client else 'unknown'}:{email.strip().lower()}"
     if not rl_allow(
+        db,
         rl_key,
         int(getattr(settings, "RATE_LIMIT_LOGIN_ATTEMPTS", 5)),
         int(getattr(settings, "RATE_LIMIT_LOGIN_WINDOW_SECONDS", 900)),

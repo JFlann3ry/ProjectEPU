@@ -158,7 +158,8 @@ async def faq_page(request: Request):
                     "a": (
                         "Yes. Use the dedicated Live Slideshow at /live/{code} for a "
                         "full‑screen display that auto‑advances and picks up new uploads. "
-                        "Keyboard: Space to pause/resume, ←/→ for previous/next, +/- to change delay."
+                        "Keyboard: Space to pause/resume, ←/→ for previous/next, +/- to "
+                        "change delay."
                     ),
                 },
                 {

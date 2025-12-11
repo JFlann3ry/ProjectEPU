@@ -395,7 +395,11 @@ async def guest_upload_post(
                 if sniffed.startswith("image") or sniffed.startswith("video"):
                     # Create temp file for metadata extraction
                     import tempfile
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(fname)[1]) as tf:
+
+                    with tempfile.NamedTemporaryFile(
+                        delete=False,
+                        suffix=os.path.splitext(fname)[1],
+                    ) as tf:
                         tf.write(contents)
                         tmp_path = tf.name
                     
@@ -404,10 +408,20 @@ async def guest_upload_post(
                     else:
                         meta = extract_video_metadata(tmp_path)
                 else:
-                    meta = {"datetime_taken": None, "gps_lat": None, "gps_long": None, "checksum": None}
+                    meta = {
+                        "datetime_taken": None,
+                        "gps_lat": None,
+                        "gps_long": None,
+                        "checksum": None,
+                    }
             except Exception as e:
                 logging.warning(f"Failed to extract metadata: {e}")
-                meta = {"datetime_taken": None, "gps_lat": None, "gps_long": None, "checksum": None}
+                meta = {
+                    "datetime_taken": None,
+                    "gps_lat": None,
+                    "gps_long": None,
+                    "checksum": None,
+                }
             finally:
                 if tmp_path and os.path.exists(tmp_path):
                     try:
