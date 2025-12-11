@@ -263,10 +263,14 @@ async def signup(
             )
     
     # Truncate password to 72 bytes early to prevent bcrypt errors
+    # Use the same logic as hash_password to ensure consistency
     password_bytes = password.encode('utf-8')
     if len(password_bytes) > 72:
-        password = password_bytes[:72].decode('utf-8', errors='ignore')
+        # Truncate to 72 bytes and decode, dropping incomplete UTF-8 sequences
+        password_bytes = password_bytes[:72]
+        password = password_bytes.decode('utf-8', errors='ignore')
     
+    # Validate the (potentially truncated) password
     password_errors = validate_password(password)
     if password_errors:
         error_message = "Password requirements not met: " + "; ".join(password_errors)
