@@ -100,19 +100,19 @@ def db_session():
 
     # Re-open a nested SAVEPOINT whenever the previous one ends
     try:
+
         @event.listens_for(session, "after_transaction_end")
         def _restart_savepoint(sess, trans):  # noqa: N802 (callback name)
             try:
                 is_nested = getattr(trans, "nested", False)
                 parent = getattr(trans, "_parent", None)
-                parent_nested = (
-                    getattr(parent, "nested", False) if parent is not None else False
-                )
+                parent_nested = getattr(parent, "nested", False) if parent is not None else False
                 if is_nested and not parent_nested:
                     sess.begin_nested()
             except Exception:
                 # If we cannot restart a nested transaction (DB/driver limitation), ignore.
                 pass
+
     except Exception:
         # If event registration fails (unlikely), continue without it.
         pass

@@ -6,6 +6,7 @@ Usage (from project root):
 
 Without flags it processes all events/files. Requires local storage mounted at storage/.
 """
+
 import argparse
 import os
 
@@ -25,12 +26,12 @@ def process(db: Session, user_id: int | None, event_id: int | None) -> int:
     files = q.all()
     count = 0
     for f in files:
-        uid = int(getattr(db.query(Event).filter(Event.EventID == f.EventID).first(), 'UserID'))
-        eid = int(getattr(f, 'EventID'))
-        fid = int(getattr(f, 'FileMetadataID'))
-        ftype = str(getattr(f, 'FileType'))
-        fname = str(getattr(f, 'FileName'))
-        base = os.path.join('storage', str(uid), str(eid), fname)
+        uid = int(getattr(db.query(Event).filter(Event.EventID == f.EventID).first(), "UserID"))
+        eid = int(getattr(f, "EventID"))
+        fid = int(getattr(f, "FileMetadataID"))
+        ftype = str(getattr(f, "FileType"))
+        fname = str(getattr(f, "FileName"))
+        base = os.path.join("storage", str(uid), str(eid), fname)
         if not os.path.exists(base):
             continue
         generate_all_thumbs_for_file(uid, eid, fid, ftype, fname)
@@ -39,9 +40,9 @@ def process(db: Session, user_id: int | None, event_id: int | None) -> int:
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Backfill thumbnails for existing uploads')
-    parser.add_argument('--event', type=int, default=None, help='EventID to limit')
-    parser.add_argument('--user', type=int, default=None, help='UserID to limit')
+    parser = argparse.ArgumentParser(description="Backfill thumbnails for existing uploads")
+    parser.add_argument("--event", type=int, default=None, help="EventID to limit")
+    parser.add_argument("--user", type=int, default=None, help="UserID to limit")
     args = parser.parse_args()
 
     db_gen = get_db()
@@ -56,5 +57,5 @@ def main():
             pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

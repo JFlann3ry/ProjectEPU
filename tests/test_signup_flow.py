@@ -19,6 +19,14 @@ def test_signup_weak_password_shows_policy():
     assert "Password requirements not met" in r.text
 
 
+def test_signup_page_uses_extracted_password_script():
+    r = client.get("/signup")
+
+    assert r.status_code == 200
+    assert "js/pages/auth_password_form.js" in r.text
+    assert "const passwordInput = document.getElementById('password');" not in r.text
+
+
 def test_signup_duplicate_email(monkeypatch):
     # Force create_user to return None simulating uniqueness violation
     from app.services import auth as auth_service

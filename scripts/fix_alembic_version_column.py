@@ -6,6 +6,7 @@ long human-readable revision identifiers won't be truncated.
 
 Run with the project's virtualenv python.
 """
+
 from sqlalchemy import text
 
 from db import engine
@@ -20,9 +21,7 @@ def main() -> None:
         "BEGIN ALTER TABLE dbo.alembic_version DROP CONSTRAINT "
         "alembic_version_pkc END"
     )
-    alter_col = (
-        "ALTER TABLE dbo.alembic_version ALTER COLUMN version_num NVARCHAR(255) NOT NULL;"
-    )
+    alter_col = "ALTER TABLE dbo.alembic_version ALTER COLUMN version_num NVARCHAR(255) NOT NULL;"
     create_pk = (
         "ALTER TABLE dbo.alembic_version ADD CONSTRAINT "
         "alembic_version_pkc PRIMARY KEY (version_num);"

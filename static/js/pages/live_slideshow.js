@@ -1,5 +1,7 @@
 (function(){
-  const cfg = (window.EPU && window.EPU.liveCfg) || {}; const code = cfg.code || '';
+  const wrap = document.querySelector('.live-wrap');
+  const code = (wrap && wrap.dataset && wrap.dataset.eventCode) || (window.EPU && window.EPU.liveCfg && window.EPU.liveCfg.code) || '';
+  const token = (wrap && wrap.dataset && wrap.dataset.liveToken) || '';
   const stage = document.getElementById('live-stage');
   const statusEl = document.getElementById('status');
   const prevBtn = document.getElementById('prev');
@@ -10,9 +12,14 @@
   const decBtn = document.getElementById('dec');
   const delayDisp = document.getElementById('delay-display');
   const fsBtn = document.getElementById('fs');
-  const wrap = document.querySelector('.live-wrap');
 
   let list = []; let cursor = -1; let timer = null; let playing = false; let maxId = null;
+  let pollTimer = null;
+  let sse = null;
+  let pollFailures = 0;
+  const POLL_ACTIVE_MS = 6000;
+  const POLL_HIDDEN_MS = 30000;
+  const POLL_MAX_MS = 120000;
   let delayMs = 3000;
   function renderDelay(){ if (delayDisp) delayDisp.textContent = Math.round(delayMs/1000)+'s'; }
   function setDelay(ms){ delayMs = Math.min(10000, Math.max(1500, parseInt(ms||3000,10))); renderDelay(); }
@@ -24,6 +31,74 @@
 
   function clearTimer(){ if (timer){ clearTimeout(timer); timer = null; } }
   function scheduleNext(){ clearTimer(); if (!playing) return; timer = setTimeout(()=>{ show(cursor+1); }, delayMs); }
+
+  function clearPoll(){ if (pollTimer){ clearTimeout(pollTimer); pollTimer = null; } }
+  function pollDelay(){ return document.hidden ? POLL_HIDDEN_MS : POLL_ACTIVE_MS; }
+  function schedulePoll(delay){
+    clearPoll();
+    pollTimer = setTimeout(async function pollTick(){
+      const ok = await fetchData(false);
+      if (ok) pollFailures = 0;
+      else pollFailures = Math.min(6, pollFailures + 1);
+      const base = pollDelay();
+      const backoff = Math.min(POLL_MAX_MS, base * Math.max(1, Math.pow(2, pollFailures)));
+      const jitter = Math.floor(Math.random() * 500);
+      schedulePoll(backoff + jitter);
+    }, typeof delay === 'number' ? delay : pollDelay());
+  }
+
+  function closeSse(){
+    if (sse){
+      try { sse.close(); } catch(_){}
+      sse = null;
+    }
+  }
+
+  function applyDelta(files){
+    const items = Array.isArray(files) ? files : [];
+    if (!items.length) return;
+    const prevLen = list.length;
+    list = list.concat(items);
+    setStatus(`${list.length} items`);
+    if (prevLen === 0){ show(0); }
+  }
+
+  function attachSse(){
+    if (!window.EventSource || !code) return false;
+    try {
+      closeSse();
+      const streamUrl = `/live/${encodeURIComponent(code)}/stream`;
+      sse = new EventSource(streamUrl);
+      sse.onmessage = function(ev){
+        try {
+          const payload = JSON.parse(ev.data || '{}');
+          const files = Array.isArray(payload.files) ? payload.files : [];
+          if (typeof payload.max_id === 'number') maxId = payload.max_id;
+          applyDelta(files);
+        } catch(_){ }
+      };
+      sse.onerror = function(){
+        closeSse();
+        schedulePoll(POLL_ACTIVE_MS);
+      };
+      return true;
+    } catch(_){
+      closeSse();
+      return false;
+    }
+  }
+
+  function startRealtime(){
+    clearPoll();
+    closeSse();
+    if (document.hidden){
+      schedulePoll(POLL_HIDDEN_MS);
+      return;
+    }
+    if (!attachSse()){
+      schedulePoll(POLL_ACTIVE_MS);
+    }
+  }
 
   function mountMedia(item){
     if (!item) return;
@@ -89,12 +164,16 @@
 
   async function fetchData(initial){
     try {
+      const q = new URLSearchParams();
+      if (!initial && maxId !== null){ q.set('since', String(maxId)); }
+      if (token){ q.set('token', token); }
       let url = `/live/${encodeURIComponent(code)}/data`;
-      if (!initial && maxId !== null){ url += `?since=${maxId}`; }
+      const qs = q.toString();
+      if (qs){ url += `?${qs}`; }
       const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-      if (!res.ok){ setStatus('Disconnected'); return; }
+      if (!res.ok){ setStatus('Disconnected'); return false; }
       const data = await res.json();
-      if (!data || data.ok !== true) { setStatus('Disconnected'); return; }
+      if (!data || data.ok !== true) { setStatus('Disconnected'); return false; }
       const files = Array.isArray(data.files) ? data.files : [];
       if (typeof data.max_id === 'number') maxId = data.max_id;
       if (initial){
@@ -102,12 +181,10 @@
         if (list.length === 0){ setStatus('Waiting for uploads…'); }
         else { setStatus(`${list.length} items`); show(0); }
       } else if (files.length){
-        const prevLen = list.length; list = list.concat(files);
-        setStatus(`${list.length} items`);
-        // If we were waiting, kick off from the first new item
-        if (prevLen === 0){ show(0); }
+        applyDelta(files);
       }
-    } catch(e){ setStatus('Network error'); }
+      return true;
+    } catch(e){ setStatus('Network error'); return false; }
   }
 
   function play(){ if (!list.length){ show(0); } playing = true; playBtn.style.display='none'; pauseBtn.style.display=''; scheduleNext(); }
@@ -152,6 +229,15 @@
 
   // Boot
   fetchData(true);
-  // Poll for new files every 6s
-  setInterval(()=>{ fetchData(false); }, 6000);
+  // Prefer SSE when available; fall back to visibility-aware polling.
+  startRealtime();
+  document.addEventListener('visibilitychange', function(){
+    if (!document.hidden){
+      fetchData(false);
+      startRealtime();
+    } else {
+      closeSse();
+      schedulePoll(POLL_HIDDEN_MS);
+    }
+  });
 })();

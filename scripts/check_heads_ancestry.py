@@ -3,14 +3,14 @@ from collections import deque
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
-cfg = Config('alembic.ini')
+cfg = Config("alembic.ini")
 script = ScriptDirectory.from_config(cfg)
 heads = script.get_heads()
-print('heads=', heads)
+print("heads=", heads)
 
 # build parents mapping
 parents = {}
-for rev in script.walk_revisions(base='base', head='heads'):
+for rev in script.walk_revisions(base="base", head="heads"):
     dr = rev.down_revision
     if dr is None:
         parents[rev.revision] = []

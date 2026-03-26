@@ -37,8 +37,8 @@
 
 {% block breadcrumbs %}{% endblock %}
 {% block content %}
-<div class="live-wrap" data-event-code="{{ event_code }}">
-  <div class="topbar">Live Slideshow — {{ event_name or event_code }} · <a href="/guest/upload/{{ event_code }}" target="_blank" rel="noopener">Upload link</a></div>
+<div class="live-wrap" data-event-code="{{ event_code }}" data-live-token="{{ live_data_token or '' }}">
+  <div class="topbar">Live Slideshow — {{ event_name or event_code }} · <a href="/guest/upload/{{ event_code }}" target="_blank" rel="noopener">Upload link</a> <span aria-hidden="true">(always visible for kiosk/shared-screen workflows)</span></div>
   <div class="live-stage" id="live-stage" aria-live="polite" aria-atomic="true">
     <!-- media injected here -->
   </div>
@@ -56,9 +56,4 @@
 </div>
 
 <script src="{{ url_for('static', path='js/pages/live_slideshow.js') }}?v={{ now() if now else '' }}" defer></script>
-<script>
-  window.EPU = window.EPU || {}; EPU.liveCfg = {
-    code: '{{ event_code }}'
-  };
-</script>
 {% endblock %}

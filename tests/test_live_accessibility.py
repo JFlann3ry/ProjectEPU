@@ -1,13 +1,28 @@
+import uuid
+
 from fastapi.testclient import TestClient
 
 from app.models.event import Event
+from app.models.user import User
 
 
 def _ensure_published_event(db_session) -> Event:
+    user = db_session.query(User).filter(User.Email == "live-a11y@example.test").first()
+    if not user:
+        user = User(
+            FirstName="Live",
+            LastName="A11y",
+            Email="live-a11y@example.test",
+            HashedPassword="x",
+            IsActive=True,
+        )
+        db_session.add(user)
+        db_session.flush()
+
     e = Event(
-        UserID=1,
+        UserID=int(getattr(user, "UserID")),
         Name="A11y Live Event",
-        Code="A11Y01",
+        Code=f"A11Y{uuid.uuid4().hex[:6].upper()}",
         Password="x",
         Published=True,
         TermsChecked=True,

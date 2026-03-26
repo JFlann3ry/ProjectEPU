@@ -7,6 +7,7 @@ from db import get_db
 
 router = APIRouter()
 
+
 @router.post("/events/{event_id}/rebuild-gallery-order")
 def rebuild_gallery_order(
     event_id: int,

@@ -43,7 +43,7 @@ class JsonFormatter(logging.Formatter):
             try:
                 json.dumps(v)
                 base[k] = v
-            except Exception:
+            except (TypeError, ValueError):
                 base[k] = str(v)
         if record.exc_info:
             base["exc_info"] = self.formatException(record.exc_info)
@@ -73,7 +73,8 @@ def configure_logging(settings) -> None:
     log_file = getattr(settings, "LOG_FILE", "logs/app.log")
     try:
         os.makedirs(os.path.dirname(log_file), exist_ok=True)
-    except Exception:
+    except (OSError, IOError):
+        # Best-effort; log directory creation failed, RotatingFileHandler will handle path
         pass
     file_handler = RotatingFileHandler(
         log_file,

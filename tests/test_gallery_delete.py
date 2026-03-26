@@ -11,32 +11,35 @@ def test_gallery_delete_sets_deleted_and_deletedat(db_session, client):
     from app.models.user import User
 
     # Create or reuse a user
-    u = db_session.query(User).filter(User.Email == 'delete@example.test').first()
+    u = db_session.query(User).filter(User.Email == "delete@example.test").first()
     if not u:
         u = User(
-            FirstName='D', LastName='E', Email='delete@example.test',
-            HashedPassword='x', IsActive=True,
+            FirstName="D",
+            LastName="E",
+            Email="delete@example.test",
+            HashedPassword="x",
+            IsActive=True,
         )
         db_session.add(u)
         db_session.flush()
 
-    ev = Event(UserID=u.UserID, Name='DeleteTest', Code='DEL', Password='pw', TermsChecked=True)
+    ev = Event(UserID=u.UserID, Name="DeleteTest", Code="DEL", Password="pw", TermsChecked=True)
     db_session.add(ev)
     db_session.flush()
 
-    f1 = FileMetadata(EventID=ev.EventID, FileName='a.jpg', FileType='image/jpeg', FileSize=10)
-    f2 = FileMetadata(EventID=ev.EventID, FileName='b.jpg', FileType='image/jpeg', FileSize=20)
+    f1 = FileMetadata(EventID=ev.EventID, FileName="a.jpg", FileType="image/jpeg", FileSize=10)
+    f2 = FileMetadata(EventID=ev.EventID, FileName="b.jpg", FileType="image/jpeg", FileSize=20)
     db_session.add_all([f1, f2])
     db_session.flush()
 
     # Ensure session and cookie
-    sess = create_session(db_session, user_id=int(getattr(u, 'UserID')))
-    client.cookies.set('session_id', str(sess.SessionID))
+    sess = create_session(db_session, user_id=int(getattr(u, "UserID")))
+    client.cookies.set("session_id", str(sess.SessionID))
 
     # Post to delete with form-encoded file_ids
     resp = client.post(
-        '/gallery/actions/delete',
-        data={'file_ids': [str(f1.FileMetadataID), str(f2.FileMetadataID)]},
+        "/gallery/actions/delete",
+        data={"file_ids": [str(f1.FileMetadataID), str(f2.FileMetadataID)]},
     )
     assert resp.status_code in (200, 303)
 
@@ -44,11 +47,11 @@ def test_gallery_delete_sets_deleted_and_deletedat(db_session, client):
     db_session.refresh(f1)
     db_session.refresh(f2)
 
-    assert getattr(f1, 'Deleted', False) is True
-    assert getattr(f2, 'Deleted', False) is True
+    assert getattr(f1, "Deleted", False) is True
+    assert getattr(f2, "Deleted", False) is True
 
-    da1 = getattr(f1, 'DeletedAt', None)
-    da2 = getattr(f2, 'DeletedAt', None)
+    da1 = getattr(f1, "DeletedAt", None)
+    da2 = getattr(f2, "DeletedAt", None)
     assert da1 is not None
     assert da2 is not None
 

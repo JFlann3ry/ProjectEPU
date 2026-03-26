@@ -4,6 +4,7 @@ Revision ID: 20250916_0025_add_email_change_requests
 Revises: 20250913_0032_merge_heads_gallery_order
 Create Date: 2025-09-16
 """
+
 from alembic import op
 import sqlalchemy as sa
 

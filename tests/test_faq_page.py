@@ -13,6 +13,8 @@ def test_faq_page_renders():
     assert "accordion-item" in r.text
     assert "accordion-header" in r.text
     assert "accordion-panel" in r.text
+    assert "js/pages/faq.js" in r.text
+    assert "var lockedActiveId = null" not in r.text
 
 
 def test_footer_has_faq_link():

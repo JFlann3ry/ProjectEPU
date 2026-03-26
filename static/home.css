@@ -1,0 +1,326 @@
+#scroll-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: var(--accent, var(--color-accent, #4f8cff));
+    width: 100%;
+    transform: scaleX(0);
+    transform-origin: 0 0;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 999;
+}
+
+@supports (animation-timeline: scroll()) {
+    #scroll-progress {
+        animation: home-scroll-grow linear both;
+        animation-timeline: scroll();
+        animation-range: 0 100%;
+    }
+
+    @keyframes home-scroll-grow {
+        from { transform: scaleX(0); }
+        to { transform: scaleX(1); }
+    }
+}
+
+.reveal {
+    opacity: 0;
+    transform: translateY(10px);
+}
+
+.reveal.reveal-in {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.home-section .container {
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+.home-section-hero .container {
+    padding-top: 14px;
+    padding-bottom: 8px;
+}
+
+.home-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 6px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    background: rgba(79, 140, 255, 0.08);
+    color: #a9c5ff;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.home-hero-card {
+    padding: 26px;
+    background:
+        radial-gradient(circle at top left, rgba(79, 140, 255, 0.16), transparent 40%),
+        radial-gradient(circle at bottom right, rgba(255, 122, 89, 0.09), transparent 44%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0)),
+        var(--color-surface);
+}
+
+.home-hero-grid {
+    align-items: center;
+    gap: 24px;
+}
+
+.home-benefits .grid.grid-3 {
+    gap: 14px;
+}
+
+.home-copy .page-hero {
+    padding-bottom: 0;
+    margin-bottom: 0;
+}
+
+.page-hero .hero-title {
+    font-size: clamp(24px, 4.8vw, 42px);
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+    max-width: 14ch;
+}
+
+.page-hero .hero-sub {
+    font-size: clamp(14px, 3.6vw, 18px);
+    line-height: 1.55;
+    max-width: 34rem;
+    margin-top: 12px;
+}
+
+.home-cta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+
+.home-cta .btn {
+    padding: 10px 16px;
+}
+
+.home-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.home-badges .badge {
+    white-space: nowrap;
+    background: rgba(255, 255, 255, 0.03);
+    color: #c1c9d6;
+}
+
+.home-steps {
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.home-steps-grid {
+    align-items: center;
+    gap: 8px;
+}
+
+.home-steps-grid > div {
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.home-preview-wrap {
+    display: flex;
+    justify-content: center;
+}
+
+.home-preview {
+    width: 100%;
+    min-height: 250px;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    background:
+        radial-gradient(circle at top, rgba(255, 122, 89, 0.08), transparent 42%),
+        #111420;
+}
+
+.home-preview-shell {
+    display: grid;
+    gap: 10px;
+}
+
+.home-preview-head {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #c3cbe0;
+}
+
+.home-preview-image {
+    width: 100%;
+    max-height: 280px;
+    object-fit: contain;
+    filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.28));
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(8, 10, 20, 0.45);
+}
+
+.home-preview-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.home-preview-foot span {
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    color: #cad2e8;
+}
+
+.benefit-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    margin-bottom: 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 20px;
+    line-height: 1;
+}
+
+.home-benefit-card {
+    padding: 20px 18px;
+}
+
+.home-benefit-card h3 {
+    margin-bottom: 8px;
+}
+
+.home-journey-card {
+    background:
+        linear-gradient(110deg, rgba(79, 140, 255, 0.08), rgba(255, 122, 89, 0.06)),
+        var(--color-surface);
+}
+
+.home-benefit-card.delay-1 {
+    transition-delay: .06s;
+}
+
+.home-benefit-card.delay-2 {
+    transition-delay: .12s;
+}
+
+.home-split-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 18px 20px;
+}
+
+.home-section-title {
+    margin: 0 0 4px;
+}
+
+.home-section-copy {
+    margin: 0;
+}
+
+.home-split-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.home-final-card {
+    background:
+        linear-gradient(90deg, rgba(79, 140, 255, 0.08), rgba(255, 122, 89, 0.05)),
+        var(--color-surface);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .reveal {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (max-width: 860px) {
+    .home-hero .grid.grid-2 {
+        grid-template-columns: 1fr !important;
+    }
+
+    .home-benefits .grid.grid-3 {
+        grid-template-columns: 1fr 1fr !important;
+    }
+
+    .page-hero .hero-title {
+        max-width: none;
+    }
+}
+
+@media (max-width: 640px) {
+    .home-benefits .grid.grid-3 {
+        grid-template-columns: 1fr !important;
+    }
+
+    .home-badges .badge {
+        font-size: 12px;
+    }
+
+    .container .card {
+        padding: 14px !important;
+    }
+
+    .home-split-card {
+        padding: 16px;
+    }
+
+    .home-preview {
+        min-height: 210px;
+    }
+}
+
+@media (max-width: 520px) {
+    .home-cta {
+        flex-direction: column;
+    }
+
+    .home-cta .btn {
+        width: 100%;
+        text-align: center;
+    }
+
+    .home-split-actions {
+        width: 100%;
+    }
+
+    .home-split-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .home-preview-image {
+        max-height: 200px;
+    }
+}

@@ -4,6 +4,7 @@
 import logging
 import os
 import re
+import shutil
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
@@ -21,33 +22,71 @@ from app.models.event import (
     GuestSession,
     Theme as ThemeModel,
 )
-from app.services.mime_utils import is_allowed_mime
-from db import get_db
+from app.services.csrf import (
+    CSRF_COOKIE,
+    issue_csrf_token,
+    set_csrf_cookie,
+    validate_csrf_token,
+)
 from app.services.thumbs import generate_all_thumbs_for_file
+from app.services.upload_streams import (
+    UploadSizeExceeded,
+    cleanup_temp_upload,
+    spool_upload_to_temp,
+)
+from app.services.theme_values import build_theme_view, resolve_effective_theme
+from db import get_db
 
 router = APIRouter()
 audit = logging.getLogger("audit")
 PAGE_SIZE = 24
 
 
+def _guest_csrf_binding(request: Request, event_code: str) -> str | None:
+    sid = request.cookies.get("session_id")
+    if sid:
+        return sid
+    return request.cookies.get(f"guest_session_{event_code}")
+
+
+def _guest_csrf_valid(request: Request, event_code: str, csrf_token: str | None) -> bool:
+    cookie_token = request.cookies.get(CSRF_COOKIE)
+    bind_value = _guest_csrf_binding(request, event_code)
+    return bool(
+        csrf_token
+        and cookie_token
+        and cookie_token == csrf_token
+        and validate_csrf_token(csrf_token, bind_value)
+    )
+
+
+def _guest_theme_bundle(db: Session, event: Event | None):
+    """Return (theme, effective_theme, theme_view) for guest-upload rendering."""
+    if not event:
+        return None, None, None
+    custom = db.query(EC).filter(EC.EventID == event.EventID).first()
+    setattr(event, "eventcustomisation", custom)
+    theme = None
+    try:
+        if custom and getattr(custom, "ThemeID", None):
+            theme = db.query(ThemeModel).filter(ThemeModel.ThemeID == custom.ThemeID).first()
+    except Exception:
+        theme = None
+    effective_theme = resolve_effective_theme(custom, theme)
+    return theme, effective_theme, build_theme_view(effective_theme)
+
+
 # Guest upload page (GET)
 @router.get("/guest/upload/{event_code}", response_class=HTMLResponse)
 async def guest_upload_page(request: Request, event_code: str, db: Session = Depends(get_db)):
     theme = None
+    effective_theme = None
+    theme_view = None
+    csrf_token = issue_csrf_token(_guest_csrf_binding(request, event_code))
     event = db.query(Event).filter(Event.Code == event_code).first()
     # Attach customisation for template convenience
     if event:
-        custom = db.query(EC).filter(EC.EventID == event.EventID).first()
-        setattr(event, "eventcustomisation", custom)
-        try:
-            if custom and getattr(custom, "ThemeID", None):
-                theme = (
-                    db.query(ThemeModel)
-                    .filter(ThemeModel.ThemeID == custom.ThemeID)
-                    .first()
-                )
-        except Exception:
-            theme = None
+        theme, effective_theme, theme_view = _guest_theme_bundle(db, event)
     audit.info(
         "guest.upload.page",
         extra={
@@ -93,13 +132,11 @@ async def guest_upload_page(request: Request, event_code: str, db: Session = Dep
                 ~FileMetadata.Deleted,
             )
             total = base_q.count()
-            files = (
-                base_q.order_by(FileMetadata.UploadDate.desc()).limit(PAGE_SIZE).offset(0).all()
-            )
+            files = base_q.order_by(FileMetadata.UploadDate.desc()).limit(PAGE_SIZE).offset(0).all()
             has_more = total > PAGE_SIZE
             uid = int(getattr(event, "UserID"))
             eid = int(getattr(event, "EventID"))
-            base = f"/storage/{uid}/{eid}/"
+            base = f"/media/{uid}/{eid}/"
             # Shape for template with lightweight metadata
             for f in files:
                 size = int(getattr(f, "FileSize", 0) or 0)
@@ -126,18 +163,23 @@ async def guest_upload_page(request: Request, event_code: str, db: Session = Dep
                 )
     except Exception:
         guest_files = []
-    return templates.TemplateResponse(
+    resp = templates.TemplateResponse(
         request,
         "guest_upload.html",
         context={
             "event_code": event_code,
             "event": event,
             "theme": (theme if event else None),
+            "effective_theme": effective_theme,
+            "theme_view": theme_view,
             "guest_files": guest_files,
             "guest_has_more": has_more,
             "guest_page_size": PAGE_SIZE,
+            "csrf_token": csrf_token,
         },
     )
+    set_csrf_cookie(resp, csrf_token, httponly=False)
+    return resp
 
 
 # Guest upload page (POST, with file saving and metadata recording)
@@ -146,6 +188,7 @@ async def guest_upload_post(
     request: Request,
     event_code: str,
     files: list[UploadFile] = File(...),
+    csrf_token: str | None = Form(None),
     guest_email: str = Form(None),
     guest_message: str = Form(None),
     display_name: str = Form(None),
@@ -158,7 +201,25 @@ async def guest_upload_post(
     uploaded = []
     guest_session = None
     guest_id = None
+    theme = None
+    effective_theme = None
+    theme_view = None
     if event:
+        theme, effective_theme, theme_view = _guest_theme_bundle(db, event)
+        if not _guest_csrf_valid(request, event_code, csrf_token):
+            return templates.TemplateResponse(
+                request,
+                "guest_upload.html",
+                context={
+                    "event_code": event_code,
+                    "event": event,
+                    "theme": theme,
+                    "effective_theme": effective_theme,
+                    "theme_view": theme_view,
+                    "error": "Invalid or missing CSRF token.",
+                },
+                status_code=403,
+            )
         # Reject uploads for unpublished events
         if not getattr(event, "Published", False):
             return templates.TemplateResponse(
@@ -206,6 +267,9 @@ async def guest_upload_post(
                     context={
                         "event_code": event_code,
                         "event": event,
+                        "theme": theme,
+                        "effective_theme": effective_theme,
+                        "theme_view": theme_view,
                         "error": (
                             "Guest limit reached for this event. Please "
                             "<a href='/pricing'>choose a package</a> to allow more "
@@ -305,9 +369,9 @@ async def guest_upload_post(
         except Exception:
             pass
 
-    # Precompute storage cap enforcement before writing files
-    # Determine effective storage limit in MB: plan feature overrides
-    # optional custom message value
+        # Precompute storage cap enforcement before writing files
+        # Determine effective storage limit in MB: plan feature overrides
+        # optional custom message value
         custom_limit_mb = None
         try:
             _c = db.query(EC).filter(EC.EventID == event_id).first()
@@ -322,37 +386,39 @@ async def guest_upload_post(
         )
         max_bytes = int(getattr(settings, "MAX_UPLOAD_BYTES", 200_000_000))
         candidate_bytes = 0
-        prechecked_files = []  # (contents, sniffed, filename)
+        prechecked_files = []  # (staged_upload, original_filename)
         for file in files:
             if not file.filename:
                 continue
-            ctype = getattr(file, "content_type", "") or ""
-            contents = await file.read()
-            allowed, sniffed = is_allowed_mime(
-                contents, allowed_prefixes=allowed_prefixes, fallback_content_type=ctype
-            )
-            if allowed_prefixes and not allowed:
-                audit.warning(
-                    "guest.upload.rejected_mime",
-                    extra={
-                        "event_id": event_id,
-                        "ctype": sniffed,
-                        "request_id": getattr(request.state, "request_id", None),
-                    },
+            try:
+                staged = await spool_upload_to_temp(
+                    file,
+                    allowed_prefixes=allowed_prefixes,
+                    max_bytes=max_bytes,
                 )
-                continue
-            if max_bytes and len(contents) > max_bytes:
+            except UploadSizeExceeded as exc:
                 audit.warning(
                     "guest.upload.rejected_size",
                     extra={
                         "event_id": event_id,
-                        "size": len(contents),
+                        "size": exc.size_bytes,
                         "request_id": getattr(request.state, "request_id", None),
                     },
                 )
                 continue
-            prechecked_files.append((contents, sniffed, file.filename))
-            candidate_bytes += len(contents)
+            if allowed_prefixes and not staged.allowed:
+                audit.warning(
+                    "guest.upload.rejected_mime",
+                    extra={
+                        "event_id": event_id,
+                        "ctype": staged.sniffed_mime,
+                        "request_id": getattr(request.state, "request_id", None),
+                    },
+                )
+                cleanup_temp_upload(staged.temp_path)
+                continue
+            prechecked_files.append((staged, file.filename))
+            candidate_bytes += staged.size_bytes
 
         # Enforce storage cap (if any) using current usage + candidate size
         if effective_limit_mb and effective_limit_mb > 0:
@@ -367,12 +433,17 @@ async def guest_upload_post(
                         except Exception:
                             pass
             if (current + candidate_bytes) > (effective_limit_mb * 1024 * 1024):
+                for staged, _ in prechecked_files:
+                    cleanup_temp_upload(staged.temp_path)
                 return templates.TemplateResponse(
                     request,
                     "guest_upload.html",
                     context={
                         "event_code": event_code,
                         "event": event,
+                        "theme": theme,
+                        "effective_theme": effective_theme,
+                        "theme_view": theme_view,
                         "error": (
                             "Storage limit reached for this event. Please "
                             "<a href='/billing'>upgrade your plan</a> to continue."
@@ -384,29 +455,20 @@ async def guest_upload_post(
         # Proceed with writes and metadata after enforcement
         # Get S3 service if configured
         s3_service = getattr(request.app.state, "s3_service", None)
-        
-        for contents, sniffed, orig_name in prechecked_files:
-            fname = safe_name(orig_name)
-            total_bytes += len(contents)
-            
-            # Extract metadata (requires temporary file or in-memory processing)
-            tmp_path = None
-            try:
-                if sniffed.startswith("image") or sniffed.startswith("video"):
-                    # Create temp file for metadata extraction
-                    import tempfile
 
-                    with tempfile.NamedTemporaryFile(
-                        delete=False,
-                        suffix=os.path.splitext(fname)[1],
-                    ) as tf:
-                        tf.write(contents)
-                        tmp_path = tf.name
-                    
-                    if sniffed.startswith("image"):
-                        meta = extract_image_metadata(tmp_path)
+        for staged, orig_name in prechecked_files:
+            fname = safe_name(orig_name)
+            total_bytes += staged.size_bytes
+
+            # Extract metadata from staged temp file to avoid re-reading request body.
+            try:
+                if staged.sniffed_mime.startswith("image") or staged.sniffed_mime.startswith(
+                    "video"
+                ):
+                    if staged.sniffed_mime.startswith("image"):
+                        meta = extract_image_metadata(staged.temp_path)
                     else:
-                        meta = extract_video_metadata(tmp_path)
+                        meta = extract_video_metadata(staged.temp_path)
                 else:
                     meta = {
                         "datetime_taken": None,
@@ -422,13 +484,7 @@ async def guest_upload_post(
                     "gps_long": None,
                     "checksum": None,
                 }
-            finally:
-                if tmp_path and os.path.exists(tmp_path):
-                    try:
-                        os.remove(tmp_path)
-                    except Exception:
-                        pass
-            
+
             # Duplicate detection: same checksum within the same event
             checksum = meta.get("checksum")
             is_duplicate = False
@@ -446,16 +502,21 @@ async def guest_upload_post(
                     is_duplicate = True
             if is_duplicate:
                 duplicate_count += 1
+                cleanup_temp_upload(staged.temp_path)
                 continue
-            
+
             # Save metadata
             stored_name = fname
+            local_dest = None
+            if not s3_service:
+                local_dest = unique_path(uploads_base, fname)
+                stored_name = os.path.basename(local_dest)
             metadata = FileMetadata(
                 EventID=event_id,
                 GuestID=guest_id,
                 FileName=stored_name,
-                FileType=sniffed,
-                FileSize=len(contents),
+                FileType=staged.sniffed_mime,
+                FileSize=staged.size_bytes,
                 CapturedDateTime=meta.get("datetime_taken"),
                 GPSLat=str(meta.get("gps_lat")) if meta.get("gps_lat") is not None else None,
                 GPSLong=str(meta.get("gps_long")) if meta.get("gps_long") is not None else None,
@@ -463,27 +524,27 @@ async def guest_upload_post(
             )
             db.add(metadata)
             db.flush()  # Flush to get FileMetadataID
-            
+
             # Upload to S3 if configured, otherwise save to local filesystem
             if s3_service:
                 s3_key = f"uploads/{user_id}/{event_id}/{metadata.FileMetadataID}/{stored_name}"
                 try:
-                    s3_service.upload_file(contents, s3_key, sniffed)
+                    s3_service.upload_path(staged.temp_path, s3_key, staged.sniffed_mime)
                     logging.info(f"Uploaded {s3_key} to S3")
                 except Exception as e:
                     logging.error(f"S3 upload failed for {s3_key}: {e}")
                     # Fall back to local filesystem
-                    tmp_path = unique_path(uploads_base, fname)
-                    with open(tmp_path, "wb") as buffer:
-                        buffer.write(contents)
+                    local_dest = unique_path(uploads_base, fname)
+                    stored_name = os.path.basename(local_dest)
+                    metadata.FileName = stored_name
+                    shutil.move(staged.temp_path, local_dest)
             else:
                 # Fall back to local filesystem
-                tmp_path = unique_path(uploads_base, fname)
-                with open(tmp_path, "wb") as buffer:
-                    buffer.write(contents)
-            
+                shutil.move(staged.temp_path, local_dest)
+
             uploaded.append(stored_name)
             upload_count += 1
+            cleanup_temp_upload(staged.temp_path)
 
         # Update UploadCount
         setattr(
@@ -492,7 +553,7 @@ async def guest_upload_post(
             int(getattr(guest_session, "UploadCount", 0) or 0) + upload_count,
         )
         db.commit()
-    # Fire-and-forget background thumb generation to avoid on-demand cost
+        # Fire-and-forget background thumb generation to avoid on-demand cost
         try:
             import threading
 
@@ -601,26 +662,36 @@ async def guest_upload_post(
             # Non-blocking: do not fail the request on accounting issues
             pass
     # No top-of-page message, handled by JS in form
-    # Include theme for fallback
-    theme = None
-    try:
-        if event:
-            custom = db.query(EC).filter(EC.EventID == int(getattr(event, "EventID"))).first()
-            if custom and getattr(custom, "ThemeID", None):
-                theme = db.query(ThemeModel).filter(ThemeModel.ThemeID == custom.ThemeID).first()
-    except Exception:
-        theme = None
+    if event and theme_view is None:
+        theme, effective_theme, theme_view = _guest_theme_bundle(db, event)
+    next_csrf_token = issue_csrf_token(_guest_csrf_binding(request, event_code))
     resp = templates.TemplateResponse(
         request,
         "guest_upload.html",
-        context={"event_code": event_code, "event": event, "theme": theme},
+        context={
+            "event_code": event_code,
+            "event": event,
+            "theme": theme,
+            "effective_theme": effective_theme,
+            "theme_view": theme_view,
+            "csrf_token": next_csrf_token,
+        },
         headers={"X-Duplicates-Skipped": str(duplicate_count if event else 0)},
     )
+    set_csrf_cookie(resp, next_csrf_token, httponly=False)
     # Persist guest session cookie for listing/deleting their own uploads later
     try:
         if (guest_id is not None) and (event is not None):
             cookie_name = f"guest_session_{event.Code}"
-            resp.set_cookie(cookie_name, str(guest_id), max_age=60 * 60 * 24 * 30, samesite="lax")
+            resp.set_cookie(
+                cookie_name,
+                str(guest_id),
+                max_age=60 * 60 * 24 * 30,
+                samesite="lax",
+                secure=bool(getattr(settings, "COOKIE_SECURE", False)),
+                httponly=True,
+                path="/",
+            )
     except Exception:
         pass
     return resp
@@ -628,7 +699,11 @@ async def guest_upload_post(
 
 @router.post("/guest/upload/{event_code}/delete")
 async def guest_delete_file(
-    request: Request, event_code: str, file_id: int = Form(...), db: Session = Depends(get_db)
+    request: Request,
+    event_code: str,
+    file_id: int = Form(...),
+    csrf_token: str | None = Form(None),
+    db: Session = Depends(get_db),
 ):
     """Allow a guest to soft-delete one of their own recent uploads.
 
@@ -636,11 +711,42 @@ async def guest_delete_file(
     """
     event = db.query(Event).filter(Event.Code == event_code).first()
     if not event:
+        audit.warning(
+            "guest.upload.delete.denied",
+            extra={
+                "event_code": event_code,
+                "reason": "event_not_found",
+                "guest_cookie_present": False,
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
         return JSONResponse({"ok": False, "error": "Invalid event."}, status_code=404)
     cookie_name = f"guest_session_{event.Code}"
     guest_cookie = request.cookies.get(cookie_name)
     if not guest_cookie:
+        audit.warning(
+            "guest.upload.delete.denied",
+            extra={
+                "event_code": event_code,
+                "event_id": int(getattr(event, "EventID")),
+                "reason": "not_authorized",
+                "guest_cookie_present": False,
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
         return JSONResponse({"ok": False, "error": "Not authorized."}, status_code=403)
+    if not _guest_csrf_valid(request, event_code, csrf_token):
+        audit.warning(
+            "guest.upload.delete.denied",
+            extra={
+                "event_code": event_code,
+                "event_id": int(getattr(event, "EventID")),
+                "reason": "csrf_validation_failed",
+                "guest_cookie_present": bool(guest_cookie),
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
+        return JSONResponse({"ok": False, "error": "Invalid CSRF token."}, status_code=403)
     rec = (
         db.query(FileMetadata)
         .filter(
@@ -652,6 +758,18 @@ async def guest_delete_file(
         .first()
     )
     if not rec:
+        audit.warning(
+            "guest.upload.delete.denied",
+            extra={
+                "event_code": event_code,
+                "event_id": int(getattr(event, "EventID")),
+                "file_id": file_id,
+                "reason": "file_not_found",
+                "guest_id": int(guest_cookie),
+                "guest_cookie_present": bool(guest_cookie),
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
         return JSONResponse({"ok": False, "error": "Not found."}, status_code=404)
     # Soft delete
     setattr(rec, "Deleted", True)
@@ -670,16 +788,51 @@ async def guest_delete_file(
 
 @router.post("/guest/upload/{event_code}/restore")
 async def guest_restore_file(
-    request: Request, event_code: str, file_id: int = Form(...), db: Session = Depends(get_db)
+    request: Request,
+    event_code: str,
+    file_id: int = Form(...),
+    csrf_token: str | None = Form(None),
+    db: Session = Depends(get_db),
 ):
     """Allow a guest to undo a recent soft-delete (restore their own file)."""
     event = db.query(Event).filter(Event.Code == event_code).first()
     if not event:
+        audit.warning(
+            "guest.upload.restore.denied",
+            extra={
+                "event_code": event_code,
+                "reason": "event_not_found",
+                "guest_cookie_present": False,
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
         return JSONResponse({"ok": False, "error": "Invalid event."}, status_code=404)
     cookie_name = f"guest_session_{event.Code}"
     guest_cookie = request.cookies.get(cookie_name)
     if not guest_cookie:
+        audit.warning(
+            "guest.upload.restore.denied",
+            extra={
+                "event_code": event_code,
+                "event_id": int(getattr(event, "EventID")),
+                "reason": "not_authorized",
+                "guest_cookie_present": False,
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
         return JSONResponse({"ok": False, "error": "Not authorized."}, status_code=403)
+    if not _guest_csrf_valid(request, event_code, csrf_token):
+        audit.warning(
+            "guest.upload.restore.denied",
+            extra={
+                "event_code": event_code,
+                "event_id": int(getattr(event, "EventID")),
+                "reason": "csrf_validation_failed",
+                "guest_cookie_present": bool(guest_cookie),
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
+        return JSONResponse({"ok": False, "error": "Invalid CSRF token."}, status_code=403)
     rec = (
         db.query(FileMetadata)
         .filter(
@@ -691,6 +844,18 @@ async def guest_restore_file(
         .first()
     )
     if not rec:
+        audit.warning(
+            "guest.upload.restore.denied",
+            extra={
+                "event_code": event_code,
+                "event_id": int(getattr(event, "EventID")),
+                "file_id": file_id,
+                "reason": "file_not_found_or_not_deleted",
+                "guest_id": int(guest_cookie),
+                "guest_cookie_present": bool(guest_cookie),
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
         return JSONResponse({"ok": False, "error": "Not found or not deleted."}, status_code=404)
     setattr(rec, "Deleted", False)
     db.commit()
@@ -718,10 +883,29 @@ async def guest_list_files(
 ):
     event = db.query(Event).filter(Event.Code == event_code).first()
     if not event:
+        audit.warning(
+            "guest.upload.list.denied",
+            extra={
+                "event_code": event_code,
+                "reason": "event_not_found",
+                "guest_cookie_present": False,
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
         return JSONResponse({"ok": False, "error": "Invalid event."}, status_code=404)
     cookie_name = f"guest_session_{event.Code}"
     guest_cookie = request.cookies.get(cookie_name)
     if not guest_cookie:
+        audit.warning(
+            "guest.upload.list.denied",
+            extra={
+                "event_code": event_code,
+                "event_id": int(getattr(event, "EventID")),
+                "reason": "not_authorized",
+                "guest_cookie_present": False,
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
         return JSONResponse({"ok": False, "error": "Not authorized."}, status_code=403)
     size = max(1, min(int(size or PAGE_SIZE), 100))
     page = max(1, int(page or 1))
@@ -752,7 +936,7 @@ async def guest_list_files(
     files = base_q.order_by(order_clause).limit(size).offset((page - 1) * size).all()
     uid = int(getattr(event, "UserID"))
     eid = int(getattr(event, "EventID"))
-    base = f"/storage/{uid}/{eid}/"
+    base = f"/media/{uid}/{eid}/"
     items = []
     for f in files:
         size_b = int(getattr(f, "FileSize", 0) or 0)

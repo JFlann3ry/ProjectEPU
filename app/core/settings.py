@@ -1,3 +1,5 @@
+import os
+import warnings
 from typing import Tuple
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -43,6 +45,9 @@ class Settings(BaseSettings):
     MAX_UPLOAD_BYTES: int = 200_000_000  # 200 MB per file default
     ALLOWED_UPLOAD_MIME_PREFIXES: Tuple[str, ...] = ("image/", "video/")
     COOKIE_SECURE: bool = False  # override to True in prod; or auto-detected from BASE_URL
+    # CSP rollout controls
+    CSP_REPORT_ONLY: bool = False
+    CSP_REPORT_URI: str = ""
     # Auth rate-limiting
     RATE_LIMIT_LOGIN_ATTEMPTS: int = 5
     RATE_LIMIT_LOGIN_WINDOW_SECONDS: int = 15 * 60  # 15 minutes
@@ -75,6 +80,33 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+
+def _is_production_env() -> bool:
+    env = str(os.getenv("ENV", "")).strip().lower()
+    app_env = str(os.getenv("APP_ENV", "")).strip().lower()
+    return env in {"prod", "production"} or app_env in {"prod", "production"}
+
+
+def validate_production_settings(cfg: Settings) -> list[str]:
+    """Return a list of unsafe/missing settings for production deployments."""
+    problems: list[str] = []
+    if not cfg.DB_SERVER:
+        problems.append("DB_SERVER is required")
+    if not cfg.DB_USER:
+        problems.append("DB_USER is required")
+    if not cfg.DB_PASSWORD:
+        problems.append("DB_PASSWORD is required")
+    if not cfg.SECRET_KEY or cfg.SECRET_KEY == "CHANGE_THIS_TO_A_SECRET_KEY":
+        problems.append("SECRET_KEY must be set to a strong non-default value")
+    if getattr(cfg, "DEBUG_ROUTES_ENABLED", True):
+        problems.append("DEBUG_ROUTES_ENABLED must be false in production")
+    if not str(getattr(cfg, "BASE_URL", "")).lower().startswith("https://"):
+        problems.append("BASE_URL must use https in production")
+    if not bool(getattr(cfg, "COOKIE_SECURE", False)):
+        problems.append("COOKIE_SECURE must be true in production")
+    return problems
+
+
 # Basic validation for required settings to prevent confusing runtime errors
 _missing = []
 if not settings.DB_SERVER:
@@ -88,8 +120,6 @@ if settings.SECRET_KEY == "CHANGE_THIS_TO_A_SECRET_KEY" or not settings.SECRET_K
 
 if _missing:
     # Do not crash imports in some tools; instead, provide a helpful message.
-    import warnings
-
     warnings.warn(
         "Missing required settings in .env: "
         + ", ".join(_missing)
@@ -103,6 +133,13 @@ try:
     ).lower().startswith("https"):
         # Flip to True if BASE_URL suggests HTTPS
         settings.COOKIE_SECURE = True  # type: ignore[attr-defined]
-except Exception:
-    # Best-effort only; ignore if settings are missing
+except (AttributeError, TypeError):
+    # Best-effort only; ignore if settings are missing or immutable
     pass
+
+
+# Fail fast for unsafe production deployments.
+if _is_production_env():
+    _prod_problems = validate_production_settings(settings)
+    if _prod_problems:
+        raise RuntimeError("Unsafe production settings: " + "; ".join(_prod_problems))

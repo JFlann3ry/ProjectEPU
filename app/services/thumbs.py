@@ -12,6 +12,41 @@ def image_thumb_path(user_id: int, event_id: int, file_id: int, width: int) -> s
     return os.path.join(_thumbs_dir(user_id, event_id), f"{file_id}_{width}.jpg")
 
 
+def dashboard_cover_thumb_relpath(cover_path: str, width: int = 480) -> str | None:
+    if not cover_path or not str(cover_path).startswith("/static/uploads/"):
+        return None
+    rel_path = str(cover_path).lstrip("/")
+    root, _ext = os.path.splitext(rel_path)
+    return f"{root}_dash_{int(width)}.jpg"
+
+
+def ensure_dashboard_cover_thumbnail(
+    cover_path: str | None,
+    width: int = 480,
+    force: bool = False,
+) -> str | None:
+    if not cover_path:
+        return None
+    thumb_rel = dashboard_cover_thumb_relpath(str(cover_path), int(width))
+    if not thumb_rel:
+        return None
+
+    src_rel = str(cover_path).lstrip("/")
+    src_abs = os.path.abspath(src_rel)
+    if not os.path.exists(src_abs):
+        return None
+
+    thumb_abs = os.path.abspath(thumb_rel)
+    try:
+        if force or not os.path.exists(thumb_abs):
+            ok = ensure_image_thumbnail(src_abs, thumb_abs, int(width))
+            if not ok:
+                return None
+        return "/" + thumb_rel.replace("\\", "/")
+    except Exception:
+        return None
+
+
 def ensure_image_thumbnail(orig_path: str, out_path: str, width: int) -> bool:
     try:
         from PIL import Image, ImageOps  # type: ignore

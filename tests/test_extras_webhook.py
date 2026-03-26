@@ -71,9 +71,7 @@ def test_extras_webhook_marks_eventaddon_and_creates_entitlement(db_session):
 
     # Refresh eap
     eap2 = (
-        db.query(EventAddonPurchase)
-        .filter(EventAddonPurchase.PurchaseID == eap.PurchaseID)
-        .first()
+        db.query(EventAddonPurchase).filter(EventAddonPurchase.PurchaseID == eap.PurchaseID).first()
     )
     assert eap2 is not None
     assert eap2.Status == "paid"

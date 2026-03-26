@@ -1,6 +1,6 @@
 import os
 
-os.environ['TEST_SQLITE'] = '1'
+os.environ["TEST_SQLITE"] = "1"
 from sqlalchemy import text
 
 # Force sqlite inspection mode for this script
@@ -46,4 +46,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

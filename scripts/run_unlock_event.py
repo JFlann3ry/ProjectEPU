@@ -67,13 +67,13 @@ def main():
             return
         print(
             "EventID="
-            + str(row['EventID'])
+            + str(row["EventID"])
             + " IsDateLocked="
-            + str(row['IsDateLocked'])
+            + str(row["IsDateLocked"])
             + " DateLockedAt="
-            + str(row['DateLockedAt'])
+            + str(row["DateLockedAt"])
             + " Published="
-            + str(row['Published'])
+            + str(row["Published"])
         )
         if row["Published"]:
             print(

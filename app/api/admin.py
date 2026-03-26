@@ -185,12 +185,7 @@ async def admin_errors_page(
         except Exception:
             pass
     total = q.count()
-    rows = (
-        q.order_by(AppErrorLog.OccurredAt.desc())
-        .offset((p - 1) * ps)
-        .limit(ps)
-        .all()
-    )
+    rows = q.order_by(AppErrorLog.OccurredAt.desc()).offset((p - 1) * ps).limit(ps).all()
     return templates.TemplateResponse(
         request,
         "admin_errors.html",
@@ -213,12 +208,7 @@ async def admin_mini_dashboard(
     user=Depends(require_admin),
 ):
     # Recent AppErrorLog entries
-    rows = (
-        db.query(AppErrorLog)
-        .order_by(AppErrorLog.OccurredAt.desc())
-        .limit(10)
-        .all()
-    )
+    rows = db.query(AppErrorLog).order_by(AppErrorLog.OccurredAt.desc()).limit(10).all()
     # Recent delete/restore operations captured in-memory
     recent_actions = list(DELETION_LOGS[-10:])
     return templates.TemplateResponse(
@@ -227,9 +217,7 @@ async def admin_mini_dashboard(
         context={
             "error_rows": rows,
             "recent_actions": recent_actions,
-            "debug_routes_enabled": bool(
-                getattr(settings, "DEBUG_ROUTES_ENABLED", False)
-            ),
+            "debug_routes_enabled": bool(getattr(settings, "DEBUG_ROUTES_ENABLED", False)),
         },
     )
 
@@ -279,6 +267,55 @@ def _redact_record(obj: dict) -> dict:
     return res
 
 
+def _bounded_filter(value: Optional[str], *, name: str, max_len: int) -> Optional[str]:
+    if value is None:
+        return None
+    trimmed = str(value).strip()
+    if not trimmed:
+        return None
+    if len(trimmed) > max_len:
+        raise HTTPException(status_code=422, detail=f"{name} is too long (max {max_len})")
+    return trimmed
+
+
+def _matches_type_hint(obj: dict, hint: str) -> bool:
+    """Check likely structured fields instead of serializing full objects per line."""
+    needle = hint.lower()
+    direct_keys = (
+        "event_type",
+        "type",
+        "logger",
+        "message",
+        "action",
+        "path",
+        "request_id",
+        "method",
+        "status",
+    )
+    for key in direct_keys:
+        value = obj.get(key)
+        if value is not None and needle in str(value).lower():
+            return True
+
+    extra = obj.get("extra")
+    if isinstance(extra, dict):
+        for key in ("type", "event", "action", "hint", "status", "code"):
+            value = extra.get(key)
+            if value is not None and needle in str(value).lower():
+                return True
+        for value in extra.values():
+            if isinstance(value, (str, int, float, bool)) and needle in str(value).lower():
+                return True
+
+    context = obj.get("context")
+    if isinstance(context, dict):
+        for value in context.values():
+            if isinstance(value, (str, int, float, bool)) and needle in str(value).lower():
+                return True
+
+    return False
+
+
 @router.get("/admin/components", response_class=HTMLResponse)
 async def admin_components_page(request: Request, user=Depends(require_admin)):
     return templates.TemplateResponse(request, "admin_components.html")
@@ -304,6 +341,13 @@ async def filter_audit_logs(
       - type_hint: substring to search in structured message/extra
       - since/until: ISO date substrings to match on 'time'
     """
+    level = _bounded_filter(level, name="level", max_len=16)
+    logger = _bounded_filter(logger, name="logger", max_len=128)
+    contains = _bounded_filter(contains, name="contains", max_len=512)
+    type_hint = _bounded_filter(type_hint, name="type_hint", max_len=256)
+    since = _bounded_filter(since, name="since", max_len=64)
+    until = _bounded_filter(until, name="until", max_len=64)
+
     log_path = "logs/app.log"
     if not os.path.exists(log_path):
         return PlainTextResponse("", status_code=200)
@@ -316,7 +360,7 @@ async def filter_audit_logs(
                     continue
                 try:
                     obj = json.loads(line)
-                except Exception:
+                except json.JSONDecodeError:
                     # skip non-JSON lines when filtering
                     continue
                 if level and str(obj.get("level", "")).upper() != level.upper():
@@ -325,10 +369,8 @@ async def filter_audit_logs(
                     continue
                 if contains and contains.lower() not in str(obj.get("message", "")).lower():
                     continue
-                if type_hint:
-                    # scan serialized obj for substring
-                    if type_hint.lower() not in json.dumps(obj).lower():
-                        continue
+                if type_hint and not _matches_type_hint(obj, type_hint):
+                    continue
                 if since:
                     t = str(obj.get("time", ""))
                     if since not in t:
@@ -339,8 +381,8 @@ async def filter_audit_logs(
                         continue
                 obj = _redact_record(obj)
                 lines_out.append(json.dumps(obj, ensure_ascii=False))
-    except Exception:
-        pass
+    except OSError:
+        audit.exception("[admin_audit_export] failed reading log file")
     data = ("\n".join(lines_out) + ("\n" if lines_out else "")).encode("utf-8")
     headers = {"Content-Disposition": "attachment; filename=audit_filtered.jsonl"}
     return Response(content=data, media_type="application/x-ndjson", headers=headers)
@@ -461,7 +503,6 @@ async def admin_seed_themes(
         raise HTTPException(status_code=500, detail=f"Seeding themes failed: {e}")
 
 
-
 @router.get("/admin/themes", response_class=HTMLResponse)
 async def admin_list_themes(
     request: Request,
@@ -548,7 +589,7 @@ async def admin_update_theme(
         "DropzoneBackgroundColour": getattr(theme, "DropzoneBackgroundColour", None),
         "FontFamily": getattr(theme, "FontFamily", None),
         "BackgroundImage": getattr(theme, "BackgroundImage", None),
-    "IsActive": getattr(theme, "IsActive", None),
+        "IsActive": getattr(theme, "IsActive", None),
     }
 
     setattr(theme, "Name", Name.strip())
@@ -593,7 +634,7 @@ async def admin_update_theme(
         "DropzoneBackgroundColour": getattr(theme, "DropzoneBackgroundColour", None),
         "FontFamily": getattr(theme, "FontFamily", None),
         "BackgroundImage": getattr(theme, "BackgroundImage", None),
-    "IsActive": getattr(theme, "IsActive", None),
+        "IsActive": getattr(theme, "IsActive", None),
     }
     changes = {}
     for k in after.keys():
@@ -649,8 +690,8 @@ async def admin_export_theme(
         "InputBackgroundColour": getattr(theme, "InputBackgroundColour", None),
         "DropzoneBackgroundColour": getattr(theme, "DropzoneBackgroundColour", None),
         "FontFamily": getattr(theme, "FontFamily", None),
-    "BackgroundImage": getattr(theme, "BackgroundImage", None),
-    "IsActive": getattr(theme, "IsActive", None),
+        "BackgroundImage": getattr(theme, "BackgroundImage", None),
+        "IsActive": getattr(theme, "IsActive", None),
     }
     payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
     try:

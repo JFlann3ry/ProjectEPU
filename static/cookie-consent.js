@@ -13,6 +13,9 @@
     try {
       document.cookie = KEY + "=" + encodeURIComponent(JSON.stringify(data)) + "; path=/; max-age=" + (data.ttl) + "; samesite=lax";
     } catch(e) {}
+    try {
+      document.dispatchEvent(new CustomEvent('epu:consent-updated', { detail: data }));
+    } catch(e) {}
   }
   function readConsent(){
     try {

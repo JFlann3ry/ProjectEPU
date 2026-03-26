@@ -1,4 +1,3 @@
-
 # ruff: noqa: I001
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
@@ -17,20 +16,24 @@ from app.models.user import User, UserSession
 from db import get_db
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+SESSION_LAST_SEEN_UPDATE_INTERVAL_SECONDS = 300
 
 SECRET_KEY = settings.SECRET_KEY
 serializer = URLSafeTimedSerializer(SECRET_KEY)
+
 
 def generate_password_reset_token(email: str) -> str:
     token = serializer.dumps(email, salt="password-reset")
     return str(token)
 
-def verify_password_reset_token(token: str, max_age=3600*24) -> Optional[str]:
+
+def verify_password_reset_token(token: str, max_age=3600 * 24) -> Optional[str]:
     try:
         email = serializer.loads(token, salt="password-reset", max_age=max_age)
         return str(email)
     except Exception:
         return None
+
 
 # Password hashing
 # Note: bcrypt has a 72-byte limit, so we truncate longer passwords
@@ -38,19 +41,19 @@ def verify_password_reset_token(token: str, max_age=3600*24) -> Optional[str]:
 
 def hash_password(password: str) -> str:
     # Truncate password to 72 bytes (bcrypt limit) to prevent "password too long" errors
-    password_bytes = password.encode('utf-8')
+    password_bytes = password.encode("utf-8")
     if len(password_bytes) > 72:
         password_bytes = password_bytes[:72]
-    password_truncated = password_bytes.decode('utf-8', errors='ignore')
+    password_truncated = password_bytes.decode("utf-8", errors="ignore")
     return pwd_context.hash(password_truncated)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     # Apply same truncation as hash_password for consistent verification
-    password_bytes = plain_password.encode('utf-8')
+    password_bytes = plain_password.encode("utf-8")
     if len(password_bytes) > 72:
         password_bytes = password_bytes[:72]
-    password_truncated = password_bytes.decode('utf-8', errors='ignore')
+    password_truncated = password_bytes.decode("utf-8", errors="ignore")
     return pwd_context.verify(password_truncated, hashed_password)
 
 
@@ -59,9 +62,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def authenticate_user(db: Session, email: str, password: str):
     user = (
-        db.query(User)
-        .filter(User.Email == email, User.IsActive, ~User.MarkedForDeletion)
-        .first()
+        db.query(User).filter(User.Email == email, User.IsActive, ~User.MarkedForDeletion).first()
     )
     if user and verify_password(password, getattr(user, "HashedPassword", "")):
         return user
@@ -101,6 +102,7 @@ def create_session(
     expires_in_minutes: int = 60 * 24,
     ip_address: str = "",
     user_agent: str = "",
+    commit: bool = True,
 ):
     session_id = uuid.uuid4()
     # Use aware UTC to avoid deprecation, but store naive UTC to match existing DB schema
@@ -117,7 +119,8 @@ def create_session(
         UserAgent=user_agent or None,
     )
     db.add(session)
-    db.commit()
+    if commit:
+        db.commit()
     return session
 
 
@@ -125,8 +128,22 @@ def rotate_session(
     db: Session, old_session_id: str, user_id: int, ip_address: str = "", user_agent: str = ""
 ):
     """Deactivate the old session and create a new one."""
-    deactivate_session(db, old_session_id)
-    return create_session(db, user_id=user_id, ip_address=ip_address, user_agent=user_agent)
+    try:
+        sid = uuid.UUID(str(old_session_id))
+    except Exception:
+        sid = old_session_id
+    session = db.query(UserSession).filter(UserSession.SessionID == sid).first()
+    if session:
+        setattr(session, "IsActive", False)
+    new_session = create_session(
+        db,
+        user_id=user_id,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        commit=False,
+    )
+    db.commit()
+    return new_session
 
 
 def get_session(db: Session, session_id: str):
@@ -135,22 +152,22 @@ def get_session(db: Session, session_id: str):
     except Exception:
         sid = session_id
     session = (
-        db.query(UserSession)
-        .filter(UserSession.SessionID == sid, UserSession.IsActive)
-        .first()
+        db.query(UserSession).filter(UserSession.SessionID == sid, UserSession.IsActive).first()
     )
     if session is not None:
         expires_at = getattr(session, "ExpiresAt", None)
-        if (
-            isinstance(expires_at, datetime)
-            and expires_at > datetime.now(timezone.utc).replace(tzinfo=None)
+        if isinstance(expires_at, datetime) and expires_at > datetime.now(timezone.utc).replace(
+            tzinfo=None
         ):
-            setattr(
-                session,
-                "LastSeen",
-                datetime.now(timezone.utc).replace(tzinfo=None),
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            last_seen = getattr(session, "LastSeen", None)
+            should_refresh_last_seen = (
+                not isinstance(last_seen, datetime)
+                or (now - last_seen).total_seconds() >= SESSION_LAST_SEEN_UPDATE_INTERVAL_SECONDS
             )
-            db.commit()
+            if should_refresh_last_seen:
+                setattr(session, "LastSeen", now)
+                db.commit()
             return session
     return None
 

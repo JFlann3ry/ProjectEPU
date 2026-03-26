@@ -129,7 +129,6 @@ async def login(
             context={"error": "Please verify your email before logging in."},
         )
     setattr(user, "LastLogin", datetime.now(timezone.utc).replace(tzinfo=None))
-    db.commit()
     old_session_id = request.cookies.get("session_id")
     if old_session_id:
         session = auth.rotate_session(
@@ -176,11 +175,11 @@ async def login_page(request: Request):
     sid = request.cookies.get("session_id")
     if not sid:
         sid = str(uuid.uuid4())
-    
+
     token = issue_csrf_token(sid)
     resp = templates.TemplateResponse(request, "log_in.html", context={"csrf_token": token})
     set_csrf_cookie(resp, token, httponly=True)
-    
+
     # Always set session_id cookie to match CSRF token binding
     resp.set_cookie(
         key="session_id",
@@ -200,11 +199,11 @@ async def signup_page(request: Request):
     sid = request.cookies.get("session_id")
     if not sid:
         sid = str(uuid.uuid4())
-    
+
     token = issue_csrf_token(sid)
     resp = templates.TemplateResponse(request, "sign_up.html", context={"csrf_token": token})
     set_csrf_cookie(resp, token, httponly=True)
-    
+
     # Always set session_id cookie to match CSRF token binding
     resp.set_cookie(
         key="session_id",
@@ -261,15 +260,15 @@ async def signup(
                 },
                 status_code=400,
             )
-    
+
     # Truncate password to 72 bytes early to prevent bcrypt errors
     # Use the same logic as hash_password to ensure consistency
-    password_bytes = password.encode('utf-8')
+    password_bytes = password.encode("utf-8")
     if len(password_bytes) > 72:
         # Truncate to 72 bytes and decode, dropping incomplete UTF-8 sequences
         password_bytes = password_bytes[:72]
-        password = password_bytes.decode('utf-8', errors='ignore')
-    
+        password = password_bytes.decode("utf-8", errors="ignore")
+
     # Validate the (potentially truncated) password
     password_errors = validate_password(password)
     if password_errors:
@@ -427,7 +426,7 @@ async def forgot_password_page(request: Request):
     sid = request.cookies.get("session_id")
     if not sid:
         sid = str(uuid.uuid4())
-    
+
     token = issue_csrf_token(sid)
     resp = templates.TemplateResponse(
         request,
@@ -435,7 +434,7 @@ async def forgot_password_page(request: Request):
         context={"csrf_token": token},
     )
     set_csrf_cookie(resp, token, httponly=True)
-    
+
     # Always set session_id cookie to match CSRF token binding
     resp.set_cookie(
         key="session_id",
@@ -510,12 +509,12 @@ async def reset_password_page(request: Request, token: str):
             "reset_password.html",
             context={"error": "Invalid or expired link.", "token": token},
         )
-    
+
     # Ensure session_id exists before issuing CSRF token
     sid = request.cookies.get("session_id")
     if not sid:
         sid = str(uuid.uuid4())
-    
+
     csrf = issue_csrf_token(sid)
     resp = templates.TemplateResponse(
         request,
@@ -523,7 +522,7 @@ async def reset_password_page(request: Request, token: str):
         context={"token": token, "csrf_token": csrf},
     )
     set_csrf_cookie(resp, csrf, httponly=True)
-    
+
     # Always set session_id cookie to match CSRF token binding
     resp.set_cookie(
         key="session_id",
@@ -575,12 +574,12 @@ async def reset_password(
             "reset_password.html",
             context={"error": "Passwords do not match.", "token": token},
         )
-    
+
     # Truncate password to 72 bytes early to prevent bcrypt errors
-    password_bytes = password.encode('utf-8')
+    password_bytes = password.encode("utf-8")
     if len(password_bytes) > 72:
-        password = password_bytes[:72].decode('utf-8', errors='ignore')
-    
+        password = password_bytes[:72].decode("utf-8", errors="ignore")
+
     password_errors = validate_password(password)
     if password_errors:
         return templates.TemplateResponse(

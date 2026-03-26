@@ -8,27 +8,27 @@ def test_forgot_password_sends_email(monkeypatch, client: TestClient):
     sent = {}
 
     async def fake_send(msg, **kwargs):
-        sent['to'] = msg['To']
-        sent['subject'] = msg['Subject']
-        sent['body'] = msg.get_content()
+        sent["to"] = msg["To"]
+        sent["subject"] = msg["Subject"]
+        sent["body"] = msg.get_content()
 
-    monkeypatch.setattr('app.services.email_utils.aiosmtplib.send', fake_send)
+    monkeypatch.setattr("app.services.email_utils.aiosmtplib.send", fake_send)
 
     resp = client.post(
-        '/auth/forgot-password',
+        "/auth/forgot-password",
         data={
-            'email': 'nonexistent@example.com',
-            'csrf_token': '',
+            "email": "nonexistent@example.com",
+            "csrf_token": "",
         },
     )
     assert resp.status_code in (200, 302)
     # neutral response - no leak of existence
-    assert 'If that email exists' in resp.text
+    assert "If that email exists" in resp.text
 
 
 def test_reset_password_flow(monkeypatch, client: TestClient, db_session):
     # Create a test user directly in DB. If a prior test run left the same email, remove it first.
-    test_email = 'resetme@example.com'
+    test_email = "resetme@example.com"
     db = db_session
     existing = db.query(User).filter(User.Email == test_email).first()
     if existing:
@@ -36,10 +36,10 @@ def test_reset_password_flow(monkeypatch, client: TestClient, db_session):
         db.commit()
 
     user = User(
-        FirstName='T',
-        LastName='U',
+        FirstName="T",
+        LastName="U",
         Email=test_email,
-        HashedPassword=hash_password('OldP@ss1'),
+        HashedPassword=hash_password("OldP@ss1"),
         EmailVerified=True,
         IsActive=True,
         MarkedForDeletion=False,
@@ -51,20 +51,30 @@ def test_reset_password_flow(monkeypatch, client: TestClient, db_session):
     # user.Email is a SQLAlchemy Column; convert to plain str for token helper
     token = generate_password_reset_token(str(user.Email))
     # GET reset page
-    resp = client.get(f'/reset-password?token={token}')
+    resp = client.get(f"/reset-password?token={token}")
     assert resp.status_code == 200
     # POST new password
     resp2 = client.post(
-        '/auth/reset-password',
+        "/auth/reset-password",
         data={
-            'token': token,
-            'password': 'NewP@ss2',
-            'password2': 'NewP@ss2',
-            'csrf_token': '',
+            "token": token,
+            "password": "NewP@ss2",
+            "password2": "NewP@ss2",
+            "csrf_token": "",
         },
     )
     assert resp2.status_code in (200, 302)
     # Verify password updated in DB
     db.refresh(user)
     # Compare hashed values as strings
-    assert str(user.HashedPassword) != hash_password('OldP@ss1')
+    assert str(user.HashedPassword) != hash_password("OldP@ss1")
+
+
+def test_reset_password_page_uses_extracted_password_script(client: TestClient):
+    token = generate_password_reset_token("reset-script@example.com")
+
+    resp = client.get(f"/reset-password?token={token}")
+
+    assert resp.status_code == 200
+    assert "js/pages/auth_password_form.js" in resp.text
+    assert "const matchMsg = document.getElementById('match-msg');" not in resp.text

@@ -2,60 +2,118 @@
 
 {% block title %}Examples — How teams use EPU{% endblock %}
 
+{% block extra_css %}
+<style>
+  .examples-grid {
+    gap: 16px;
+  }
+  .example-card {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+  }
+  .example-card .example-media {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .example-card .example-body {
+    padding: 14px;
+    display: grid;
+    gap: 8px;
+  }
+  .example-card .example-kicker {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #9fb4d9;
+    font-weight: 700;
+  }
+  .example-card h3 {
+    margin: 0;
+  }
+  .example-card p {
+    margin: 0;
+  }
+  .examples-hero-card {
+    background:
+      radial-gradient(circle at top right, rgba(79,140,255,0.13), transparent 38%),
+      radial-gradient(circle at bottom left, rgba(255,122,89,0.08), transparent 45%),
+      var(--color-surface);
+  }
+  .examples-hero-card .btn-row {
+    margin-top: 10px;
+  }
+  .examples-gallery-card {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0)),
+      var(--color-surface);
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container center">
   {% from 'components/macros.html' import page_hero, btn_row %}
   {{ page_hero('Examples', 'See ways people use EPU to collect and share photos and videos at events.') }}
 
   <section class="section">
-    <div class="grid grid-3 equal-heights">
-      <div class="card full-height">
-        <h3>Weddings</h3>
-        <p>Give guests a simple QR to upload candid photos. Share a curated gallery the next day.</p>
-        {% call btn_row('style="margin-top:8px;"') %}
-          <a href="#" class="btn" onclick="exOpen(0); return false;">Preview</a>
-        {% endcall %}
-      </div>
-      <div class="card full-height">
-        <h3>Corporate events</h3>
-        <p>Collect booth photos and session highlights. Centralize media for marketing teams.</p>
-        {% call btn_row('style="margin-top:8px;"') %}
-          <a href="#" class="btn" onclick="exOpen(1); return false;">Preview</a>
-        {% endcall %}
-      </div>
-      <div class="card full-height">
-        <h3>School plays</h3>
-        <p>Parents upload from their seats. Easily download the best moments as a ZIP.</p>
-        {% call btn_row('style="margin-top:8px;"') %}
-          <a href="#" class="btn" onclick="exOpen(2); return false;">Preview</a>
-        {% endcall %}
-      </div>
-      <div class="card full-height">
-        <h3>Sports</h3>
-        <p>Post-match upload links for teams and fans. Quick highlights for social.</p>
-        {% call btn_row('style="margin-top:8px;"') %}
-          <a href="#" class="btn" onclick="exOpen(3); return false;">Preview</a>
-        {% endcall %}
-      </div>
-      <div class="card full-height">
-        <h3>Conferences</h3>
-        <p>Capture attendee experiences and sponsor activations across venues.</p>
-        {% call btn_row('style="margin-top:8px;"') %}
-          <a href="#" class="btn" onclick="exOpen(4); return false;">Preview</a>
-        {% endcall %}
-      </div>
-      <div class="card full-height">
-        <h3>Community</h3>
-        <p>Neighborhood events, meetups, birthdays—EPU keeps everything in one place.</p>
-        {% call btn_row('style="margin-top:8px;"') %}
-          <a href="#" class="btn" onclick="exOpen(5); return false;">Preview</a>
-        {% endcall %}
-      </div>
+    <div class="grid grid-3 equal-heights examples-grid">
+      <article class="card full-height example-card">
+        <img class="example-media" src="https://source.unsplash.com/1200x800/?wedding,reception,guests" alt="Wedding reception guests taking photos" loading="lazy">
+        <div class="example-body">
+          <div class="example-kicker">Weddings</div>
+          <h3>Weddings</h3>
+          <p>Give guests a simple QR to upload candid moments all day, then share a polished gallery after the celebration.</p>
+        </div>
+      </article>
+      <article class="card full-height example-card">
+        <img class="example-media" src="https://source.unsplash.com/1200x800/?corporate,event,conference" alt="Corporate event attendees" loading="lazy">
+        <div class="example-body">
+          <div class="example-kicker">Corporate</div>
+          <h3>Corporate events</h3>
+          <p>Collect booth photos and session highlights in one place so marketing teams can publish quickly.</p>
+        </div>
+      </article>
+      <article class="card full-height example-card">
+        <img class="example-media" src="https://source.unsplash.com/1200x800/?school,performance,parents" alt="School performance audience" loading="lazy">
+        <div class="example-body">
+          <div class="example-kicker">Schools</div>
+          <h3>School plays</h3>
+          <p>Parents upload from their seats and organizers keep everything in a single, easy-to-download gallery.</p>
+        </div>
+      </article>
+      <article class="card full-height example-card">
+        <img class="example-media" src="https://source.unsplash.com/1200x800/?sports,team,stadium" alt="Sports team celebration" loading="lazy">
+        <div class="example-body">
+          <div class="example-kicker">Sports</div>
+          <h3>Sports</h3>
+          <p>Post-match upload links for teams and fans so highlights are gathered and shareable within minutes.</p>
+        </div>
+      </article>
+      <article class="card full-height example-card">
+        <img class="example-media" src="https://source.unsplash.com/1200x800/?conference,speaker,audience" alt="Conference keynote stage" loading="lazy">
+        <div class="example-body">
+          <div class="example-kicker">Conferences</div>
+          <h3>Conferences</h3>
+          <p>Capture attendee experiences and sponsor activations across venues with one consistent upload flow.</p>
+        </div>
+      </article>
+      <article class="card full-height example-card">
+        <img class="example-media" src="https://source.unsplash.com/1200x800/?community,festival,people" alt="Community festival crowd" loading="lazy">
+        <div class="example-body">
+          <div class="example-kicker">Community</div>
+          <h3>Community</h3>
+          <p>Neighborhood events, birthdays, and meetups all in one place, without chasing photos across chats.</p>
+        </div>
+      </article>
     </div>
   </section>
 
   <section class="section">
-    <div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+    <div class="card examples-hero-card" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
       <div>
         <h3 style="margin:0 0 4px;">Try it with your next event</h3>
         <p class="muted" style="margin:0;">Start free. Upgrade any time.</p>
@@ -64,65 +122,38 @@
         {% if request.cookies.get('session_id') %}
           <a class="btn primary" href="/events/create">Create an event</a>
         {% else %}
+          {% call btn_row() %}
           <a class="btn primary" href="/signup">Get started free</a>
+          <a class="btn" href="/pricing">See pricing</a>
+          {% endcall %}
         {% endif %}
       </div>
     </div>
   </section>
 
   <section class="section">
-      <div class="card">
+      <div class="card examples-gallery-card">
         <h3 style="margin-top:0;">Sample galleries</h3>
         <p class="muted" style="margin-top: -4px;">A quick peek at what your event gallery could look like.</p>
         <div class="dynamic-gallery" style="margin-top:12px;">
           <div class="gallery-item gallery-clickable" data-index="0">
-            <img class="gallery-img" src="/static/images/examples/wedding1.svg" alt="Wedding example" loading="lazy">
+            <img class="gallery-img" src="https://source.unsplash.com/1200x800/?wedding,reception,guests" alt="Wedding example" loading="lazy">
           </div>
           <div class="gallery-item gallery-clickable" data-index="1">
-            <img class="gallery-img" src="/static/images/examples/corporate1.svg" alt="Corporate example" loading="lazy">
+            <img class="gallery-img" src="https://source.unsplash.com/1200x800/?corporate,event,conference" alt="Corporate example" loading="lazy">
           </div>
           <div class="gallery-item gallery-clickable" data-index="2">
-            <img class="gallery-img" src="/static/images/examples/school1.svg" alt="School example" loading="lazy">
+            <img class="gallery-img" src="https://source.unsplash.com/1200x800/?school,performance,parents" alt="School example" loading="lazy">
           </div>
         </div>
       </div>
     </section>
 
   {% include 'components/lightbox.html' %}
-    </div>
+  </div>
+{% endblock %}
 
-  {% block extra_js %}
-  <script>
-    const exImages = [
-      '/static/images/examples/wedding1.svg',
-      '/static/images/examples/corporate1.svg',
-      '/static/images/examples/school1.svg',
-      '/static/images/examples/wedding1.svg',
-      '/static/images/examples/corporate1.svg',
-      '/static/images/examples/school1.svg'
-    ];
-    const exCaptions = [
-      'Weddings — candid guest photos with a simple QR',
-      'Corporate events — booth photos and session highlights',
-      'School plays — parent uploads and quick ZIP downloads',
-      'Weddings — curated galleries next day',
-      'Corporate events — centralize media for marketing',
-      'School — highlights and easy sharing'
-    ];
-    document.addEventListener('DOMContentLoaded', function(){
-      if (window.Lightbox) Lightbox.setData(exImages, exCaptions);
-      document.querySelectorAll('.gallery-clickable').forEach(function(el){
-        el.addEventListener('click', function(){
-          const idx = parseInt(el.getAttribute('data-index')) || 0;
-          Lightbox.open(idx);
-        });
-      });
-      // Wire preview buttons
-      const previewButtons = document.querySelectorAll('a.btn[onclick^="exOpen("]');
-      previewButtons.forEach(function(btn){
-        btn.addEventListener('click', function(e){ e.preventDefault(); try { const m = btn.getAttribute('onclick').match(/exOpen\((\d+)\)/); const idx = m?parseInt(m[1]):0; Lightbox.open(idx); } catch(_) { Lightbox.open(0); } });
-      });
-    });
-  </script>
-  {% endblock %}
+{% block extra_js %}
+  {{ super() }}
+  <script src="{{ url_for('static', path='js/pages/examples.js') }}?v={{ now() if now else '' }}"></script>
 {% endblock %}

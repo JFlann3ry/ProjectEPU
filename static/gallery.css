@@ -110,14 +110,16 @@
     width: 100%;
     display: block;
     margin: 18px 0 8px;
-    padding: 8px 12px;
+    padding: 10px 12px;
     font-weight: 650;
     letter-spacing: 0.2px;
     color: #e9eef6;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.10);
-    border-radius: 10px;
+    background: linear-gradient(160deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 12px;
 }
+.group-heading .heading-main { display:block; font-weight:700; }
+.group-heading .heading-sub { display:block; margin-top:3px; opacity:.82; font-size:.86rem; font-weight:500; }
 .gallery-item:hover {
     transform: translateY(-3px);
     box-shadow: 0 10px 24px rgba(0,0,0,0.35);
@@ -295,6 +297,32 @@
     z-index: 9999;
     transition: opacity 0.25s ease;
     color: var(--lightbox-text);
+    overflow: hidden;
+}
+
+.lightbox-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: min(96vw, 1500px);
+    max-height: 96vh;
+    overflow: hidden;
+    padding: 10px 0;
+}
+
+.lightbox-controls {
+    width: min(96vw, 1200px);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(4px);
 }
 
 /* Close button */
@@ -352,11 +380,17 @@
 /* Content frame */
 .lightbox-content {
     position: relative;
-    padding: 16px;
+    padding: 12px;
     background: color-mix(in srgb, var(--lightbox-chrome-bg) 96%, transparent);
     border: 1px solid var(--lightbox-border);
     border-radius: 12px;
     box-shadow: 0 10px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: min(96vw, 1400px);
+    max-height: calc(100vh - 170px);
+    overflow: hidden;
 }
 .lightbox-content.loading {
     /* Reserve a sensible minimum so the lightbox doesn't collapse to the thumbnail size
@@ -381,6 +415,10 @@
 .lightbox-content img, .lightbox-content video {
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+    max-width: min(92vw, 1320px);
+    max-height: calc(100vh - 210px);
+    width: auto;
+    height: auto;
 }
 
 /* Stop slideshow button was removed; no extra styles needed. */

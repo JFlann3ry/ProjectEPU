@@ -50,6 +50,44 @@ const G = (function () {
     return null;
   }
 
+  function getGlobalSelectionSet() {
+    try {
+      if (!(window.__gallerySelectedIds instanceof Set)) {
+        window.__gallerySelectedIds = new Set();
+      }
+      return window.__gallerySelectedIds;
+    } catch (e) {
+      return new Set();
+    }
+  }
+
+  function getSelectedIdsSnapshot() {
+    return Array.from(getGlobalSelectionSet());
+  }
+
+  function syncSelectionFromCheckbox(chk) {
+    try {
+      if (!chk) return;
+      const id = parseInt(chk.getAttribute('data-id') || '', 10);
+      if (!Number.isFinite(id)) return;
+      const selected = getGlobalSelectionSet();
+      if (chk.checked) selected.add(id);
+      else selected.delete(id);
+    } catch (e) {}
+  }
+
+  function applySelectionToLoadedCheckboxes() {
+    try {
+      const selected = getGlobalSelectionSet();
+      document.querySelectorAll('.select-chk').forEach(function (chk) {
+        try {
+          const id = parseInt(chk.getAttribute('data-id') || '', 10);
+          chk.checked = Number.isFinite(id) && selected.has(id);
+        } catch (e) {}
+      });
+    } catch (e) {}
+  }
+
   // Open "Add to album" modal for selected file IDs
   function openAddToAlbumModal(ids) {
     try {
@@ -60,43 +98,66 @@ const G = (function () {
       const eventId = meta && meta.event_id ? meta.event_id : null;
       if (!eventId) return;
 
-      // Use shared modal when available for consistent styling
-      const useShared = !!(window.EPU && window.EPU.modal && typeof window.EPU.modal.show === 'function');
+      const modalApi = window.EPU && window.EPU.modal;
+      if (!modalApi || typeof modalApi.show !== 'function') return;
+
+      const body = '' +
+        '<div class="form" id="add-to-album-form" style="max-height:60vh; overflow:auto;">' +
+        '  <div class="muted" id="add-album-list">Loading albums…</div>' +
+        '  <div class="btn-row" style="margin-top:12px; justify-content:flex-end; gap:8px;">' +
+        '    <button type="button" id="add-album-cancel" class="btn">Cancel</button>' +
+        '    <button type="button" id="add-album-submit" class="btn primary" disabled>Add</button>' +
+        '  </div>' +
+        '</div>';
+      modalApi.show({
+        title: 'Add selected files to album',
+        body,
+        actions: [],
+        raw: true,
+        noDefaultClose: true,
+      });
+
       let listWrap = null;
       let addBtn = null;
-      let closeModal = function(){};
-      if (useShared){
-        const body = '' +
-          '<div class="form" id="add-to-album-form" style="max-height:60vh; overflow:auto;">' +
-          '  <div class="muted" id="add-album-list">Loading albums…</div>' +
-          '</div>';
-        window.EPU.modal.show({ title: 'Add selected files to album', body, actions: [
-          { label: 'Cancel', role: 'cancel' },
-          { label: 'Add', onClick: function(){ /* handled below */ } }
-        ]});
-        closeModal = function(){ try { window.EPU.modal.hide(); } catch(_){} };
-        setTimeout(function(){ try {
+      let selectedAlbum = null;
+      const closeModal = function(){ try { modalApi.hide(); } catch(_){} };
+      setTimeout(function(){
+        try {
           listWrap = document.getElementById('add-album-list');
-          const footer = document.querySelector('#modal-root .modal-actions');
-          addBtn = footer ? footer.querySelectorAll('button')[1] : null;
-          if (addBtn) addBtn.disabled = true;
-        } catch(_){} }, 10);
-      } else {
-        // Legacy inline modal fallback
-        let modal = document.getElementById('add-to-album-modal');
-        if (modal) modal.remove();
-        modal = document.createElement('div'); modal.id = 'add-to-album-modal'; modal.className = 'modal'; modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true'); modal.style.display = 'flex'; modal.style.position = 'fixed'; modal.style.inset = '0'; modal.style.alignItems = 'center'; modal.style.justifyContent = 'center'; modal.style.background = 'rgba(0,0,0,0.5)'; modal.style.zIndex = '1002';
-        const content = document.createElement('div'); content.className = 'modal-content'; content.style.maxWidth = '520px'; content.style.padding = '12px'; content.style.boxSizing = 'border-box'; content.style.background = 'rgba(0,0,0,0.85)'; content.style.border = '1px solid var(--color-border)'; content.style.borderRadius = '8px';
-        const title = document.createElement('h3'); title.className = 'p-bold'; title.textContent = 'Add selected files to album'; content.appendChild(title);
-        listWrap = document.createElement('div'); listWrap.style.marginTop = '8px'; listWrap.textContent = 'Loading albums…'; content.appendChild(listWrap);
-        const actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.justifyContent = 'flex-end'; actions.style.gap = '8px'; actions.style.marginTop = '12px';
-        const cancelBtn = document.createElement('button'); cancelBtn.type = 'button'; cancelBtn.className = 'btn'; cancelBtn.textContent = 'Cancel';
-        addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.className = 'btn primary'; addBtn.textContent = 'Add'; addBtn.disabled = true;
-        actions.appendChild(cancelBtn); actions.appendChild(addBtn); content.appendChild(actions);
-        modal.appendChild(content); document.body.appendChild(modal);
-        closeModal = function(){ try { modal.remove(); } catch (e) {} };
-        cancelBtn.addEventListener('click', closeModal);
-      }
+          addBtn = document.getElementById('add-album-submit');
+          const cancelBtn = document.getElementById('add-album-cancel');
+          if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+        } catch(_){ }
+      }, 10);
+
+      const onAdd = function () {
+        if (!selectedAlbum || !addBtn) return;
+        addBtn.disabled = true;
+        addBtn.textContent = 'Adding...';
+        const promises = ids.map(fid => {
+          const fd = new FormData();
+          fd.append('file_id', String(fid));
+          try { const csrf = getCSRFToken(); if (csrf) fd.append('csrf_token', csrf); } catch (e) {}
+          return fetch(
+            '/events/' + encodeURIComponent(eventId) + '/albums/' + encodeURIComponent(selectedAlbum) + '/add',
+            { method: 'POST', body: fd, credentials: 'same-origin' }
+          ).then(r => r.ok ? r.json().catch(() => ({ ok: true })) : Promise.reject(r));
+        });
+        Promise.all(promises).then(() => {
+          try { closeModal(); } catch (e) {}
+          try { if (window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Added to album'); } catch(_){ }
+          try {
+            const sel = document.getElementById('album-filter');
+            if (sel && sel.value === String(selectedAlbum)) {
+              const u = new URL(window.location.href);
+              u.searchParams.set('album_id', String(selectedAlbum));
+              window.location.href = u.toString();
+            }
+          } catch(_){ }
+        }).catch(() => {
+          try { if (addBtn) { addBtn.disabled = false; addBtn.textContent = 'Add'; } } catch (e) {}
+        });
+      };
 
       // Fetch albums for this event
       fetch('/events/' + encodeURIComponent(eventId) + '/albums', { credentials: 'same-origin' })
@@ -107,12 +168,11 @@ const G = (function () {
           if (!j || !Array.isArray(j.items) || j.items.length === 0) {
             const none = document.createElement('div'); none.className = 'muted'; none.textContent = 'No albums found. Create one first.'; listWrap.appendChild(none);
             const createLink = document.createElement('button'); createLink.type = 'button'; createLink.className = 'btn'; createLink.textContent = 'Create album'; createLink.style.marginTop = '8px';
-            createLink.addEventListener('click', function () { try { closeModal(); if (typeof openCreateAlbumModal === 'function') openCreateAlbumModal(); else { var el = document.getElementById('create-album-modal'); if (el) el.style.display = 'flex'; } } catch (e) {} });
+            createLink.addEventListener('click', function () { try { closeModal(); openCreateAlbumModal(); } catch (e) {} });
             listWrap.appendChild(createLink);
             return;
           }
           const form = document.createElement('div'); form.style.display = 'flex'; form.style.flexDirection = 'column'; form.style.gap = '6px';
-          let selectedAlbum = null;
           j.items.forEach(a => {
             try {
               const row = document.createElement('label'); row.style.display = 'flex'; row.style.alignItems = 'center'; row.style.gap = '8px'; row.style.cursor = 'pointer';
@@ -123,41 +183,7 @@ const G = (function () {
             } catch (e) {}
           });
           listWrap.appendChild(form);
-
-          const onAdd = function () {
-            if (!selectedAlbum) return;
-            if (addBtn){ addBtn.disabled = true; addBtn.textContent = 'Adding…'; }
-            // Send POST for each file id; run sequentially to avoid DB race concerns
-            const promises = ids.map(fid => {
-              const fd = new FormData(); fd.append('file_id', String(fid));
-              try { const csrf = getCSRFToken(); if (csrf) fd.append('csrf_token', csrf); } catch (e) {}
-              return fetch('/events/' + encodeURIComponent(eventId) + '/albums/' + encodeURIComponent(selectedAlbum) + '/add', {
-                method: 'POST', body: fd, credentials: 'same-origin'
-              }).then(r => r.ok ? r.json().catch(()=>({ok:true})) : Promise.reject(r));
-            });
-            Promise.all(promises).then(() => {
-              try { closeModal(); } catch (e) {}
-              try { if (window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Added to album'); } catch(_){}
-              // If an album is currently selected in the filter and matches selectedAlbum, force reload to show files
-              try {
-                const sel = document.getElementById('album-filter');
-                if (sel && sel.value === String(selectedAlbum)) {
-                  const u = new URL(window.location.href); u.searchParams.set('album_id', String(selectedAlbum)); window.location.href = u.toString();
-                }
-              } catch(_){ }
-            }).catch(() => {
-              try { if (addBtn){ addBtn.disabled = false; addBtn.textContent = 'Add'; } } catch (e) {}
-            });
-          };
           if (addBtn) addBtn.addEventListener('click', onAdd);
-          // Also hook shared modal primary button if used
-          if (useShared){
-            setTimeout(function(){ try {
-              const footer = document.querySelector('#modal-root .modal-actions');
-              const primary = footer ? footer.querySelectorAll('button')[1] : null;
-              if (primary && primary !== addBtn){ primary.removeEventListener('click', function(){}); primary.addEventListener('click', onAdd); }
-            } catch(_){} }, 30);
-          }
         })
         .catch(() => {
           if (!listWrap) return; listWrap.innerHTML = ''; const err = document.createElement('div'); err.className = 'muted'; err.textContent = 'Unable to load albums.'; listWrap.appendChild(err);
@@ -193,116 +219,66 @@ const G = (function () {
       let meta = {}; try { meta = JSON.parse(dataEl.textContent || '{}'); } catch (e) {}
       const eventId = meta && meta.event_id ? meta.event_id : null; if (!eventId) return;
 
-      // Preferred: shared modal component from base.html
-      if (window.EPU && window.EPU.modal && typeof window.EPU.modal.show === 'function') {
-        const body = '' +
-          '<form id="create-album-form" class="form">' +
-          '  <label for="create-album-name">Album Name</label>' +
-          '  <input id="create-album-name" name="name" class="input-field" required maxlength="255">' +
-          '  <div class="btn-row" style="margin-top:12px; justify-content:flex-end; gap:8px;">' +
-          '    <button type="button" id="create-album-cancel" class="btn sm">Cancel</button>' +
-          '    <button type="submit" id="create-album-submit" class="btn sm primary">Create</button>' +
-          '  </div>' +
-          '</form>';
-        window.EPU.modal.show({ title: 'Create album', body, actions: [], raw: true, noDefaultClose: true });
-        setTimeout(function(){
-          try {
-            const form = document.getElementById('create-album-form');
-            const nameInput = document.getElementById('create-album-name');
-            const cancelBtn = document.getElementById('create-album-cancel');
-            const submitBtn = document.getElementById('create-album-submit');
-            if (nameInput && nameInput.focus) nameInput.focus();
-            if (cancelBtn) cancelBtn.addEventListener('click', function(){ try { window.EPU.modal.hide(); } catch(_){} });
-            if (form) form.addEventListener('submit', function(ev){
-              ev.preventDefault();
-              const name = (nameInput && nameInput.value || '').trim(); if (!name) return;
-              if (submitBtn) submitBtn.disabled = true;
-              const fd = new FormData(); fd.append('name', name);
-              try { const csrf = getCSRFToken(); if (csrf) fd.append('csrf_token', csrf); } catch(e){}
-              fetch('/events/' + encodeURIComponent(eventId) + '/albums/create', { method: 'POST', body: fd, credentials: 'same-origin' })
-                .then(r => r.ok ? r.json().catch(()=>({ ok: true })) : Promise.reject(r))
-                .then(() => {
-                  try { if (window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Album created'); } catch(_){ }
-                  // Refresh album selector (if present)
-                  try {
-                    const sel = document.getElementById('album-filter');
-                    if (sel) {
-                      fetch('/events/' + encodeURIComponent(eventId) + '/albums', { credentials: 'same-origin' })
-                        .then(rr => rr.ok ? rr.json() : null)
-                        .then(j => {
-                          if (!j || !Array.isArray(j.items)) return;
-                          const first = sel.querySelector('option');
-                          while (sel.firstChild) sel.removeChild(sel.firstChild);
-                          if (first) sel.appendChild(first);
-                          j.items.forEach(a => { const opt = document.createElement('option'); opt.value = a.id; opt.textContent = a.name + (a.count ? (' (' + a.count + ')') : ''); sel.appendChild(opt); });
-                        })
-                        .catch(()=>{});
-                    }
-                  } catch(_){}
-                  try { window.EPU.modal.hide(); } catch(_){}
-                })
-                .catch(() => { try { if (submitBtn) submitBtn.disabled = false; } catch(_){} });
-            });
-          } catch(_){}
-        }, 10);
-        return;
-      }
+      const modalApi = window.EPU && window.EPU.modal;
+      if (!modalApi || typeof modalApi.show !== 'function') return;
 
-      // Fallback: show inline modal already present in the page and wire the form
-      const modal = document.getElementById('create-album-modal'); if (!modal) return;
-      const form = document.getElementById('create-album-form'); if (!form) return;
-      const nameInput = document.getElementById('create-album-name');
-      const cancelBtn = document.getElementById('create-album-cancel');
-      const submitBtn = document.getElementById('create-album-submit');
-      modal.style.display = 'flex';
+      const body = '' +
+        '<form id="create-album-form" class="form">' +
+        '  <label for="create-album-name">Album Name</label>' +
+        '  <input id="create-album-name" name="name" class="input-field" required maxlength="255">' +
+        '  <div class="btn-row" style="margin-top:12px; justify-content:flex-end; gap:8px;">' +
+        '    <button type="button" id="create-album-cancel" class="btn sm">Cancel</button>' +
+        '    <button type="submit" id="create-album-submit" class="btn sm primary">Create</button>' +
+        '  </div>' +
+        '</form>';
+      modalApi.show({ title: 'Create album', body, actions: [], raw: true, noDefaultClose: true });
 
-      // Basic focus trap
-      let lastActive = document.activeElement;
-      function getFocusables(){ return Array.prototype.slice.call(modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter(function(el){ return !el.hasAttribute('disabled') && el.offsetParent !== null; }); }
-      function closeModal(){ try { modal.style.display = 'none'; if (lastActive && lastActive.focus) lastActive.focus(); } catch(e){} }
-      try { if (nameInput && nameInput.focus) nameInput.focus(); } catch(e){}
-      modal.addEventListener('keydown', function(e){
+      setTimeout(function(){
         try {
-          if (e.key === 'Escape') { e.preventDefault(); closeModal(); return; }
-          if (e.key === 'Tab') {
-            const f = getFocusables(); if (!f.length) return;
-            const i = f.indexOf(document.activeElement);
-            if (e.shiftKey && (i <= 0)) { e.preventDefault(); f[f.length - 1].focus(); }
-            else if (!e.shiftKey && (i === f.length - 1)) { e.preventDefault(); f[0].focus(); }
-          }
-        } catch(_){}}
-      );
-      if (cancelBtn) cancelBtn.onclick = function(){ closeModal(); };
-
-      form.onsubmit = function(ev){
-        ev.preventDefault();
-        const name = (nameInput && nameInput.value || '').trim(); if (!name) return;
-        if (submitBtn) submitBtn.disabled = true;
-        const fd = new FormData(); fd.append('name', name);
-        try { const csrf = getCSRFToken(); if (csrf) fd.append('csrf_token', csrf); } catch(e){}
-        fetch('/events/' + encodeURIComponent(eventId) + '/albums/create', { method: 'POST', body: fd, credentials: 'same-origin' })
-          .then(r => r.ok ? r.json().catch(()=>({ ok: true })) : Promise.reject(r))
-          .then(() => {
-            try { if (window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Album created'); } catch(_){ }
-            try {
-              const sel = document.getElementById('album-filter');
-              if (sel) {
-                fetch('/events/' + encodeURIComponent(eventId) + '/albums', { credentials: 'same-origin' })
-                  .then(rr => rr.ok ? rr.json() : null)
-                  .then(j => {
-                    if (!j || !Array.isArray(j.items)) return;
-                    const first = sel.querySelector('option');
-                    while (sel.firstChild) sel.removeChild(sel.firstChild);
-                    if (first) sel.appendChild(first);
-                    j.items.forEach(a => { const opt = document.createElement('option'); opt.value = a.id; opt.textContent = a.name + (a.count ? (' (' + a.count + ')') : ''); sel.appendChild(opt); });
-                  })
-                  .catch(()=>{});
-              }
-            } catch(_){}
-            closeModal();
-          })
-          .catch(() => { try { if (submitBtn) submitBtn.disabled = false; } catch(_){} });
-      };
+          const form = document.getElementById('create-album-form');
+          const nameInput = document.getElementById('create-album-name');
+          const cancelBtn = document.getElementById('create-album-cancel');
+          const submitBtn = document.getElementById('create-album-submit');
+          if (nameInput && nameInput.focus) nameInput.focus();
+          if (cancelBtn) cancelBtn.addEventListener('click', function(){ try { modalApi.hide(); } catch(_){} });
+          if (form) form.addEventListener('submit', function(ev){
+            ev.preventDefault();
+            const name = (nameInput && nameInput.value || '').trim();
+            if (!name) return;
+            if (submitBtn) submitBtn.disabled = true;
+            const fd = new FormData();
+            fd.append('name', name);
+            try { const csrf = getCSRFToken(); if (csrf) fd.append('csrf_token', csrf); } catch(e){}
+            fetch('/events/' + encodeURIComponent(eventId) + '/albums/create', { method: 'POST', body: fd, credentials: 'same-origin' })
+              .then(r => r.ok ? r.json().catch(()=>({ ok: true })) : Promise.reject(r))
+              .then(() => {
+                try { if (window.EPU && window.EPU.snackbar) window.EPU.snackbar.show('Album created'); } catch(_){ }
+                try {
+                  const sel = document.getElementById('album-filter');
+                  if (sel) {
+                    fetch('/events/' + encodeURIComponent(eventId) + '/albums', { credentials: 'same-origin' })
+                      .then(rr => rr.ok ? rr.json() : null)
+                      .then(j => {
+                        if (!j || !Array.isArray(j.items)) return;
+                        const first = sel.querySelector('option');
+                        while (sel.firstChild) sel.removeChild(sel.firstChild);
+                        if (first) sel.appendChild(first);
+                        j.items.forEach(a => {
+                          const opt = document.createElement('option');
+                          opt.value = a.id;
+                          opt.textContent = a.name + (a.count ? (' (' + a.count + ')') : '');
+                          sel.appendChild(opt);
+                        });
+                      })
+                      .catch(()=>{});
+                  }
+                } catch(_){ }
+                try { modalApi.hide(); } catch(_){ }
+              })
+              .catch(() => { try { if (submitBtn) submitBtn.disabled = false; } catch(_){} });
+          });
+        } catch(_){ }
+      }, 10);
     } catch (e) { /* ignore */ }
   }
   try { window.openCreateAlbumModal = openCreateAlbumModal; } catch (e) {}
@@ -341,6 +317,7 @@ const G = (function () {
   function reflowGalleryMasonry() {
     try {
       const gal = document.getElementById('gallery'); if (!gal) return;
+      if (!gal.dataset || gal.dataset.masonry !== 'grid') return;
       const cs = getComputedStyle(gal);
       const rowHeight = parseFloat(cs.getPropertyValue('grid-auto-rows')) || 8;
       const rowGap = parseFloat(cs.getPropertyValue('row-gap')) || parseFloat(cs.getPropertyValue('grid-row-gap')) || 12;
@@ -368,9 +345,9 @@ const G = (function () {
           h = Math.min(maxTile, Math.max(h, 0));
           const span = Math.max(1, Math.ceil((h + rowGap) / (rowHeight + rowGap)));
           if (child.classList && child.classList.contains('group-heading')) {
-            // Let headings be full-width and auto-height without forcing a row span
+            // Headings must reserve real vertical space in the grid or tiles can overlap them.
             child.style.gridColumn = '1 / -1';
-            child.style.gridRowEnd = '';
+            child.style.gridRowEnd = 'span ' + String(span);
           } else {
             child.style.gridRowEnd = 'span ' + String(span);
           }
@@ -489,6 +466,67 @@ const G = (function () {
     try { if (!video) return; const tile = video.closest('.gallery-item'); if (!tile) return; const vw = video.videoWidth || video.clientWidth || video.getBoundingClientRect().width; const vh = video.videoHeight || video.clientHeight || video.getBoundingClientRect().height; if (vw && vh) { video.style.aspectRatio = String(vw) + ' / ' + String(vh); video.style.width = '100%'; video.style.height = 'auto'; video.style.objectFit = 'cover'; } } catch (e) {}
   }
 
+  function syncLightboxPlayState(isVideo, isPlaying) {
+    try {
+      const lbPlay = document.getElementById('lb-play');
+      const lbPause = document.getElementById('lb-pause');
+      const lbDelayGroup = document.getElementById('lb-delay-group');
+      if (!lbPlay || !lbPause) return;
+      if (!isVideo) {
+        lbPlay.style.display = '';
+        lbPause.style.display = 'none';
+        if (lbDelayGroup) lbDelayGroup.style.display = 'none';
+        return;
+      }
+      lbPlay.style.display = isPlaying ? 'none' : '';
+      lbPause.style.display = isPlaying ? '' : 'none';
+      if (lbDelayGroup) lbDelayGroup.style.display = 'none';
+    } catch (e) {}
+  }
+
+  function attemptLightboxVideoAutoplay(vid) {
+    try {
+      if (!vid) return;
+      const playAttempt = (typeof vid.play === 'function') ? vid.play() : null;
+      if (playAttempt && typeof playAttempt.then === 'function') {
+        playAttempt
+          .then(function () { syncLightboxPlayState(true, true); })
+          .catch(function () {
+            try {
+              // Most browsers only allow autoplay when muted.
+              vid.muted = true;
+              const mutedAttempt = vid.play();
+              if (mutedAttempt && typeof mutedAttempt.then === 'function') {
+                mutedAttempt.then(function () { syncLightboxPlayState(true, true); }).catch(function () { syncLightboxPlayState(true, false); });
+              } else {
+                syncLightboxPlayState(true, !vid.paused);
+              }
+            } catch (e) { syncLightboxPlayState(true, false); }
+          });
+      } else {
+        syncLightboxPlayState(true, !vid.paused);
+      }
+    } catch (e) { syncLightboxPlayState(true, false); }
+  }
+
+  function prefetchSurroundingSlides() {
+    try {
+      if (!Array.isArray(files) || files.length < 2) return;
+      const prevIdx = (currentIndex - 1 + files.length) % files.length;
+      const nextIdx = (currentIndex + 1) % files.length;
+      const prevFile = files[prevIdx];
+      const nextFile = files[nextIdx];
+      if (prevFile && prevFile.url) {
+        const pre = new Image();
+        pre.src = prevFile.url;
+      }
+      if (nextFile && nextFile.url) {
+        const pre = new Image();
+        pre.src = nextFile.url;
+      }
+    } catch (e) {}
+  }
+
   // Lightbox
   function renderLightbox() {
     const img = document.getElementById('lightbox-img'); const vid = document.getElementById('lightbox-video'); if (!img || !vid) return;
@@ -511,13 +549,22 @@ const G = (function () {
   if (fullUrl && fullUrl !== thumb) { const pre = new Image(); pre.onload = function () { img.src = fullUrl; if (lbContent) lbContent.classList.remove('loading'); }; pre.onerror = function () { if (lbContent) lbContent.classList.remove('loading'); }; pre.src = fullUrl; } else { if (lbContent) lbContent.classList.remove('loading'); }
     } else if (f.type === 'video') {
       if (lbContent) lbContent.classList.remove('loading'); img.style.display = 'none'; vid.style.display = ''; if (f.thumb_url) vid.setAttribute('poster', f.thumb_url); else vid.removeAttribute('poster'); vid.src = f.url || ''; try { vid.load(); } catch (e) {}
+      try {
+        vid.playsInline = true;
+        vid.autoplay = true;
+        vid.addEventListener('loadeddata', function () { attemptLightboxVideoAutoplay(vid); }, { once: true });
+        vid.onplay = function () { syncLightboxPlayState(true, true); };
+        vid.onpause = function () { syncLightboxPlayState(true, false); };
+      } catch (e) {}
     }
         if (f.width && f.height) { vid.setAttribute('data-w', String(f.width)); vid.setAttribute('data-h', String(f.height)); }
+    syncLightboxPlayState(f.type === 'video', false);
+    try { prefetchSurroundingSlides(); } catch (e) {}
   }
 
   let lastFocusedTile = null;
   function openLightbox(index) { const lb = document.getElementById('lightbox'); if (!lb) return; try { lastFocusedTile = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('gallery-item') ? document.activeElement : null; } catch (e) { lastFocusedTile = null; } currentIndex = index; renderLightbox(); lb.style.display = 'flex'; try { const c = document.getElementById('lightbox-close'); if (c && c.focus) c.focus(); } catch(e){} }
-  function closeLightbox() { const lb = document.getElementById('lightbox'); const vid = document.getElementById('lightbox-video'); try { if (vid) { vid.pause(); vid.removeAttribute('src'); if (typeof vid.load === 'function') vid.load(); vid.onended = null; } } catch (e) {} if (lb) lb.style.display = 'none'; try { if (lastFocusedTile && lastFocusedTile.focus) lastFocusedTile.focus(); } catch(e){} lastFocusedTile = null; }
+  function closeLightbox() { const lb = document.getElementById('lightbox'); const vid = document.getElementById('lightbox-video'); try { if (vid) { vid.pause(); vid.removeAttribute('src'); if (typeof vid.load === 'function') vid.load(); vid.onended = null; vid.onplay = null; vid.onpause = null; } } catch (e) {} if (lb) lb.style.display = 'none'; syncLightboxPlayState(false, false); try { if (lastFocusedTile && lastFocusedTile.focus) lastFocusedTile.focus(); } catch(e){} lastFocusedTile = null; }
   function nextSlide() { if (files.length === 0) return; currentIndex = (currentIndex + 1) % files.length; renderLightbox(); }
   function prevSlide() { if (files.length === 0) return; currentIndex = (currentIndex - 1 + files.length) % files.length; renderLightbox(); }
 
@@ -534,6 +581,7 @@ const G = (function () {
       const idx = startIndex + i; const isVideo = file.type === 'video'; const cls = isVideo ? 'gallery-item gallery-large gallery-video-tile gallery-clickable' : 'gallery-item gallery-clickable';
       const tile = document.createElement('div'); tile.className = cls; tile.setAttribute('data-index', String(idx)); tile.setAttribute('data-name', file.name || ''); tile.setAttribute('data-datetime', file.datetime || ''); tile.setAttribute('data-file-id', String(file.id));
       const chk = document.createElement('input'); chk.type = 'checkbox'; chk.className = 'select-chk'; chk.setAttribute('data-id', String(file.id)); tile.appendChild(chk);
+      try { if (getGlobalSelectionSet().has(file.id)) chk.checked = true; } catch (e) {}
 
       if (file.type === 'image') {
         const img = document.createElement('img'); img.className = 'gallery-img lazy'; img.alt = file.name || ''; img.dataset.src = file.thumb_url || file.url || '';
@@ -547,13 +595,19 @@ const G = (function () {
         img.addEventListener('load', function () { try { setTileAspectRatio(img); reflowGalleryMasonry(); } catch (e) {} }, { once: true });
         tile.appendChild(img); lazyObserver.observe(img);
       } else if (file.type === 'video') {
-        const v = document.createElement('video'); v.src = file.url || ''; v.className = 'gallery-video'; v.controls = true; v.preload = 'metadata';
-        if (file.width && file.height) { try { tile.style.aspectRatio = String(file.width) + ' / ' + String(file.height); } catch(e){} v.setAttribute('data-w', String(file.width)); v.setAttribute('data-h', String(file.height)); }
-        v.style.width = '100%'; v.style.height = '100%'; v.style.objectFit = 'cover';
-        v.addEventListener('loadedmetadata', function () { try { setTileHeightFromVideo(v); reflowGalleryMasonry(); } catch (e) {} }, { once: true }); tile.appendChild(v);
+        const img = document.createElement('img'); img.className = 'gallery-img gallery-video-poster lazy'; img.alt = 'Video preview: ' + (file.name || 'Clip'); img.dataset.src = file.thumb_url || file.url || '';
+        if (file.url) img.setAttribute('data-full', file.url);
+        if (file.width && file.height) { try { tile.style.aspectRatio = String(file.width) + ' / ' + String(file.height); } catch(e){} img.setAttribute('data-w', String(file.width)); img.setAttribute('data-h', String(file.height)); }
+        else if (file.thumb_w && file.thumb_h) { try { tile.style.aspectRatio = String(file.thumb_w) + ' / ' + String(file.thumb_h); } catch(e){} img.setAttribute('data-w', String(file.thumb_w)); img.setAttribute('data-h', String(file.thumb_h)); }
+        img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover';
+        img.addEventListener('load', function () { try { setTileAspectRatio(img); reflowGalleryMasonry(); } catch (e) {} }, { once: true }); tile.appendChild(img); lazyObserver.observe(img);
       }
 
-  if (file.type === 'video') { const badge = document.createElement('div'); badge.className = 'tile-badge video'; badge.title = 'Video'; badge.textContent = '▶'; tile.appendChild(badge); }
+  if (file.type === 'video') {
+        const shade = document.createElement('div'); shade.className = 'video-bottom-shade'; shade.setAttribute('aria-hidden', 'true'); tile.appendChild(shade);
+        const play = document.createElement('div'); play.className = 'video-center-play'; play.setAttribute('aria-hidden', 'true'); play.textContent = '▶'; tile.appendChild(play);
+        const ribbon = document.createElement('div'); ribbon.className = 'video-label-ribbon'; ribbon.title = 'Video'; ribbon.textContent = 'Video'; tile.appendChild(ribbon);
+      }
   if (file.deleted && !window.__showDeletedMode) { const badge = document.createElement('div'); badge.className = 'tile-badge deleted'; badge.title = 'Deleted'; badge.textContent = 'Deleted'; tile.appendChild(badge); }
   const fav = document.createElement('button'); fav.className = 'fav-btn' + (file.favorite ? ' is-fav' : ''); fav.title = file.favorite ? 'Unfavorite' : 'Favorite'; fav.setAttribute('data-id', String(file.id)); fav.textContent = file.favorite ? '★' : '☆'; tile.appendChild(fav);
 
@@ -663,6 +717,45 @@ const G = (function () {
   // Expose a programmatic trigger for tests and boot
   try { window.fetchMoreGallery = fetchMore; } catch (e) {}
 
+  function loadAllThumbnails() {
+    try {
+      const btn = document.getElementById('load-all-thumbnails');
+      if (!btn) return;
+      const gal = document.getElementById('gallery');
+      if (!gal) return;
+      if (btn.disabled) return;
+      btn.disabled = true;
+      const origText = btn.textContent;
+      btn.textContent = 'Loading...';
+      let loadedCount = 0;
+      function doLoad() {
+        if (typeof window.fetchMoreGallery === 'function') {
+          try {
+            const nextOffsetEl = gal.getAttribute('data-next-offset');
+            const isDone = (nextOffsetEl === null || nextOffsetEl === '');
+            if (isDone) {
+              btn.textContent = 'All loaded';
+              setTimeout(() => { try { btn.textContent = origText; btn.disabled = true; } catch(e){} }, 2000);
+              return;
+            }
+            loadedCount++;
+            btn.textContent = 'Loading (' + loadedCount + ')...';
+            window.fetchMoreGallery();
+            setTimeout(doLoad, 200);
+          } catch (e) {
+            btn.disabled = false;
+            btn.textContent = origText;
+          }
+        } else {
+          btn.disabled = false;
+          btn.textContent = origText;
+        }
+      }
+      doLoad();
+    } catch (e) { console.error('loadAllThumbnails error', e); }
+  }
+  try { window.loadAllThumbnails = loadAllThumbnails; } catch (e) {}
+
     // Keep a fallback scroll listener but also use an IntersectionObserver sentinel which is more reliable
     window.addEventListener('scroll', function () { if (done || loading) return; try { const scrollPos = window.scrollY + window.innerHeight; const nearBottom = document.body.offsetHeight - 400; if (scrollPos >= nearBottom) fetchMore(); } catch(e) {} });
 
@@ -707,7 +800,7 @@ const G = (function () {
       const btnZip = document.getElementById('bb-zip');
       const btnAdd = document.getElementById('bb-add-to-album');
   const selectAllBtn = document.getElementById('select-all');
-      function getSelectedIds(){ return Array.from(document.querySelectorAll('.select-chk:checked')).map(i=>parseInt(i.getAttribute('data-id'))).filter(i=>!isNaN(i)); }
+      function getSelectedIds(){ return getSelectedIdsSnapshot(); }
       // Select All behavior:
       // - Default click: select ALL items across the current filter scope (server-backed)
       // - Alt/Ctrl click: toggle only currently visible tiles
@@ -732,8 +825,15 @@ const G = (function () {
                 .then(r => r.ok ? r.json() : Promise.reject(r))
                 .then(j => {
                   const ids = (j && Array.isArray(j.ids)) ? j.ids : [];
-                  if (!ids.length) return;
-                  ids.forEach(function(id){ const chk = document.querySelector('.select-chk[data-id="' + id + '"]'); if (chk) { try { chk.checked = true; } catch(_){} } });
+                  const selected = getGlobalSelectionSet();
+                  selected.clear();
+                  ids.forEach(function(id){
+                    try {
+                      const n = parseInt(id, 10);
+                      if (Number.isFinite(n)) selected.add(n);
+                    } catch(_){}
+                  });
+                  applySelectionToLoadedCheckboxes();
                   // no toast on select-all per request
                   if (typeof updateSelectionUI === 'function') updateSelectionUI();
                 })
@@ -743,12 +843,17 @@ const G = (function () {
             // Alt/Ctrl: toggle visible selection only
             const visible = Array.from(document.querySelectorAll('#gallery .gallery-item .select-chk'));
             const allChecked = visible.length>0 && visible.every(chk=>chk && chk.checked);
-            visible.forEach(chk=>{ try { chk.checked = !allChecked; } catch(_){} });
+            visible.forEach(chk=>{
+              try {
+                chk.checked = !allChecked;
+                syncSelectionFromCheckbox(chk);
+              } catch(_){}
+            });
             if (typeof updateSelectionUI === 'function') updateSelectionUI();
           } catch(e){}
         });
       }
-  if (btnClear) btnClear.addEventListener('click', function(ev){ try { ev.preventDefault(); Array.from(document.querySelectorAll('.select-chk:checked')).forEach(c=>{ try { c.checked=false; } catch(_){} }); if (typeof updateSelectionUI === 'function') updateSelectionUI(); } catch(e){} });
+  if (btnClear) btnClear.addEventListener('click', function(ev){ try { ev.preventDefault(); const selected = getGlobalSelectionSet(); selected.clear(); Array.from(document.querySelectorAll('.select-chk:checked')).forEach(c=>{ try { c.checked=false; } catch(_){} }); if (typeof updateSelectionUI === 'function') updateSelectionUI(); } catch(e){} });
       if (btnDelete) btnDelete.addEventListener('click', function(){
         try {
           const ids = getSelectedIds();
@@ -842,6 +947,7 @@ const G = (function () {
                     // Close modal if present
                     const dlg = document.getElementById('delete-confirm'); if (dlg) dlg.style.display = 'none';
                     // Remove tiles from the DOM and clear selection
+                    const selected = getGlobalSelectionSet();
                     ids.forEach(id => {
                       try {
                         const chk = document.querySelector('.select-chk[data-id="' + id + '"]');
@@ -849,6 +955,7 @@ const G = (function () {
                           const tile = chk.closest && chk.closest('.gallery-item');
                           if (tile) tile.remove();
                         }
+                        try { selected.delete(parseInt(id, 10)); } catch(_){}
                         // Update local files array if present
                         try { const idx = files.findIndex(f => String(f.id) === String(id) || f.id === id); if (idx >= 0) files[idx].deleted = true; } catch(e){}
                       } catch(e){}
@@ -872,7 +979,11 @@ const G = (function () {
           if (btnDelete) btnDelete.disabled = n===0;
           // Restore button should only be visible when at least one selected file is deleted.
           try {
-            const anyDeleted = ids.length > 0 && ids.some(id => { const f = getFileById(id); return f && !!f.deleted; });
+            const anyDeleted = ids.length > 0 && ids.some(id => {
+              const f = getFileById(id);
+              if (f) return !!f.deleted;
+              return !!window.__showDeletedMode;
+            });
             if (btnRestore) {
               btnRestore.style.display = anyDeleted ? '' : 'none';
               btnRestore.disabled = !anyDeleted;
@@ -909,7 +1020,13 @@ const G = (function () {
           } catch(e){}
         });
         galEl.addEventListener('change', function(ev){
-          try { const t = ev.target; if (t && t.classList && t.classList.contains('select-chk')) { if (typeof updateSelectionUI === 'function') updateSelectionUI(); } } catch(e){}
+          try {
+            const t = ev.target;
+            if (t && t.classList && t.classList.contains('select-chk')) {
+              syncSelectionFromCheckbox(t);
+              if (typeof updateSelectionUI === 'function') updateSelectionUI();
+            }
+          } catch(e){}
         });
         // Also handle direct clicks on checkboxes (some environments may not reliably
         // fire/bubble change events for programmatic toggles). Delegate click so
@@ -931,12 +1048,17 @@ const G = (function () {
                 const btnRestore = document.getElementById('bb-restore');
                 const btnZip = document.getElementById('bb-zip');
                 const btnAdd = document.getElementById('bb-add-to-album');
-                const ids = Array.from(document.querySelectorAll('.select-chk:checked')).map(i=>parseInt(i.getAttribute('data-id'))).filter(i=>!isNaN(i));
+                syncSelectionFromCheckbox(t);
+                const ids = getSelectedIdsSnapshot();
                 const n = ids.length;
                 if (bulkBar && bulkCount) { try { bulkCount.textContent = n + (n===1? ' selected' : ' selected'); bulkBar.style.display = n>0? 'block' : 'none'; } catch(e){} }
                 if (btnDelete) btnDelete.disabled = n===0;
                 try {
-                  const anyDeleted = ids.length > 0 && ids.some(id => { const f = (typeof getFileById === 'function') ? getFileById(id) : null; return f && !!f.deleted; });
+                  const anyDeleted = ids.length > 0 && ids.some(id => {
+                    const f = (typeof getFileById === 'function') ? getFileById(id) : null;
+                    if (f) return !!f.deleted;
+                    return !!window.__showDeletedMode;
+                  });
                   if (btnRestore) {
                     btnRestore.style.display = anyDeleted ? '' : 'none';
                     btnRestore.disabled = !anyDeleted;
@@ -972,6 +1094,7 @@ const G = (function () {
             if (!isClickOnMedia && !ev.target.classList.contains('select-chk')){
               // toggle selection and update UI
               checkbox.checked = !checkbox.checked;
+              syncSelectionFromCheckbox(checkbox);
               if (typeof updateSelectionUI === 'function') updateSelectionUI();
               // prevent the click from also opening lightbox
               ev.preventDefault();
@@ -980,7 +1103,26 @@ const G = (function () {
         });
       }
     } catch(e){}
-  initFilters(); try { if (typeof window.initBulkBar === 'function') window.initBulkBar(); } catch (e) {}
+  initFilters(); 
+  try { 
+    const btnLoadAll = document.getElementById('load-all-thumbnails');
+    if (btnLoadAll) {
+      btnLoadAll.addEventListener('click', function(ev) {
+        try { ev.preventDefault(); loadAllThumbnails(); } catch(e){}
+      });
+    }
+  } catch (e) {}
+  try { if (typeof window.initBulkBar === 'function') window.initBulkBar(); } catch (e) {}
+  try {
+    const selected = getGlobalSelectionSet();
+    if (selected.size === 0) {
+      document.querySelectorAll('.select-chk:checked').forEach(function (chk) {
+        syncSelectionFromCheckbox(chk);
+      });
+    } else {
+      applySelectionToLoadedCheckboxes();
+    }
+  } catch (e) {}
   try { initFavoriteToggle(); } catch (e) {}
   // Slideshow is now a dedicated page at /live/{code}; legacy lightbox slideshow removed
     initInfiniteScroll(); try { if (typeof updateSelectionUI === 'function') updateSelectionUI(); } catch (e) {}
@@ -1025,13 +1167,36 @@ const G = (function () {
   try { const lbNextEl = document.getElementById('lb-next'); if (lbNextEl) lbNextEl.addEventListener('click', nextSlide); } catch (e) {}
   try { const lbPrevEl = document.getElementById('lb-prev'); if (lbPrevEl) lbPrevEl.addEventListener('click', prevSlide); } catch (e) {}
   try {
+    const lbPlayEl = document.getElementById('lb-play');
+    const lbPauseEl = document.getElementById('lb-pause');
+    if (lbPlayEl) lbPlayEl.addEventListener('click', function () {
+      try {
+        const f = (Array.isArray(files) && currentIndex >= 0 && currentIndex < files.length) ? files[currentIndex] : null;
+        const vid = document.getElementById('lightbox-video');
+        if (!f || f.type !== 'video' || !vid) return;
+        const p = vid.play && vid.play();
+        if (p && typeof p.then === 'function') {
+          p.then(function () { syncLightboxPlayState(true, true); }).catch(function () { syncLightboxPlayState(true, false); });
+        } else {
+          syncLightboxPlayState(true, !vid.paused);
+        }
+      } catch (e) {}
+    });
+    if (lbPauseEl) lbPauseEl.addEventListener('click', function () {
+      try {
+        const vid = document.getElementById('lightbox-video');
+        if (!vid) return;
+        vid.pause();
+        syncLightboxPlayState(true, false);
+      } catch (e) {}
+    });
+  } catch (e) {}
+  try {
     const newAlbumEl = document.getElementById('new-album');
     if (newAlbumEl) newAlbumEl.addEventListener('click', function (ev) {
       try {
         ev.preventDefault(); ev.stopPropagation();
-        if (typeof openCreateAlbumModal === 'function') { openCreateAlbumModal(); return; }
-        const modal = document.getElementById('create-album-modal');
-        if (modal) { modal.style.display = 'flex'; }
+        if (typeof openCreateAlbumModal === 'function') { openCreateAlbumModal(); }
       } catch(_){}
     });
   } catch (e) {}

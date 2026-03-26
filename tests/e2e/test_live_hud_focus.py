@@ -1,3 +1,4 @@
+import os
 import re
 
 import pytest
@@ -5,10 +6,16 @@ from playwright.sync_api import Page
 
 LIVE_CODE = "PLAYHUD"
 
+pytestmark = pytest.mark.skipif(
+    os.getenv("E2E_PLAYWRIGHT") != "1",
+    reason="Playwright E2E disabled",
+)
 
-@pytest.fixture(scope="session")
+
+@pytest.fixture
 def ensure_live_event(db_session):
     from app.models.event import Event
+
     e = Event(
         UserID=1,
         Name="HUD Focus Event",
@@ -20,6 +27,7 @@ def ensure_live_event(db_session):
     db_session.add(e)
     db_session.flush()
     return e
+
 
 @pytest.mark.playwright
 @pytest.mark.e2e
@@ -37,18 +45,14 @@ def test_live_hud_tab_order(page: Page, ensure_live_event):
     visited = []
     for _ in range(len(expected_order) + 5):  # safety upper bound
         page.keyboard.press("Tab")
-        active_id = page.evaluate(
-            "document.activeElement && document.activeElement.id || ''"
-        )
+        active_id = page.evaluate("document.activeElement && document.activeElement.id || ''")
         if active_id and active_id not in visited:
             visited.append(active_id)
         if len(visited) >= len(expected_order):
             break
 
     cleaned_expected = [x.lstrip("#") for x in expected_order]
-    assert visited == cleaned_expected, (
-        f"Tab order mismatch: {visited} vs {expected_order}"
-    )
+    assert visited == cleaned_expected, f"Tab order mismatch: {visited} vs {expected_order}"
 
     # Keyboard activation checks: Prev/Next should not throw; Play should toggle visibility of Pause
     page.keyboard.press("Home")  # ensure starting at first focusable element (best-effort)
@@ -58,18 +62,12 @@ def test_live_hud_tab_order(page: Page, ensure_live_event):
     page.focus("#play")
     page.keyboard.press("Space")
     # Pause button should become visible
-    pause_display = page.eval_on_selector(
-        "#pause", "el => getComputedStyle(el).display"
-    )
-    assert pause_display != "none", (
-        "Pause button should be visible after starting playback"
-    )
+    pause_display = page.eval_on_selector("#pause", "el => getComputedStyle(el).display")
+    assert pause_display != "none", "Pause button should be visible after starting playback"
 
     # Press Space again to pause
     page.keyboard.press("Space")
-    pause_display2 = page.eval_on_selector(
-        "#pause", "el => getComputedStyle(el).display"
-    )
+    pause_display2 = page.eval_on_selector("#pause", "el => getComputedStyle(el).display")
     assert pause_display2 == "none", "Pause button should hide after pausing"
 
     # Fullscreen toggle via Enter

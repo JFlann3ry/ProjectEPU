@@ -200,8 +200,7 @@ def build_user_export_zip(db: Session, user: User, storage_root: str = "storage"
 
         # Create zip
         out_name = (
-            f"user_{user.UserID}_export_"
-            f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+            f"user_{user.UserID}_export_" f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
         )
         out_name = _safe_filename(out_name) + ".zip"
         out_dir = os.path.join(storage_root, "exports", str(user.UserID))

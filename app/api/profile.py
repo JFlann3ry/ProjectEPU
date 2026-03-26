@@ -34,14 +34,6 @@ async def profile_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if not user:
         return RedirectResponse("/login", status_code=302)
-    # Get plan for badge
-    plan, features = (None, {})
-    try:
-        from app.services.billing_utils import get_active_plan
-
-        plan, features = get_active_plan(db, getattr(user, "UserID", 0))
-    except Exception:
-        plan, features = (None, {})
     # Fetch email prefs for modal defaults
     from app.models.user_prefs import UserEmailPreference
 
@@ -55,23 +47,13 @@ async def profile_page(request: Request, db: Session = Depends(get_db)):
         "product": bool(getattr(prefs_row, "ProductUpdatesOptIn", False)) if prefs_row else False,
         "reminders": bool(getattr(prefs_row, "EventRemindersOptIn", True)) if prefs_row else True,
     }
-    # Quick stats and upcoming
-    events_count = 0
-    uploads_count = 0
     recent_events = []
     next_event = None
     try:
-        from app.models.event import Event, FileMetadata as FM  # noqa: I001 - local import
+        from app.models.event import Event  # noqa: I001 - local import
         from datetime import datetime, timezone
 
         uid = int(getattr(user, "UserID", 0) or 0)
-        events_count = db.query(Event).filter(Event.UserID == uid).count()
-        uploads_count = (
-            db.query(FM)
-            .join(Event, FM.EventID == Event.EventID)
-            .filter(Event.UserID == uid)
-            .count()
-        )
         # Only show past events (with a Date set and strictly before now)
         now = datetime.now(timezone.utc)
         recent_events = (
@@ -111,8 +93,6 @@ async def profile_page(request: Request, db: Session = Depends(get_db)):
                 "published": bool(getattr(nxt, "Published", False)),
             }
     except Exception:
-        events_count = 0
-        uploads_count = 0
         recent_events = []
         next_event = None
 
@@ -122,10 +102,6 @@ async def profile_page(request: Request, db: Session = Depends(get_db)):
         "profile.html",
         context={
             "user": user,
-            "plan": plan,
-            "features": features,
-            "events_count": events_count,
-            "uploads_count": uploads_count,
             "recent_events": recent_events,
             "csrf_token": token,
             "email_prefs": email_prefs,

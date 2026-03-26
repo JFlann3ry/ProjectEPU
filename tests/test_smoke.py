@@ -20,6 +20,17 @@ def test_root_redirects_when_logged_out():
     assert r.status_code in (200, 302, 303, 307)
 
 
+def test_home_page_uses_homepage_layout_classes():
+    r = client.get("/")
+    assert r.status_code == 200
+    text = r.text
+    assert "home-hero-card" in text
+    assert "home-eyebrow" in text
+    assert "home-benefit-card" in text
+    assert "home-split-card" in text
+    assert "home.css" in text
+
+
 def test_basic_pages_render():
     for path in ("/login", "/signup", "/verify", "/terms", "/billing"):
         r = client.get(path)

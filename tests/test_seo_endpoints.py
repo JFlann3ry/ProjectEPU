@@ -1,10 +1,10 @@
-
-
 def test_robots_txt(client):
     r = client.get("/robots.txt")
     assert r.status_code == 200
     assert "User-agent" in r.text
     assert "Sitemap:" in r.text
+    assert "Disallow: /gallery" in r.text
+    assert "Disallow: /events" in r.text
 
 
 def test_sitemap_xml(client):
@@ -12,6 +12,8 @@ def test_sitemap_xml(client):
     assert r.status_code == 200
     assert r.text.startswith("<?xml")
     assert "<urlset" in r.text
+    assert "/pricing</loc>" in r.text
+    assert "/gallery</loc>" not in r.text
 
 
 def test_share_page_not_found(client):

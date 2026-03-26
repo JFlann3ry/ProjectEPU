@@ -15,24 +15,24 @@ from sqlalchemy.orm import sessionmaker
 from app.models.user import User
 
 # Load .env
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-DB_SERVER = os.getenv('DB_SERVER')
-DB_NAME = os.getenv('DB_NAME')
-DB_USER = os.getenv('DB_USER')
-DB_PASSWORD = os.getenv('DB_PASSWORD')
-DB_DRIVER = os.getenv('DB_DRIVER')
+DB_SERVER = os.getenv("DB_SERVER")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_DRIVER = os.getenv("DB_DRIVER")
 # Load .env
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-DB_SERVER = os.getenv('DB_SERVER')
-DB_NAME = os.getenv('DB_NAME')
-DB_USER = os.getenv('DB_USER')
-DB_PASSWORD = os.getenv('DB_PASSWORD')
-DB_DRIVER = os.getenv('DB_DRIVER')
+DB_SERVER = os.getenv("DB_SERVER")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_DRIVER = os.getenv("DB_DRIVER")
 
 # normalize driver string and keep the line length reasonable for linters
-driver = DB_DRIVER.replace(' ', '+') if DB_DRIVER else ''
+driver = DB_DRIVER.replace(" ", "+") if DB_DRIVER else ""
 DATABASE_URL = f"mssql+pyodbc://{DB_USER}:{DB_PASSWORD}@{DB_SERVER}/{DB_NAME}?driver={driver}"
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
@@ -47,9 +47,9 @@ def create_user(email, password, plan):
         HashedPassword=bcrypt.hash(password),
         IsActive=True,
         EmailVerified=True,
-    DateCreated=datetime.now(timezone.utc),
+        DateCreated=datetime.now(timezone.utc),
         plan=plan,
-    plan_purchase_date=datetime.now(timezone.utc) if plan != "free" else None,
+        plan_purchase_date=datetime.now(timezone.utc) if plan != "free" else None,
     )
     session.add(user)
     session.commit()
@@ -67,4 +67,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error creating users: {e}")
         import traceback
+
         traceback.print_exc()

@@ -30,6 +30,15 @@
       const data = await res.json();
       const sessionId = data && data.id;
       if (!sessionId) throw new Error('No session id');
+      try {
+        document.dispatchEvent(
+          new CustomEvent('epu:checkout-start', {
+            detail: { source: 'billing_purchase', purchase_id: purchaseId },
+          })
+        );
+      } catch (_error) {
+        // Best effort analytics hook.
+      }
       await go(sessionId);
     } catch (e) {
       console.error('Unable to start checkout', e);
@@ -63,4 +72,19 @@
   }
 
   document.addEventListener('click', onClick);
+
+  // If this page represents a successful purchase state, emit a one-time success signal.
+  try {
+    if (document.querySelector('.status-paid')) {
+      const btn = document.querySelector('[data-purchase-id]');
+      const purchaseId = btn ? btn.getAttribute('data-purchase-id') : '';
+      document.dispatchEvent(
+        new CustomEvent('epu:checkout-success', {
+          detail: { source: 'billing_purchase', purchase_id: purchaseId || '' },
+        })
+      );
+    }
+  } catch (_error) {
+    // Best effort analytics hook.
+  }
 })();

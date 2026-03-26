@@ -46,6 +46,7 @@ async def edit_profile_page(
     token = issue_csrf_token(request.cookies.get("session_id"))
     # Email preferences for inline controls
     from app.models.user_prefs import UserEmailPreference  # noqa: I001 - local import
+
     prefs_row = (
         db.query(UserEmailPreference)
         .filter(UserEmailPreference.UserID == getattr(user, "UserID", None))
@@ -163,7 +164,6 @@ async def edit_profile_submit(
         return RedirectResponse("/profile/edit?message=email_change_pending", status_code=303)
     db.commit()
     return RedirectResponse("/profile/edit?message=saved", status_code=303)
-
 
 
 @router.get("/profile/email/confirm", name="email_change_confirm", response_class=HTMLResponse)
@@ -371,11 +371,7 @@ async def password_confirm(request: Request, token: str = "", db: Session = Depe
         )
     email, new_password = payload.split("|", 1)
     # Locate user by email
-    u = (
-        db.query(User)
-        .filter(User.Email == email, User.IsActive, ~User.MarkedForDeletion)
-        .first()
-    )
+    u = db.query(User).filter(User.Email == email, User.IsActive, ~User.MarkedForDeletion).first()
     if not u:
         return templates.TemplateResponse(
             request, "password_change_done.html", context={"ok": False}

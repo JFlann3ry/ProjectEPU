@@ -2,6 +2,18 @@
 
 {% block title %}Contact Support - EPU{% endblock %}
 
+{% block extra_head %}
+{{ super() }}
+<meta name="description" content="Contact EPU support for help with billing, uploads, events, privacy, and technical issues.">
+<meta property="og:title" content="Contact Support - EPU">
+<meta property="og:description" content="Need help? Contact EPU support and we'll respond as quickly as possible.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ canonical_url or (request.base_url|string).rstrip('/') }}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Contact Support - EPU">
+<meta name="twitter:description" content="Get help with your account, billing, uploads, and events.">
+{% endblock %}
+
 {% block content %}
 <div class="container section center">
   {% from 'components/macros.html' import page_hero, notice %}
@@ -106,111 +118,9 @@
   </form>
   </div>
 </div>
-{% block extra_js %}
-<script>
-  (function(){
-    var sel = document.getElementById('contact_topic');
-    var extra = document.getElementById('billing-extra');
-    var subjWrap = document.getElementById('subject-other');
-    var msg = document.getElementById('contact_message');
-    var examples = {
-      'Account': 'Log in issues, email changes, profile…',
-      'Abuse/report': 'Link to the event/file and what’s wrong…',
-      'Billing': 'Refund, invoice, VAT, or charge questions…',
-      'Data/privacy': 'Data export/deletion, privacy questions…',
-      'Event help': 'Share your event code and what you need…',
-      'Feature request': 'What feature would help you most?…',
-      'Technical issue': 'Describe the issue and steps to reproduce…',
-      'Other': 'Tell us how we can help…'
-    };
-    function sync(){
-      if (!sel) return;
-      var v = sel.value || '';
-      if (extra) extra.style.display = (v === 'Billing') ? 'block' : 'none';
-      if (subjWrap) subjWrap.style.display = (v === 'Other') ? 'block' : 'none';
-      if (msg) msg.placeholder = examples[v] || examples['Other'];
-    }
-    if (sel){ sel.addEventListener('change', sync); }
-    // Counters
-    function bindCounter(input, counterEl, max){
-      if (!input || !counterEl) return;
-      function update(){ var len = (input.value||'').length; counterEl.textContent = len + '/' + max; }
-      input.addEventListener('input', update); update();
-    }
-    bindCounter(document.getElementById('contact_name'), document.getElementById('name-counter'), 80);
-    bindCounter(document.getElementById('contact_email'), document.getElementById('email-counter'), 254);
-    bindCounter(document.getElementById('contact_subject'), document.getElementById('subject-counter'), 120);
-    bindCounter(document.getElementById('contact_message'), document.getElementById('message-counter'), 2000);
-    // Initial sync after potential server-side prefill
-    sync();
-
-    // Delayed auto-insert of Request ID and page into the message
-    try {
-      var meta = document.getElementById('contact-meta');
-      var rqid = meta ? (meta.dataset.requestId || null) : null;
-      var rqurl = meta ? (meta.dataset.requestUrl || null) : null;
-      if (msg && rqid) {
-        setTimeout(function(){
-          var text = msg.value || '';
-          var hasId = /Request ID\s*:/i.test(text);
-          var hasPage = /Page\s*:/i.test(text);
-          var parts = [];
-          if (!hasId) parts.push('Request ID: ' + rqid);
-          if (rqurl && !hasPage) parts.push('Page: ' + rqurl);
-          if (parts.length) {
-            msg.value = parts.join('\n') + (text ? ('\n\n' + text) : '');
-            // Move cursor to end for convenience
-            try { msg.selectionStart = msg.selectionEnd = msg.value.length; } catch(e){}
-            // Update counter
-            var msgCounter = document.getElementById('message-counter');
-            if (msgCounter) msgCounter.textContent = (msg.value.length) + '/2000';
-          }
-          // Toggle clear button visibility based on presence of error details
-          if (clearBtn) { clearBtn.hidden = !detectInserted(msg.value); }
-        }, 800); // slight delay so user can start typing if they want
-      }
-    } catch (e) { /* no-op */ }
-
-    // Clear inserted details control
-    var clearBtn = document.getElementById('clear-inserted');
-    function detectInserted(text){
-      var str = text || '';
-      var lines = str.split(/\r?\n/);
-      var i = 0;
-      var hasId = !!(lines[i] && /^\s*Request ID\s*:/i.test(lines[i]));
-      if (hasId) i++;
-      var hasPage = !!(lines[i] && /^\s*Page\s*:/i.test(lines[i]));
-      return hasId || hasPage;
-    }
-    function clearInserted(){
-      if (!msg) return;
-      var text = msg.value || '';
-      // Remove leading Request ID/Page lines if present, preserving user content
-      var lines = text.split(/\r?\n/);
-      // Remove up to first two lines if they match patterns
-      var start = 0;
-      if (lines[start] && /^\s*Request ID\s*:/i.test(lines[start])) start++;
-      if (lines[start] && /^\s*Page\s*:/i.test(lines[start])) start++;
-      // Also remove a single empty line after those, if present
-      if (lines[start] === '') start++;
-      var rest = lines.slice(start).join('\n');
-      msg.value = rest;
-      try { msg.selectionStart = msg.selectionEnd = msg.value.length; } catch(e){}
-      var msgCounter = document.getElementById('message-counter');
-      if (msgCounter) msgCounter.textContent = (msg.value.length) + '/2000';
-      // Hide then remove the button after clearing
-      if (clearBtn) { clearBtn.hidden = true; setTimeout(function(){ if (clearBtn && clearBtn.parentNode) { try { clearBtn.remove(); } catch(e) { clearBtn.style.display = 'none'; } } }, 0); }
-    }
-    if (clearBtn){ clearBtn.addEventListener('click', clearInserted); }
-
-    // Keep button visibility in sync if user edits the message
-    if (msg && clearBtn){
-      clearBtn.hidden = !detectInserted(msg.value);
-      msg.addEventListener('input', function(){ clearBtn.hidden = !detectInserted(msg.value); });
-    }
-
-    // copy buttons removed by request
-  })();
-</script>
 {% endblock %}
+
+{% block extra_js %}
+  {{ super() }}
+  <script src="{{ url_for('static', path='js/pages/contact.js') }}?v={{ now() if now else '' }}"></script>
 {% endblock %}

@@ -2,6 +2,18 @@
 
 {% block title %}About Us - EPU{% endblock %}
 
+{% block extra_head %}
+{{ super() }}
+<meta name="description" content="Learn about EPU's mission to make event photo and video collection simple, private, and reliable.">
+<meta property="og:title" content="About Us - EPU">
+<meta property="og:description" content="A simple, private way to collect photos and videos from your guests.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ canonical_url or (request.base_url|string).rstrip('/') }}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="About Us - EPU">
+<meta name="twitter:description" content="Learn about EPU's mission to make event media collection easy and private.">
+{% endblock %}
+
 {% block content %}
 <div class="container section center">
   {% from 'components/macros.html' import page_hero %}

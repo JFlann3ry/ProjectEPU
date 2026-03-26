@@ -1,5 +1,7 @@
 # Website Backlog — ProjectEPU
 
+See also: `WEBSITE_REVIEW_2026-03-23.md` for the full-site audit backlog and execution order.
+
 This is a living checklist of improvements and follow‑ups for the current website. Items are grouped and prioritized. Use checkboxes to track progress; keep diffs small and align with PERMANENT_INSTRUCTIONS.
 
 Legend: [P0] critical, [P1] important, [P2] nice‑to‑have

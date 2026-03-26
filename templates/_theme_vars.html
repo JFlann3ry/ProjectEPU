@@ -11,6 +11,11 @@
   --card-text: {{ tv.text or '#e9eef6' }};
   --btn1: {{ tv.btn1 or '#4f8cff' }};
   --btn2: {{ tv.btn2 or '#8338EC' }};
+  {% set _b1 = tv.btn1 or '#4f8cff' %}
+  {% set _b2 = tv.btn2 or '#8338EC' %}
+  {% set _gsty = tv.gsty or 'linear' %}
+  {% set _gdir = tv.gdir or '90deg' %}
+  --btn-gradient: {% if _gsty == 'radial' %}radial-gradient(circle at center, {{ _b1 }} 0%, {{ _b2 }} 100%){% else %}linear-gradient({{ _gdir }}, {{ _b1 }} 0%, {{ _b2 }} 100%){% endif %};
   --accent: {{ tv.accent or 'rgba(255,255,255,0.22)' }};
   --font: {{ tv.font or 'Inter, Arial, sans-serif' }};
   --input-bg: {{ tv.input_bg or '#15161e' }};

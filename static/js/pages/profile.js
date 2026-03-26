@@ -76,14 +76,20 @@
   if (logoutBtn){
     logoutBtn.addEventListener('click', function(){
       const body = '<p class="muted">Are you sure you want to log out?</p>';
-      window.EPU && window.EPU.modal && window.EPU.modal.show({
-        title: 'Log out',
-        body,
-        actions: [
-          { label: 'Cancel', role: 'cancel' },
-          { label: 'Log out', danger: true, onClick: function(){ window.location.href = '/logout'; } }
-        ]
-      });
+      if (window.EPU && window.EPU.modal) {
+        window.EPU.modal.show({
+          title: 'Log out',
+          body,
+          actions: [
+            { label: 'Cancel', role: 'cancel' },
+            { label: 'Log out', danger: true, onClick: function(){ window.location.href = '/logout'; } }
+          ]
+        });
+        return;
+      }
+      if (window.confirm('Are you sure you want to log out?')) {
+        window.location.href = '/logout';
+      }
     });
   }
 

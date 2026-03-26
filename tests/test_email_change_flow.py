@@ -17,6 +17,7 @@ def test_email_change_confirm_and_reverse(client, db_session):
 
     # Create a token for new email
     from app.services.auth import generate_email_token
+
     # If using sqlite in tests, ensure all tables are created in this in-memory DB
     try:
         from app.models.user import Base as UserBase

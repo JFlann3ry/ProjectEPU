@@ -2,89 +2,40 @@
 {% extends "base.html" %}
 {% from "components/macros.html" import page_hero %}
 
-{% block title %}Pricing — Simple packages{% endblock %}
+{% block title %}Pricing - Simple Packages{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<meta name="description" content="Simple event gallery pricing: start free, then choose Basic or Ultimate when you need longer upload windows and advanced customization.">
+<meta property="og:title" content="Pricing - Simple Packages">
+<meta property="og:description" content="Start free, upgrade when you need more. Clear packages for guest uploads, galleries, and event sharing.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ canonical_url or (request.base_url|string).rstrip('/') }}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Pricing - Simple Packages">
+<meta name="twitter:description" content="Simple event gallery pricing: start free, upgrade when you need more.">
+<link rel="stylesheet" href="{{ url_for('static', path='pricing.css') }}?v={{ now() if now else '' }}">
+{% endblock %}
 
 {% block content %}
-<div class="container center section">
-    {{ page_hero('Pricing', 'Simple, honest packages. Start free, upgrade when you need more.', True) }}
+<div class="container center section pricing-shell">
+    {{ page_hero('Pricing', 'Simple, clear packages. Start free and upgrade only when you need more.', True) }}
     <script id="pricing-config" type="application/json">{"stripe_pk":"{{ STRIPE_PUBLISHABLE_KEY }}"}</script>
-    <section class="section" style="max-width: 900px; margin: 0 auto;">
-        <div class="card whats-included-card" style="border-radius:14px; border:1px solid var(--color-border); margin-bottom:32px;">
-            <h3 style="margin-top:0; font-size:1.3rem; text-align:center; letter-spacing:-0.5px;">What’s included in every paid package</h3>
-            <ul style="margin:0; padding:18px 0 18px 24px; color: var(--color-text-muted); display:grid; grid-template-columns:1fr 1fr; gap:8px 24px; font-size:1.05em;">
-                <li><span class="icon-check" style="color:#3ecf8e; margin-right:6px;">✓</span>Unlimited Guests</li>
-                <li><span class="icon-check" style="color:#3ecf8e; margin-right:6px;">✓</span>Unlimited Video and Photo uploads</li>
-                <li><span class="icon-check" style="color:#3ecf8e; margin-right:6px;">✓</span>Free Guestbook</li>
-                <li><span class="icon-check" style="color:#3ecf8e; margin-right:6px;">✓</span>Customiseable QR Code</li>
-                <li><span class="icon-check" style="color:#3ecf8e; margin-right:6px;">✓</span>Customiseable Guest Upload page</li>
-                <li><span class="icon-check" style="color:#3ecf8e; margin-right:6px;">✓</span>Content 100% owned by you</li>
-                <li><span class="icon-check" style="color:#3ecf8e; margin-right:6px;">✓</span>7 Day Support</li>
-                <li><span class="icon-check" style="color:#3ecf8e; margin-right:6px;">✓</span>14 Day Money back guarantee</li>
+    <section class="section pricing-section">
+        <div class="card whats-included-card">
+            <h3 class="whats-included-title">Every paid package includes</h3>
+            <ul class="whats-included-list">
+                <li><span class="icon-check">✓</span>Unlimited guests</li>
+                <li><span class="icon-check">✓</span>Unlimited photo and video uploads</li>
+                <li><span class="icon-check">✓</span>Free guestbook</li>
+                <li><span class="icon-check">✓</span>Customizable QR code</li>
+                <li><span class="icon-check">✓</span>Customizable guest upload page</li>
+                <li><span class="icon-check">✓</span>Your content remains 100% yours</li>
+                <li><span class="icon-check">✓</span>7-day support</li>
+                <li><span class="icon-check">✓</span>14-day money-back guarantee</li>
             </ul>
         </div>
-        <style>
-        .pricing-cards .plan-card {
-            background: var(--color-surface);
-            border-radius: var(--radius);
-            border: 1px solid var(--color-border);
-            box-shadow: var(--shadow);
-            padding: 44px 32px 38px 32px;
-            min-height: 390px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            position: relative;
-            transition: box-shadow 0.18s, transform 0.18s;
-        }
-        .pricing-cards .plan-card:hover {
-            box-shadow: 0 8px 32px 0 rgba(0,0,0,0.18);
-            transform: translateY(-2px) scale(1.012);
-        }
-        .pricing-cards .plan-title {
-            margin: 0 0 18px 0;
-            font-size: 1.32em;
-            font-weight: 800;
-            color: var(--color-text);
-            letter-spacing: -0.5px;
-            text-align: center;
-        }
-        .pricing-cards .plan-price {
-            font-size: 2.5em;
-            font-weight: 900;
-            margin-bottom: 22px;
-            color: var(--color-text);
-            text-align: center;
-        }
-        .pricing-cards .ultimate-card .plan-title,
-        .pricing-cards .ultimate-card .plan-price { color: #F25F4C; }
-        .pricing-cards .plan-features {
-            margin: 0 0 32px 0;
-            padding-left: 0;
-            color: var(--color-text-muted);
-            display: grid;
-            gap: 12px;
-            list-style: none;
-            font-size: 1.12em;
-            text-align: center;
-        }
-        .best-value-badge {
-            position: absolute;
-            top: -22px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #F25F4C;
-            color: #fff;
-            font-weight: 700;
-            font-size: 1em;
-            padding: 6px 22px;
-            border-radius: 16px;
-            box-shadow: 0 2px 8px 0 rgba(242,95,76,0.13);
-            letter-spacing: 0.5px;
-            z-index: 2;
-            white-space: nowrap;
-        }
-        </style>
-        <div class="grid pricing-cards" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:36px; align-items:stretch; max-width:1100px; margin:0 auto;">
+        <div class="grid pricing-cards">
             <!-- Free Package -->
             <div class="card plan-card free-card">
                 <div class="plan-title">Free</div>
@@ -93,7 +44,7 @@
                     <li>Create an account</li>
                     <li>Preview an example event</li>
                 </ul>
-                <div style="margin-top:auto; width:100%;">
+                <div class="plan-cta-wrap">
                     {%- if user -%}
                         {# Logged-in users already have an account; don't show sign-up #}
                         <a class="btn block" href="/profile">Go to Profile</a>
@@ -108,19 +59,19 @@
                 <div class="plan-price">£25</div>
                 <ul class="plan-features">
                     <li>Gallery showing all guest uploads</li>
-                    <li>2 Month Upload time from date of event</li>
-                    <li>12 Month Download time from date of event</li>
-                    <li>Choose from preset themes for guest upload page</li>
+                    <li>2-month upload window from your event date</li>
+                    <li>12-month download window from your event date</li>
+                    <li>Choose from preset themes for your guest upload page</li>
                 </ul>
-                <div style="margin-top:auto; width:100%;">
+                <div class="plan-cta-wrap">
                     {% if user %}
                         {% if user_plan_code == 'single' %}
                             <a class="btn block" href="/billing/summary">Your plan</a>
                         {% else %}
-                            <button class="btn primary block js-plan-continue" data-plan="single">Purchase</button>
+                            <button class="btn primary block js-plan-continue" data-plan="single">Buy Basic</button>
                         {% endif %}
                     {% else %}
-                        <a class="btn primary block" href="/signup">Sign up to purchase</a>
+                        <a class="btn primary block" href="/signup">Create account to buy</a>
                     {% endif %}
                 </div>
             </div>
@@ -131,11 +82,11 @@
                 <div class="plan-price">£40</div>
                 <ul class="plan-features">
                     <li>Everything in Basic, plus…</li>
-                    <li><b>12 Month Upload and Download from date of event</b></li>
-                    <li>Customise Guest Upload page to match your event theme</li>
-                    <li>Remove website logo from generated QR codes (Ultimate only)</li>
+                    <li><b>12-month upload and download window from your event date</b></li>
+                    <li>Customize the guest upload page to match your event theme</li>
+                    <li>Remove the EPU logo from generated QR codes</li>
                 </ul>
-                <div style="margin-top:auto; width:100%;">
+                <div class="plan-cta-wrap">
                     {% if user %}
                         {% if user_plan_code == 'ultimate' %}
                             <a class="btn block" href="/billing/summary">Your plan</a>
@@ -143,11 +94,11 @@
                             {% if ultimate_upgrade_diff_cents %}
                                 <button class="btn primary block js-plan-continue" data-plan="ultimate">Upgrade for £{{ '%.2f'|format(ultimate_upgrade_diff_cents/100) }}</button>
                             {% else %}
-                                <button class="btn primary block js-plan-continue" data-plan="ultimate">Purchase</button>
+                                <button class="btn primary block js-plan-continue" data-plan="ultimate">Buy Ultimate</button>
                             {% endif %}
                         {% endif %}
                     {% else %}
-                        <a class="btn primary block" href="/signup">Sign up to purchase</a>
+                        <a class="btn primary block" href="/signup">Create account to buy</a>
                     {% endif %}
                 </div>
             </div>

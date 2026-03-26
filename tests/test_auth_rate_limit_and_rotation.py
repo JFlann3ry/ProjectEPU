@@ -14,8 +14,17 @@ def test_login_rate_limiting(monkeypatch):
 
     monkeypatch.setattr(auth_service, "authenticate_user", fake_auth)
 
-    # Hit the endpoint RATE_LIMIT_LOGIN_ATTEMPTS times quickly
+    # Make limiter deterministic in tests (avoids DB counter backend variance).
     attempts = int(getattr(auth_service.settings, "RATE_LIMIT_LOGIN_ATTEMPTS", 5))
+    calls = {"n": 0}
+
+    def fake_allow(_db, _key, limit, _window):
+        calls["n"] += 1
+        return calls["n"] <= int(limit)
+
+    monkeypatch.setattr("app.api.auth.rl_allow", fake_allow)
+
+    # Hit the endpoint RATE_LIMIT_LOGIN_ATTEMPTS times quickly
     for _ in range(attempts):
         r = client.post("/auth/login", data={"email": "no@user", "password": "x"})
         assert r.status_code in (200, 302, 303)
@@ -61,11 +70,79 @@ def test_session_rotation_on_login(monkeypatch):
             cookies["session_id"] = part.strip().split("=", 1)[1]
     if "session_id" in cookies:
         client.cookies.set("session_id", cookies["session_id"])
-    r2 = client.post(
-        "/auth/login", data={"email": "user@example.com", "password": "ok"}
-    )
+    r2 = client.post("/auth/login", data={"email": "user@example.com", "password": "ok"})
     assert r2.status_code in (200, 302, 303)
     sc2 = r2.headers.get("set-cookie", "")
     assert "session_id=" in sc2
     # Should be a different session id suffix according to fake IDs
     assert "2222" in sc2 or sc2 != sc
+
+
+def test_get_session_skips_last_seen_commit_when_recent(db_session, monkeypatch):
+    from datetime import datetime, timezone
+
+    from app.models.user import User
+    from app.services.auth import create_session, get_session
+
+    user = User(
+        FirstName="Recent",
+        LastName="Session",
+        Email="recent-session@example.com",
+        HashedPassword="x",
+        IsActive=True,
+        EmailVerified=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    session = create_session(db_session, user_id=int(getattr(user, "UserID")))
+    commit_calls = {"count": 0}
+    original_commit = db_session.commit
+
+    def counting_commit():
+        commit_calls["count"] += 1
+        return original_commit()
+
+    monkeypatch.setattr(db_session, "commit", counting_commit)
+    fetched = get_session(db_session, str(session.SessionID))
+    assert fetched is not None
+    assert commit_calls["count"] == 0
+    assert getattr(fetched, "LastSeen") <= datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def test_get_session_refreshes_last_seen_when_stale(db_session, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    from app.models.user import User
+    from app.services.auth import create_session, get_session
+
+    user = User(
+        FirstName="Stale",
+        LastName="Session",
+        Email="stale-session@example.com",
+        HashedPassword="x",
+        IsActive=True,
+        EmailVerified=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    session = create_session(db_session, user_id=int(getattr(user, "UserID")))
+    stale_ts = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=10)
+    setattr(session, "LastSeen", stale_ts)
+    db_session.commit()
+
+    commit_calls = {"count": 0}
+    original_commit = db_session.commit
+
+    def counting_commit():
+        commit_calls["count"] += 1
+        return original_commit()
+
+    monkeypatch.setattr(db_session, "commit", counting_commit)
+    fetched = get_session(db_session, str(session.SessionID))
+    assert fetched is not None
+    assert commit_calls["count"] == 1
+    assert getattr(fetched, "LastSeen") > stale_ts

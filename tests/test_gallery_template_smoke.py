@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from app.services.auth import create_session
 
 
@@ -47,7 +49,7 @@ def test_gallery_renders_default(db_session, client):
     # Key containers and assets
     assert 'id="gallery"' in html and 'role="list"' in html
     assert '<meta name="csrf-token"' in html
-    assert 'js/pages/gallery.js' in html  # client controller present
+    assert "js/pages/gallery.js" in html  # client controller present
 
 
 def test_gallery_renders_with_deleted_mode(db_session, client):
@@ -61,6 +63,31 @@ def test_gallery_renders_with_deleted_mode(db_session, client):
     # JSON bootstrap should include show_deleted flag
     assert 'id="gallery-data"' in html
     assert '"show_deleted": 1' in html or '"show_deleted":1' in html
+
+
+def test_gallery_deleted_mode_shows_countdown_group_for_naive_deletedat(db_session, client):
+    from app.models.event import FileMetadata
+
+    user = _login(db_session, client, email="gallery-countdown@example.test")
+    ev = _mk_event(db_session, user, name="CountdownEvent")
+    db_session.add(
+        FileMetadata(
+            EventID=ev.EventID,
+            FileName="countdown.jpg",
+            FileType="image/jpeg",
+            FileSize=111,
+            Deleted=True,
+            DeletedAt=datetime.now(timezone.utc).replace(tzinfo=None),
+        )
+    )
+    db_session.commit()
+
+    r = client.get("/gallery", params={"show_deleted": 1})
+    if r.status_code in (302, 303):
+        r = client.get(r.headers.get("location"))
+    assert r.status_code == 200
+    html = r.text
+    assert "30 days left" in html
 
 
 def test_event_gallery_route_minimal_context_renders(db_session, client):

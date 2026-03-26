@@ -52,8 +52,8 @@ def parse_plan_features(raw: Any) -> PlanFeatures:
         "max_guests_per_event",
         "max_zip_download_items",
         "max_storage_per_event_mb",
-    "upload_months",
-    "download_months",
+        "upload_months",
+        "download_months",
     ):
         try:
             v = int(features.get(k)) if features.get(k) is not None else DEFAULTS[k]  # type: ignore[index]

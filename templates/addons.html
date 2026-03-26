@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container">
   {% from 'components/macros.html' import page_hero, notice %}
-  {{ page_hero('Extras', 'Enhance your event with live gallery links, extra events, QR cards, and more.') }}
+  {{ page_hero('Extras', 'Enhance your event with extra events, QR cards, and more.') }}
   {{ notice('Heads up: this page moved to <a href="/extras">/extras</a>. You can update any bookmarks.', attrs='class="small" role="status" style="margin-top:10px;"') }}
 
   {% set qs = request.query_params %}
@@ -32,8 +32,8 @@
           {% endif %}
         </div>
         <div style="margin-top:12px;">
-          {% if request.cookies.get('session_id') %}
-          <button class="btn primary" data-code="{{ a.code }}" data-allowqty="{{ '1' if a.allow_qty else '0' }}" onclick="buyAddon(this)">Buy</button>
+          {% if request.state and request.state.user_id %}
+          <button class="btn primary js-buy-extra" data-code="{{ a.code }}" data-allowqty="{{ '1' if a.allow_qty else '0' }}">Buy</button>
           {% else %}
           <a class="btn primary" href="/signup">Sign up to purchase</a>
           {% endif %}
@@ -42,20 +42,9 @@
       {% endfor %}
         {% if not addons or addons|length == 0 %}
         <article class="card" style="display:flex; flex-direction:column; align-items:stretch;">
-          <div style="display:flex; align-items:center; justify-content:center; padding:10px 10px 0;">
-            <img src="/static/images/examples/corporate1.svg" alt="Live Gallery Link (Sample)" style="width:100%; max-width: 160px; height: auto; object-fit: contain; display:block;" loading="lazy">
-          </div>
-          <div style="padding: 10px 12px;">
-            <h3 style="margin:0 0 6px; text-align:center;">Live Gallery Link</h3>
-            <p class="muted" style="margin: 0 0 10px; text-align:center;">Display uploads in real-time on a shareable gallery page.</p>
-          </div>
-          <div style="margin-top:auto; padding: 10px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
-            <div class="p-bold" style="font-size:18px;">£10.00</div>
-              {% if request.cookies.get('session_id') %}
-              <a class="btn" href="/gallery" role="button">Open Live Gallery</a>
-              {% else %}
-              <button class="btn" disabled title="Sample card">Add to event</button>
-              {% endif %}
+          <div style="padding: 12px;">
+            <h3 style="margin:0 0 6px; text-align:center;">No extras available</h3>
+            <p class="muted" style="margin: 0 0 10px; text-align:center;">Please check back later for optional extras.</p>
           </div>
         </article>
         {% endif %}
@@ -71,29 +60,11 @@
   {% endcall %}
   </section>
 </div>
+<script id="extras-config" type="application/json">{"stripe_pk":"{{ STRIPE_PUBLISHABLE_KEY }}","event_code":"{{ request.query_params.get('event_code') or '' }}"}</script>
+{% endblock %}
 
-<script src="https://js.stripe.com/v3/"></script>
-<script>
-const stripe = Stripe("{{ STRIPE_PUBLISHABLE_KEY }}");
-function getQueryParam(name){
-  const url = new URL(window.location.href);
-  return url.searchParams.get(name);
-}
-async function buyAddon(btn){
-  const code = btn.dataset.code;
-  const allowQty = btn.dataset.allowqty === '1';
-  const qtyEl = allowQty ? document.getElementById(`qty-${code}`) : null;
-  const quantity = qtyEl ? Math.max(parseInt(qtyEl.value||'1',10)||1, 1) : 1;
-  const event_code = getQueryParam('event_code');
-  try {
-  const res = await fetch('/extras/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, quantity, event_code }) });
-    if (res.status === 401 || res.status === 403) { window.location = '/login'; return; }
-    const data = await res.json();
-    if (!data.id) throw new Error('Invalid response');
-    stripe.redirectToCheckout({ sessionId: data.id });
-  } catch (e) {
-    alert('Unable to start checkout. Please try again.');
-  }
-}
-</script>
+{% block extra_js %}
+  {{ super() }}
+  <script src="https://js.stripe.com/v3/"></script>
+  <script src="{{ url_for('static', path='js/pages/extras.js') }}?v={{ now() if now else '' }}"></script>
 {% endblock %}

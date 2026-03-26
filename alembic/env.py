@@ -25,6 +25,7 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 from app.models.user import Base as UserBase  # noqa
 from app.models.event import Base as EventBase  # noqa
+
 # Extras models are part of the shared Base
 
 # If these Bases are distinct, choose one and reflect metadata; here they share same Base
@@ -46,8 +47,7 @@ try:
         hostpart = f"{server}:{port}"
     driver_q = driver.replace(" ", "+")
     sqlalchemy_url = (
-        f"mssql+pyodbc://{username}:{password}@{hostpart}/{database}?driver="
-        f"{driver_q}"
+        f"mssql+pyodbc://{username}:{password}@{hostpart}/{database}?driver=" f"{driver_q}"
     )
     config.set_main_option("sqlalchemy.url", sqlalchemy_url)
 except Exception:

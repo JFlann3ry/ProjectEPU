@@ -3,12 +3,12 @@ from collections import deque
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
-cfg = Config('alembic.ini')
+cfg = Config("alembic.ini")
 script = ScriptDirectory.from_config(cfg)
 
 # build parent mapping: revision -> list of parents
 parents = {}
-for rev in script.walk_revisions(base='base', head='heads'):
+for rev in script.walk_revisions(base="base", head="heads"):
     dr = rev.down_revision
     if dr is None:
         parents[rev.revision] = []
@@ -34,15 +34,16 @@ def is_ancestor(x, y):
                 q.append(p)
     return False
 
+
 # find merges with tuple down_revision
-print('Detecting overlapping merge down_revision tuples...\n')
-for rev in script.walk_revisions(base='base', head='heads'):
+print("Detecting overlapping merge down_revision tuples...\n")
+for rev in script.walk_revisions(base="base", head="heads"):
     dr = rev.down_revision
     if isinstance(dr, tuple):
         drs = list(dr)
         # check pairwise
         for i in range(len(drs)):
-            for j in range(i+1, len(drs)):
+            for j in range(i + 1, len(drs)):
                 a = drs[i]
                 b = drs[j]
                 if a is None or b is None:
@@ -58,4 +59,4 @@ for rev in script.walk_revisions(base='base', head='heads'):
                         "-> recommend down_revision = '" + a + "'"
                     )
 
-print('\nDone')
+print("\nDone")

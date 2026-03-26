@@ -46,89 +46,9 @@
             <button type="submit" class="btn primary" style="display:block; margin:16px auto 0;">Create Event</button>
     </form>
 </div>
-<script>
-const typeSelect = document.getElementById('type');
-const typeCustomWrap = document.getElementById('type_custom_wrap');
-const typeCustom = document.getElementById('type_custom');
-typeSelect.addEventListener('change', function() {
-    if (typeSelect.value === 'Other') {
-        typeCustomWrap.style.display = '';
-        typeCustom.required = true;
-    } else {
-        typeCustomWrap.style.display = 'none';
-        typeCustom.required = false;
-    }
-});
-</script>
-<script>
-// Terms modal logic (reuse shared pattern from guest_upload)
-(function(){
-    var termsLink = document.getElementById('terms-link');
-    var termsCb = document.getElementById('terms');
-    if (!termsLink) return;
-    async function openSharedModal(){
-        try {
-            const res = await fetch('/terms/embed', { headers: { 'X-Requested-With':'fetch' } });
-            const html = await res.text();
-            const body = '<div style="height:65vh; overflow:auto; padding:12px 16px;">'+ html +'</div>';
-            if (window.EPU && window.EPU.modal){
-                window.EPU.modal.show({
-                    title: 'Terms and Conditions',
-                    body: body,
-                    fit: true,
-                    actions: [
-                        { label: 'Cancel', role: 'cancel' },
-                        { label: 'I Agree', onClick: function(h){ if (termsCb) termsCb.checked = true; h(); } }
-                    ]
-                });
-            } else {
-                // fallback: open full page
-                window.open('/terms', '_blank');
-            }
-        } catch (e){
-            if (window.EPU && window.EPU.modal){
-                window.EPU.modal.show({ title: 'Terms and Conditions', body: '<p class="muted">Could not load terms. Please open the full page: <a href="/terms" target="_blank">/terms</a></p>', actions: [{ label:'Close', role:'cancel' }], fit: true });
-            } else {
-                window.open('/terms', '_blank');
-            }
-        }
-    }
-    termsLink.addEventListener('click', function(e){ e.preventDefault(); openSharedModal(); });
-})();
-</script>
-<script>
-// Replace browser native required tooltip with a site-styled notice
-(function(){
-    var form = document.querySelector('form.card.form[action="/events/create"]');
-    if (!form) return;
-    var terms = document.getElementById('terms');
-    var noticeContainer = document.getElementById('create-event-notice-container');
-    form.addEventListener('submit', function(e){
-        if (!terms) return; // nothing to do
-        if (terms.checked) return; // allow normal submit
-        // prevent native validation tooltip
-        e.preventDefault();
-        // render site-styled notice if available
-        if (window.EPU && window.EPU.ui && typeof window.EPU.ui.renderNotice === 'function'){
-            noticeContainer.innerHTML = window.EPU.ui.renderNotice('Please accept the Terms and Conditions to continue.', 'warn', 'style="margin-bottom:10px;"');
-        } else if (window.EPU && window.EPU.snackbar){
-            window.EPU.snackbar.show('Please accept the Terms and Conditions to continue.');
-        } else {
-            alert('Please accept the Terms and Conditions to continue.');
-        }
-        var lbl = document.getElementById('terms-label');
-        if (lbl){ lbl.style.transition='outline-color .2s'; lbl.style.outline='2px solid var(--accent)'; setTimeout(function(){ lbl.style.outline=''; }, 1500); }
-        try { terms.focus(); } catch (e){}
-        return false;
-    });
-    // Remove any warning notice when the checkbox is ticked
-    if (terms){
-        terms.addEventListener('change', function(){
-            if (terms.checked && noticeContainer){
-                noticeContainer.innerHTML = '';
-            }
-        });
-    }
-})();
-</script>
+{% endblock %}
+
+{% block extra_js %}
+  {{ super() }}
+  <script src="{{ url_for('static', path='js/pages/create_event.js') }}?v={{ now() if now else '' }}"></script>
 {% endblock %}

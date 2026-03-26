@@ -55,88 +55,9 @@
         <a class="btn" href="/login">Log in</a>
     </div>
 </div>
+{% endblock %}
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const passwordInput = document.getElementById('password');
-    const passwordPolicy = document.getElementById('password-policy');
-    const policyList = document.getElementById('policy-list');
-    const checks = [
-        { id: 'length-check', test: pwd => pwd.length >= 8 },
-        { id: 'number-check', test: pwd => /\d/.test(pwd) },
-        { id: 'capital-check', test: pwd => /[A-Z]/.test(pwd) },
-        { id: 'special-check', test: pwd => /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd) }
-    ];
-
-    function updatePolicy() {
-        const pwd = passwordInput.value;
-        let unmet = 0;
-        checks.forEach(({id, test}) => {
-            const el = document.getElementById(id);
-            if (!test(pwd)) {
-                el.style.display = '';
-                unmet++;
-            } else {
-                el.style.display = 'none';
-            }
-        });
-        // Hide the whole policy if all are met
-        passwordPolicy.style.display = (pwd && unmet > 0) ? '' : 'none';
-    }
-
-    passwordInput.addEventListener('focus', function() {
-        updatePolicy();
-    });
-    passwordInput.addEventListener('input', function() {
-        updatePolicy();
-    });
-    passwordInput.addEventListener('blur', function() {
-        setTimeout(() => { passwordPolicy.style.display = 'none'; }, 100);
-    });
-
-    // Email live validation
-    const emailInput = document.getElementById('email');
-    const emailFeedback = document.getElementById('email-feedback');
-    function validateEmail(value){
-        if (!value) return false;
-        // simple RFC-like check
-        const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return re.test(value);
-    }
-    if (emailInput){
-        emailInput.addEventListener('input', function(){
-            const ok = validateEmail(emailInput.value);
-            if (!ok && emailInput.value.trim() !== ''){
-                emailFeedback.style.display = '';
-                emailInput.setAttribute('aria-invalid','true');
-            } else {
-                emailFeedback.style.display = 'none';
-                emailInput.removeAttribute('aria-invalid');
-            }
-        });
-    }
-
-    // Password confirm live check
-    const passConfirm = document.getElementById('password_confirm');
-    const confirmFeedback = document.getElementById('confirm-feedback');
-    function validateConfirm(){
-        const p = passwordInput.value || '';
-        const pc = passConfirm ? passConfirm.value : '';
-        const match = p === pc;
-        if (passConfirm){
-            if (!match && pc.length > 0){
-                confirmFeedback.style.display = '';
-                passConfirm.setCustomValidity('Passwords do not match');
-            } else {
-                confirmFeedback.style.display = 'none';
-                passConfirm.setCustomValidity('');
-            }
-        }
-    }
-    if (passConfirm){
-        passConfirm.addEventListener('input', validateConfirm);
-        passwordInput.addEventListener('input', validateConfirm);
-    }
-});
-</script>
+{% block extra_js %}
+  {{ super() }}
+  <script src="{{ url_for('static', path='js/pages/auth_password_form.js') }}?v={{ now() if now else '' }}"></script>
 {% endblock %}

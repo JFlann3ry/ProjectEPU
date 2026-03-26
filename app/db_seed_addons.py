@@ -6,24 +6,14 @@ from db import SessionLocal
 # Seed entries for Extras (previously called add-ons)
 ADDONS = [
     {
-    "Code": "additional_event",
-    "Name": "Additional Event",
-    "Description": "Add one more event to your account",
-    "PriceCents": 2000,
+        "Code": "additional_event",
+        "Name": "Additional Event",
+        "Description": "Add one more event to your account",
+        "PriceCents": 2000,
         "Currency": "gbp",
         "AllowQuantity": True,
         "MinQuantity": 1,
         "MaxQuantity": 10,
-    },
-    {
-        "Code": "live_gallery",
-        "Name": "Live Gallery Link",
-        "Description": "Live gallery link for displaying uploads in real-time",
-        "PriceCents": 1000,
-        "Currency": "gbp",
-        "AllowQuantity": False,
-        "MinQuantity": 1,
-        "MaxQuantity": 1,
     },
     {
         "Code": "qr_cards",
@@ -47,6 +37,8 @@ ADDONS = [
     },
 ]
 
+REMOVED_ADDON_CODES = {"live_gallery"}
+
 
 def upsert_addon(db: Session, spec: dict):
     code = spec["Code"].lower()
@@ -67,6 +59,11 @@ if __name__ == "__main__":
     try:
         for a in ADDONS:
             upsert_addon(db, a)
+        for code in REMOVED_ADDON_CODES:
+            addon = db.query(AddonCatalog).filter(AddonCatalog.Code == code).first()
+            if addon:
+                setattr(addon, "IsActive", False)
+        db.commit()
         print("Seeded extras:", ", ".join([a["Code"] for a in ADDONS]))
     finally:
         db.close()

@@ -6,12 +6,16 @@ and pick up new uploads as they arrive. Guests can open it using the event's cod
 
 from __future__ import annotations
 
+import hmac
 import logging
+from hashlib import sha256
+from time import time
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.orm import Session
 
+from app.core.settings import settings
 from app.core.templates import templates
 from app.models.event import Event, FileMetadata
 from app.services.rate_limit import allow as rate_allow
@@ -21,16 +25,45 @@ router = APIRouter()
 audit = logging.getLogger("audit")
 
 
-def _shape_live_items(
-    rows, user_id: int, event_id: int
-) -> list[dict]:
+def _issue_live_token(*, event_code: str, event_id: int, ttl_seconds: int = 900) -> str:
+    ts = int(time())
+    payload = f"{event_code}:{int(event_id)}:{ts}:{int(ttl_seconds)}"
+    key = str(getattr(settings, "SECRET_KEY", "") or "change-me").encode("utf-8")
+    sig = hmac.new(key, payload.encode("utf-8"), sha256).hexdigest()
+    return f"{payload}:{sig}"
+
+
+def _verify_live_token(token: str, *, event_code: str, event_id: int) -> bool:
+    try:
+        raw_code, raw_eid, raw_ts, raw_ttl, sig = str(token or "").split(":", 4)
+        if raw_code != str(event_code):
+            return False
+        if int(raw_eid) != int(event_id):
+            return False
+        ts = int(raw_ts)
+        ttl = int(raw_ttl)
+        if ttl < 1 or ttl > 86400:
+            return False
+        now_ts = int(time())
+        if now_ts > ts + ttl:
+            return False
+
+        payload = f"{raw_code}:{raw_eid}:{raw_ts}:{raw_ttl}"
+        key = str(getattr(settings, "SECRET_KEY", "") or "change-me").encode("utf-8")
+        expected = hmac.new(key, payload.encode("utf-8"), sha256).hexdigest()
+        return hmac.compare_digest(sig, expected)
+    except Exception:
+        return False
+
+
+def _shape_live_items(rows, user_id: int, event_id: int, event_code: str = "") -> list[dict]:
     items: list[dict] = []
     for fid, ftype, fname in rows or []:
         try:
             t = (ftype or "").lower()
             if t.startswith("image"):
-                # Serve the original image from storage for maximum quality
-                base = f"/storage/{int(user_id)}/{int(event_id)}/{fname}"
+                # Serve via auth-gated endpoint; code grants access to live viewers
+                base = f"/media/{int(user_id)}/{int(event_id)}/{fname}?code={event_code}"
                 items.append(
                     {
                         "id": int(fid),
@@ -39,7 +72,7 @@ def _shape_live_items(
                     }
                 )
             elif t.startswith("video"):
-                base = f"/storage/{int(user_id)}/{int(event_id)}/{fname}"
+                base = f"/media/{int(user_id)}/{int(event_id)}/{fname}?code={event_code}"
                 items.append(
                     {
                         "id": int(fid),
@@ -50,7 +83,18 @@ def _shape_live_items(
             else:
                 # Skip unsupported types for the slideshow
                 continue
-        except Exception:
+        except Exception as exc:
+            audit.warning(
+                "live.slideshow.shape_row_failed",
+                extra={
+                    "event_id": event_id,
+                    "user_id": user_id,
+                    "file_id": (fid if "fid" in locals() else None),
+                    "file_type": (ftype if "ftype" in locals() else None),
+                    "file_name": (fname if "fname" in locals() else None),
+                    "error": str(exc),
+                },
+            )
             continue
     return items
 
@@ -84,6 +128,11 @@ async def live_slideshow_page(
         context={
             "event_code": event_code,
             "event_name": getattr(event, "Name", ""),
+            "live_data_token": _issue_live_token(
+                event_code=event_code,
+                event_id=int(getattr(event, "EventID", 0)),
+                ttl_seconds=900,
+            ),
         },
     )
 
@@ -92,6 +141,7 @@ async def live_slideshow_page(
 async def live_slideshow_data(
     request: Request,
     event_code: str,
+    token: str | None = Query(None, min_length=1, max_length=256),
     since: int | None = Query(
         None,
         ge=0,
@@ -117,16 +167,30 @@ async def live_slideshow_data(
     eid = int(getattr(event, "EventID"))
     uid = int(getattr(event, "UserID"))
 
-    q = (
-        db.query(FileMetadata.FileMetadataID, FileMetadata.FileType, FileMetadata.FileName)
-        .filter(FileMetadata.EventID == eid, ~FileMetadata.Deleted)
+    # Token strategy: live data is available to published events only and requires
+    # a short-lived signed token minted by /live/{event_code} page renders.
+    if not token or not _verify_live_token(token, event_code=event_code, event_id=eid):
+        audit.warning(
+            "live.slideshow.data.denied",
+            extra={
+                "event_id": eid,
+                "event_code": event_code,
+                "reason": "invalid_or_missing_token",
+                "client": request.client.host if request.client else None,
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
+        return JSONResponse({"ok": False, "error": "forbidden"}, status_code=403)
+
+    q = db.query(FileMetadata.FileMetadataID, FileMetadata.FileType, FileMetadata.FileName).filter(
+        FileMetadata.EventID == eid, ~FileMetadata.Deleted
     )
     if since is not None:
         q = q.filter(FileMetadata.FileMetadataID > int(since))
     # Order chronologically by primary key as a proxy for upload time
     rows = q.order_by(FileMetadata.FileMetadataID.asc()).limit(limit).all()
 
-    items = _shape_live_items(rows, user_id=uid, event_id=eid)
+    items = _shape_live_items(rows, user_id=uid, event_id=eid, event_code=event_code)
     max_id = None
     try:
         if rows:

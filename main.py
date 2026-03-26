@@ -24,6 +24,7 @@ from app.api import (
     guest,
     live,
     logout,
+    media,
     misc,
     photo_order,
     profile,
@@ -33,8 +34,10 @@ from app.api import (
 )
 from app.core.logging_utils import configure_logging
 from app.core.middleware_compression import add_compression_middleware
+from app.core.middleware_security import SecurityHeadersMiddleware
 from app.core.settings import settings
 from app.core.templates import templates
+from app.jobs import lifespan
 from app.models import AppErrorLog
 from app.services.auth import get_user_id_from_request
 from app.services.s3_storage import S3StorageService
@@ -43,14 +46,20 @@ from db import get_db
 try:
     import sentry_sdk  # type: ignore
     from sentry_sdk.integrations.starlette import StarletteIntegration  # type: ignore
-except Exception:
+except ImportError:
     sentry_sdk = None  # type: ignore
 
 load_dotenv()
 
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 add_compression_middleware(app)
+app.add_middleware(
+    SecurityHeadersMiddleware,
+    prod_only=str(getattr(settings, "BASE_URL", "")).lower().startswith("https"),
+    csp_report_only=bool(getattr(settings, "CSP_REPORT_ONLY", False)),
+    csp_report_uri=str(getattr(settings, "CSP_REPORT_URI", "") or ""),
+)
 
 # Configure logging (console + rotating file; JSON by default)
 configure_logging(settings)
@@ -90,9 +99,11 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Create storage directory if it doesn't exist (for local filesystem fallback)
 os.makedirs("storage", exist_ok=True)
-app.mount("/storage", StaticFiles(directory="storage"), name="storage")
+# NOTE: /storage is no longer served as a raw StaticFiles mount.
+# All media files are served via the auth-gated /media/{user_id}/{event_id}/{filename} endpoint.
 
 app.include_router(uploads.router)
+app.include_router(media.router)
 # Register static path routes before parameterized /events/{event_id} to avoid 422 on /events/create
 app.include_router(events_create.router)
 app.include_router(events.router)
@@ -116,8 +127,6 @@ app.include_router(extras.router)
 @app.get("/favicon.ico")
 def favicon():
     return FileResponse("static/favicon.png")
-
-
 
 
 # Request logging middleware with request id and user/session context
@@ -146,7 +155,8 @@ async def logging_middleware(request: Request, call_next):
                     next(db_gen)
                 except StopIteration:
                     pass
-    except Exception:
+    except (AttributeError, ValueError, KeyError):
+        # Ignore malformed session data; user_id will remain None
         pass
 
     extra_ctx = {
@@ -161,11 +171,14 @@ async def logging_middleware(request: Request, call_next):
     logger.info("request.start", extra=extra_ctx)
     try:
         response = await call_next(request)
-    except Exception:
+    except (ValueError, KeyError, AttributeError) as e:
         # Compute duration on error, then log and re-raise for global handler
         if duration_ms is None:
             duration_ms = int((time.perf_counter() - start) * 1000)
-        logger.exception("request.error", extra={**extra_ctx, "duration_ms": duration_ms})
+        logger.exception(
+            f"request.error: {type(e).__name__}",
+            extra={**extra_ctx, "duration_ms": duration_ms},
+        )
         # Re-raise to be handled by 500 handler
         raise
 
@@ -201,14 +214,15 @@ async def not_found_handler(request: Request, exc):
             )
             db.add(err)
             db.commit()
-        except Exception:
-            pass
+        except (OSError, RuntimeError, AttributeError) as e:
+            logger.debug(f"404 AppErrorLog write failed: {e}")
         resp = templates.TemplateResponse(request, "404.html", status_code=404)
         request_id = getattr(request.state, "request_id", None)
         if request_id:
             resp.headers["X-Request-ID"] = str(request_id)
         return resp
-    except Exception:
+    except (ValueError, AttributeError, OSError) as e:
+        logger.debug(f"404 handler template render failed: {e}")
         return PlainTextResponse("Not Found", status_code=404)
 
 
@@ -227,7 +241,7 @@ async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
             user_id = None
             try:
                 user_id = get_user_id_from_request(request, db)
-            except Exception:
+            except (AttributeError, ValueError, KeyError):
                 pass
             err = AppErrorLog(
                 RequestID=str(request_id) if request_id else None,
@@ -243,8 +257,8 @@ async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
             )
             db.add(err)
             db.commit()
-    except Exception:
-        pass
+    except (OSError, RuntimeError, AttributeError) as e:
+        logger.debug(f"HTTPException handler DB write failed: {e}")
     # If this is a redirect (302/303/etc) and a Location header is present,
     # return a RedirectResponse so browsers perform a proper HTML redirect
     if status in (301, 302, 303, 307, 308):
@@ -255,7 +269,7 @@ async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
                 loc = exc.headers.get("Location")
             else:
                 loc = None
-        except Exception:
+        except (AttributeError, TypeError):
             loc = None
         if loc:
             return RedirectResponse(url=loc, status_code=status)
@@ -280,7 +294,7 @@ async def server_error_handler(request: Request, exc):
             user_id = None
             try:
                 user_id = get_user_id_from_request(request, db)
-            except Exception:
+            except (AttributeError, ValueError, KeyError):
                 pass
             err = AppErrorLog(
                 RequestID=str(request_id) if request_id else None,
@@ -296,9 +310,9 @@ async def server_error_handler(request: Request, exc):
             )
             db.add(err)
             db.commit()
-        except Exception:
+        except (OSError, RuntimeError, AttributeError) as e:
             # Swallow DB logging errors to not mask original error
-            pass
+            logger.debug(f"500 handler AppErrorLog write failed: {e}")
         resp = templates.TemplateResponse(
             request,
             "500.html",
@@ -308,5 +322,6 @@ async def server_error_handler(request: Request, exc):
         if request_id:
             resp.headers["X-Request-ID"] = str(request_id)
         return resp
-    except Exception:
+    except (ValueError, AttributeError, OSError) as e:
+        logger.debug(f"500 handler template render failed: {e}")
         return PlainTextResponse("Internal Server Error", status_code=500)

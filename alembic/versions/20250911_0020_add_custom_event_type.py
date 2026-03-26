@@ -5,6 +5,7 @@ Revision ID: 20250911_0020_add_custom_event_type
 Revises: 20250910_add_plan_to_users
 Create Date: 2025-09-11
 """
+
 from __future__ import annotations
 
 import sqlalchemy as sa

@@ -6,6 +6,8 @@ A FastAPI web app where hosts create events and guests upload photos/videos via 
 
 New to the app? Read the step-by-step tutorial: TUTORIAL.md (includes Live Slideshow usage)
 
+Documentation map and consolidation plan: docs/DOCS_INDEX.md
+
 👉 See the MVP plan and checklist: MVP_SPEC.md
 
 ## Stack
@@ -41,6 +43,10 @@ Quickstart with VS Code tasks (Windows):
   - test — pytest -q
   - lint+test (windows-safe) — runs both via scripts/lint_and_test.py
   - run:dev — starts Uvicorn on http://localhost:4200
+
+Performance audit (budget check):
+- Run: `venv\\Scripts\\python.exe scripts\\perf_audit.py --base-url http://localhost:4200 --budgets scripts\\perf_budgets.json`
+- Optional non-blocking mode: add `--soft-fail`
 
 2) Environment
 Create .env (or fill existing) with:

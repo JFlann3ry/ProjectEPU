@@ -5,6 +5,7 @@ Usage: python scripts/run_alembic_stream.py upgrade head
 This helper runs alembic as a subprocess and forwards stdout/stderr in real-time,
 so logs can be tailed by CI or a developer while the migration runs.
 """
+
 import subprocess
 import sys
 

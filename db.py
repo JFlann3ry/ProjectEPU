@@ -61,4 +61,6 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
 _TEST_SESSION = None

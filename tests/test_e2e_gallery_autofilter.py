@@ -1,4 +1,5 @@
 import os
+
 # ruff: noqa: I001
 
 import pytest
@@ -7,9 +8,7 @@ from playwright.sync_api import sync_playwright
 
 # Skip by default unless E2E=1
 e2e_enabled = os.getenv("E2E", "0") == "1"
-pytestmark = pytest.mark.skipif(
-    not e2e_enabled, reason="E2E tests disabled; set E2E=1 to enable"
-)
+pytestmark = pytest.mark.skipif(not e2e_enabled, reason="E2E tests disabled; set E2E=1 to enable")
 
 
 def test_gallery_autofilter_and_favorites_toggle():
@@ -38,7 +37,7 @@ def test_gallery_autofilter_and_favorites_toggle():
             assert "type=image" in page.url
 
             # Favorites pill toggles instantly and submits the form
-            fav_pill = page.locator("label.favorites-pill[for=\"favorites\"]").first
+            fav_pill = page.locator('label.favorites-pill[for="favorites"]').first
             if fav_pill.count() > 0:
                 before = page.url
                 fav_pill.click()

@@ -8,6 +8,8 @@
 {% block extra_css %}
 <style>
   /* Extras page scoped tweaks */
+  .extras-grid { justify-items: center; }
+  .extras-grid > .card { width: min(100%, 360px); justify-self: center; }
   .extras-grid .card { transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease; }
   .extras-grid .card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,0.25); border-color: rgba(255,255,255,0.24); }
   .extras-grid .card:focus-within { outline: 2px solid rgba(255,255,255,0.25); outline-offset: 2px; }
@@ -15,24 +17,49 @@
   .extras-grid .card h3 a:hover, .extras-grid .card h3 a:focus { text-decoration: underline; }
   .extras-grid .img-wrap { height: 140px; display:flex; align-items:center; justify-content:center; padding:12px 12px 0; }
   .extras-grid .img-wrap img { max-height: 120px; }
+  .extras-grid .btn.primary.js-buy-extra,
+  .extras-grid a.btn.primary {
+    justify-content: center;
+    text-align: center;
+  }
+  #checkout-return-notice {
+    width: min(100%, 360px);
+    margin: 12px auto !important;
+    text-align: center;
+    justify-self: center;
+    display: block;
+    transition: opacity 220ms ease, transform 220ms ease;
+  }
+  #checkout-return-notice.is-hiding {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  #checkout-return-notice.success {
+    border-color: rgba(31, 191, 117, 0.45) !important;
+    background: rgba(31, 191, 117, 0.14) !important;
+  }
+  #checkout-return-notice.error {
+    border-color: rgba(231, 76, 60, 0.5) !important;
+    background: rgba(231, 76, 60, 0.15) !important;
+  }
   @media (max-width: 520px){ .extras-grid { gap: 12px !important; } .extras-grid .img-wrap { height: 120px; } }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container section center">
-  {{ page_hero('Extras Marketplace', 'Enhance your event with extras like live gallery links, QR cards, and more.', True) }}
+  {{ page_hero('Extras Marketplace', 'Enhance your event with extras like QR cards, additional events, and more.', True) }}
 
   {% set qs = request.query_params %}
   {% if qs.get('success') == '1' %}
-    {{ notice('Checkout complete. Your extra will appear shortly.', 'success', 'role="status" style="margin: 12px 0;"') }}
+    {{ notice('Checkout complete. Your extra will appear shortly.', 'success', 'id="checkout-return-notice" role="status"') }}
   {% elif qs.get('canceled') == '1' %}
-    {{ notice('Checkout canceled.', '', 'role="status" style="margin: 12px 0;"') }}
+    {{ notice('Checkout canceled.', 'error', 'id="checkout-return-notice" role="status"') }}
   {% endif %}
 
   {% if addons and addons|length > 0 %}
   <section class="section">
-    <div class="grid extras-grid" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+    <div class="grid extras-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 360px)); justify-content: center; gap: 16px;">
       {% for a in addons %}
       {% set c = (a.currency or 'gbp')|lower %}
       {% set sym = '£' if c == 'gbp' else ('$' if c == 'usd' else c|upper ~ ' ') %}
@@ -42,7 +69,7 @@
           <img src="{{ a.image or '/static/images/examples/corporate1.svg' }}" alt="{{ a.name }}" style="width:100%; max-width: 160px; height: auto; object-fit: contain; display:block;" loading="lazy">
         </div>
         <div style="padding: 12px; text-align:left;">
-          {% if a.code in ['live_gallery','qr_cards'] %}
+          {% if a.code in ['qr_cards'] %}
             <h3 style="margin:0 0 6px;"><a href="/extras/{{ a.code }}{% if request.query_params.get('event_code') %}?event_code={{ request.query_params.get('event_code') }}{% endif %}" class="link" style="text-decoration:none;">{{ a.name }}</a></h3>
           {% else %}
             <h3 style="margin:0 0 6px;">{{ a.name }}</h3>
@@ -53,7 +80,7 @@
           {% if a.desc %}
           <p class="muted" style="margin: 0 0 8px;">{{ a.desc }}</p>
           {% endif %}
-          {% if a.code in ['live_gallery','qr_cards'] %}
+          {% if a.code in ['qr_cards'] %}
           <p style="margin: 0 0 8px; font-size: 0.95em;"><a class="link" href="/extras/{{ a.code }}{% if request.query_params.get('event_code') %}?event_code={{ request.query_params.get('event_code') }}{% endif %}">Learn more</a></p>
           {% endif %}
           {% if a.allow_qty %}
@@ -78,7 +105,7 @@
         </div>
         <div style="margin-top:auto; padding: 12px; display:flex; flex-direction:column; align-items:stretch; gap:10px; border-top: 1px solid rgba(255,255,255,0.08);">
           <div class="p-bold" style="font-size:18px;">{{ sym }}{{ '%.2f'|format(price) }}</div>
-          {% if request.cookies.get('session_id') %}
+          {% if request.state and request.state.user_id %}
           <button class="btn primary js-buy-extra" data-code="{{ a.code }}" data-allowqty="{{ '1' if a.allow_qty else '0' }}" style="width: 100%;">Purchase</button>
           {% else %}
           <a class="btn primary" href="/signup" role="button" style="display:inline-flex; align-items:center; justify-content:center; width: 100%;">Sign up to purchase</a>
@@ -90,25 +117,7 @@
   </section>
   {% else %}
   <section class="section">
-    <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px;">
-      <article class="card" style="display:flex; flex-direction:column; align-items:stretch;">
-        <div style="display:flex; align-items:center; justify-content:center; padding:10px 10px 0;">
-          <img src="/static/images/examples/corporate1.svg" alt="Live Gallery Link (Sample)" style="width:100%; max-width: 160px; height: auto; object-fit: contain; display:block;" loading="lazy">
-        </div>
-        <div style="padding: 10px 12px;">
-          <h3 style="margin:0 0 6px; text-align:center;">Live Gallery Link</h3>
-          <p class="muted" style="margin: 0 0 10px; text-align:center;">Display uploads in real-time on a shareable gallery page.</p>
-        </div>
-        <div style="margin-top:auto; padding: 10px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
-          <div class="p-bold" style="font-size:18px;">£10.00</div>
-          {% if request.cookies.get('session_id') %}
-          <a class="btn" href="/gallery" role="button">Open Live Gallery</a>
-          {% else %}
-          <button class="btn" disabled title="Sample card">Add to event</button>
-          {% endif %}
-        </div>
-      </article>
-    </div>
+    {{ notice('No extras are currently available.', attrs='role="status" style="margin: 6px 0;"') }}
   </section>
   {% endif %}
 

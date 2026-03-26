@@ -2,29 +2,99 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from collections.abc import Awaitable
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import (
     HTMLResponse,
-    JSONResponse,
     PlainTextResponse,
     RedirectResponse,
-    Response,
 )
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.api.billing_admin import router as billing_admin_router
+from app.api.billing_checkout import router as billing_checkout_router
+from app.api.billing_receipts import router as billing_receipts_router
 from app.core.settings import settings
 from app.core.templates import templates
 from app.models.billing import PaymentLog, Purchase
 from app.models.event_plan import EventPlan
-from app.services.auth import get_current_user, require_admin, require_user
+from app.services.auth import get_current_user
 from app.services.email_utils import send_billing_email
 from db import get_db
 
 router = APIRouter()
 audit = logging.getLogger("audit")
+
+
+def _apply_read_uncommitted_hint(db: Session) -> None:
+    """Apply an isolation-level hint for SQL Server webhook reads only."""
+    dialect_name = ""
+    try:
+        bind = getattr(db, "bind", None)
+        dialect = getattr(bind, "dialect", None)
+        dialect_name = str(getattr(dialect, "name", "") or "").lower()
+    except (AttributeError, TypeError, ValueError):
+        dialect_name = ""
+
+    # READ UNCOMMITTED syntax below is SQL Server specific.
+    if dialect_name != "mssql":
+        audit.debug(
+            "[stripe_webhook] skipping isolation-level hint for dialect=%s",
+            dialect_name or "unknown",
+        )
+        return
+
+    try:
+        db.execute(text("SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"))
+    except SQLAlchemyError:
+        audit.debug(
+            "[stripe_webhook] failed to apply READ UNCOMMITTED hint",
+            exc_info=True,
+        )
+
+
+def _schedule_webhook_task(
+    coro: Awaitable[object],
+    *,
+    label: str,
+    user_id: int | None,
+    reference: str | None,
+) -> asyncio.Task:
+    """Schedule webhook side effects and observe completion failures."""
+    task = asyncio.create_task(coro)
+
+    def _on_done(done_task: asyncio.Task) -> None:
+        try:
+            done_task.result()
+        except Exception:
+            audit.exception(
+                "[stripe_webhook] background task failed label=%s user=%s ref=%s",
+                label,
+                user_id,
+                reference,
+            )
+
+    task.add_done_callback(_on_done)
+    return task
+
+
+def _stripe_webhook_error_types(stripe_module: object) -> tuple[type[BaseException], ...]:
+    """Return Stripe webhook-related exception types, when available."""
+    candidates: list[type[BaseException]] = []
+    try:
+        err_mod = getattr(stripe_module, "error")
+        for name in ("SignatureVerificationError", "StripeError"):
+            err = getattr(err_mod, name, None)
+            if isinstance(err, type) and issubclass(err, BaseException):
+                candidates.append(err)
+    except AttributeError:
+        return ()
+    # Keep order stable while removing duplicates.
+    return tuple(dict.fromkeys(candidates))
 
 
 @router.get("/pricing", response_class=HTMLResponse)
@@ -61,12 +131,8 @@ async def list_plans(request: Request, db: Session = Depends(get_db)):
             "download_months": _int(data.get("download_months")),
         }
 
-    rows = (
-        db.query(EventPlan)
-        .filter(EventPlan.IsActive)
-        .order_by(EventPlan.PriceCents.asc())
-        .all()
-    )
+    rows = db.query(EventPlan).filter(EventPlan.IsActive).order_by(EventPlan.PriceCents.asc()).all()
+
     # Remove any non-real options like a legacy "Pro Event"
     def _is_visible_plan(p: EventPlan) -> bool:
         try:
@@ -79,6 +145,7 @@ async def list_plans(request: Request, db: Session = Depends(get_db)):
         except Exception:
             pass
         return True
+
     rows = [p for p in rows if _is_visible_plan(p)]
     plans = []
     for p in rows:
@@ -267,693 +334,13 @@ async def billing_summary(request: Request, db: Session = Depends(get_db)):
     )
 
 
-@router.get("/billing/purchase/{purchase_id}", response_class=HTMLResponse)
-async def billing_purchase_details(
-    request: Request, purchase_id: int, db: Session = Depends(get_db)
-):
-    """Show details for a single purchase with actions to download/email receipt."""
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse("/login", status_code=302)
-    p = db.query(Purchase).filter(Purchase.PurchaseID == int(purchase_id)).first()
-    if not p or int(getattr(p, "UserID")) != int(getattr(user, "UserID")):
-        raise HTTPException(status_code=404, detail="Purchase not found")
-
-    plan = db.query(EventPlan).filter(EventPlan.PlanID == getattr(p, "PlanID", None)).first()
-    details = {
-        "id": int(getattr(p, "PurchaseID")),
-        "status": str(getattr(p, "Status")),
-        "amount": str(getattr(p, "Amount")) + " " + str(getattr(p, "Currency")),
-        "created": getattr(p, "CreatedAt"),
-        "plan_code": str(getattr(plan, "Code", "")) if plan else "",
-        "plan_name": str(getattr(plan, "Name", "Plan")) if plan else "Plan",
-        "plan_desc": str(getattr(plan, "Description", "") or "") if plan else "",
-        "session": str(getattr(p, "StripeSessionID", "") or ""),
-    }
-    return templates.TemplateResponse(
-        request,
-        "billing_purchase.html",
-        context={
-            "purchase": details,
-            "sent": 1 if (request.query_params.get("sent") == "1") else 0,
-            "STRIPE_PUBLISHABLE_KEY": settings.STRIPE_PUBLISHABLE_KEY,
-        },
-    )
-
-
-def _compose_receipt_text(p, plan, user_email: str) -> str:
-    """Create a plain-text receipt body for download/email."""
-    lines = [
-        "EPU – Receipt",
-        "----------------------------------------",
-        f"Receipt #: {getattr(p, 'PurchaseID')}",
-        f"Date: {getattr(p, 'CreatedAt')}",
-        f"Status: {getattr(p, 'Status')}",
-        "",
-        "Billed To:",
-        f"  {user_email or 'User'}",
-        "",
-        "Item:",
-        f"  Plan: {getattr(plan, 'Name', 'Plan') if plan else 'Plan'}",
-        f"  Code: {getattr(plan, 'Code', '') if plan else ''}",
-        "",
-        "Totals:",
-        f"  Amount: {getattr(p, 'Amount')} {getattr(p, 'Currency')}",
-        "",
-        "Notes:",
-        "  This is a receipt for your records. It is not a VAT invoice.",
-        "  For questions, contact support via /contact.",
-    ]
-    return "\n".join(lines)
-
-
-@router.get("/billing/purchase/{purchase_id}/receipt")
-async def billing_purchase_receipt(
-    request: Request, purchase_id: int, db: Session = Depends(get_db)
-):
-    """Return a downloadable plain-text receipt for the purchase."""
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse("/login", status_code=302)
-    p = db.query(Purchase).filter(Purchase.PurchaseID == int(purchase_id)).first()
-    if not p or int(getattr(p, "UserID")) != int(getattr(user, "UserID")):
-        raise HTTPException(status_code=404, detail="Purchase not found")
-    plan = db.query(EventPlan).filter(EventPlan.PlanID == getattr(p, "PlanID", None)).first()
-
-    user_email = getattr(user, "Email", "")
-    body = _compose_receipt_text(p, plan, user_email)
-    filename = f"receipt-{getattr(p, 'PurchaseID')}.txt"
-    headers = {
-        "Content-Disposition": f"attachment; filename={filename}",
-        "Cache-Control": "no-store",
-    }
-    return Response(content=body, media_type="text/plain; charset=utf-8", headers=headers)
-
-
-@router.get("/billing/purchase/{purchase_id}/receipt.pdf")
-async def billing_purchase_receipt_pdf(
-    request: Request, purchase_id: int, db: Session = Depends(get_db)
-):
-    """Return a downloadable PDF receipt for the purchase."""
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse("/login", status_code=302)
-    p = db.query(Purchase).filter(Purchase.PurchaseID == int(purchase_id)).first()
-    if not p or int(getattr(p, "UserID")) != int(getattr(user, "UserID")):
-        raise HTTPException(status_code=404, detail="Purchase not found")
-    plan = db.query(EventPlan).filter(EventPlan.PlanID == getattr(p, "PlanID", None)).first()
-
-    try:
-        # Lazy import so environments without reportlab can still run most routes
-        from app.services.pdf_utils import ReceiptPDF
-
-        pdf = ReceiptPDF()
-        created = getattr(p, "CreatedAt")
-        if not isinstance(created, datetime):
-            created = datetime.now(timezone.utc)
-        amount = getattr(p, "Amount", 0)
-        currency = str(getattr(p, "Currency", "GBP") or "GBP")
-        body = pdf.build(
-            receipt_no=int(getattr(p, "PurchaseID")),
-            date=created,
-            status=str(getattr(p, "Status", "")).lower(),
-            billed_to=str(getattr(user, "Email", "") or "User"),
-            plan_name=str(getattr(plan, "Name", "Plan")) if plan else "Plan",
-            plan_code=str(getattr(plan, "Code", "")) if plan else "",
-            description=str(getattr(plan, "Description", "") or "") if plan else "",
-            amount=amount,
-            currency=currency,
-        )
-    except Exception:
-        # Fallback to text if PDF generation fails
-        user_email = getattr(user, "Email", "")
-        body_text = _compose_receipt_text(p, plan, user_email)
-        filename = f"receipt-{getattr(p, 'PurchaseID')}.txt"
-        headers = {
-            "Content-Disposition": f"attachment; filename={filename}",
-            "Cache-Control": "no-store",
-        }
-        return Response(content=body_text, media_type="text/plain; charset=utf-8", headers=headers)
-
-    filename = f"receipt-{getattr(p, 'PurchaseID')}.pdf"
-    headers = {
-        "Content-Disposition": f"attachment; filename={filename}",
-        "Cache-Control": "no-store",
-    }
-    return Response(content=body, media_type="application/pdf", headers=headers)
-
-
-@router.post("/billing/purchase/{purchase_id}/email-receipt")
-async def billing_purchase_email_receipt(
-    request: Request, purchase_id: int, db: Session = Depends(get_db)
-):
-    """Email a simple receipt to the user's email address."""
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse("/login", status_code=302)
-    p = db.query(Purchase).filter(Purchase.PurchaseID == int(purchase_id)).first()
-    if not p or int(getattr(p, "UserID")) != int(getattr(user, "UserID")):
-        raise HTTPException(status_code=404, detail="Purchase not found")
-    plan = db.query(EventPlan).filter(EventPlan.PlanID == getattr(p, "PlanID", None)).first()
-    to_email = getattr(user, "Email", None)
-    if not to_email:
-        raise HTTPException(status_code=400, detail="No email on account")
-
-    # Simple rate limit: max 1 receipt email per user per rolling hour
-    try:
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
-        recent_count = (
-            db.query(PaymentLog)
-            .filter(
-                PaymentLog.UserID == int(getattr(user, "UserID")),
-                PaymentLog.EventType == "email_receipt",
-                PaymentLog.CreatedAt >= cutoff,
-            )
-            .count()
-        )
-        if recent_count >= 1:
-            # Too many requests
-            raise HTTPException(status_code=429, detail="Rate limit exceeded")
-    except HTTPException:
-        raise
-    except Exception:
-        # On failure to check, continue without blocking
-        pass
-
-    body = _compose_receipt_text(p, plan, to_email)
-    try:
-        await send_billing_email(to_email, subject="Your receipt – EPU", body=body)
-        # Log successful send for rate limiting
-        try:
-            payload = json.dumps({"purchase_id": int(getattr(p, "PurchaseID")), "to": to_email})
-        except Exception:
-            payload = None
-        log = PaymentLog(
-            UserID=int(getattr(user, "UserID")),
-            EventType="email_receipt",
-            Payload=payload,
-        )
-        db.add(log)
-        db.commit()
-    except Exception:
-        # Don't expose error details to user; surface in logs if needed.
-        pass
-    pid = int(getattr(p, "PurchaseID"))
-    return RedirectResponse(
-        f"/billing/purchase/{pid}?sent=1",
-        status_code=303,
-    )
-
-
-# Legacy route: permanently redirect old /plans URL to canonical /pricing
-@router.get("/plans")
-async def legacy_plans_redirect():
-    return RedirectResponse("/pricing", status_code=301)
-
-
-@router.post("/admin/seed-plans", response_class=PlainTextResponse)
-async def admin_seed_plans(
-    request: Request, db: Session = Depends(get_db), user=Depends(require_admin)
-):
-    # Import and run seeder logic in-process
-    from app.db_seed_plans import PLANS, upsert_plan
-
-    for spec in PLANS:
-        upsert_plan(db, spec)
-    return PlainTextResponse(
-        "Seeded/updated plans: " + ", ".join([p.get("Code", "") for p in PLANS])
-    )
-
-
-@router.get("/admin/plans", response_class=PlainTextResponse)
-async def admin_list_plans(
-    request: Request, db: Session = Depends(get_db), user=Depends(require_admin)
-):
-    rows = db.query(EventPlan).order_by(EventPlan.PriceCents.asc()).all()
-    lines = ["Plans:"]
-    for p in rows:
-        lines.append(
-            f"#{getattr(p,'PlanID')} code={getattr(p,'Code')} "
-            f"name={getattr(p,'Name')} price={getattr(p,'PriceCents')} "
-            f"{getattr(p,'Currency')}"
-        )
-    return PlainTextResponse("\n".join(lines))
-
-
-@router.post("/create-checkout-session")
-async def create_checkout_session(
-    request: Request, db: Session = Depends(get_db), user=Depends(require_user)
-):
-    data = await request.json()
-    code = (data.get("plan") or "").strip().lower()
-    if not code:
-        raise HTTPException(status_code=400, detail="Missing plan code")
-    plan = db.query(EventPlan).filter(EventPlan.Code == code, EventPlan.IsActive).first()
-    if not plan:
-        raise HTTPException(status_code=404, detail="Plan not found")
-
-    # If the user has a pending purchase from the last 24 hours, resume it
-    try:
-        threshold = datetime.now(timezone.utc) - timedelta(hours=24)
-        existing = (
-            db.query(Purchase)
-            .filter(
-                Purchase.UserID == int(getattr(user, "UserID")),
-                Purchase.Status == "pending",
-                Purchase.CreatedAt >= threshold,
-            )
-            .order_by(Purchase.CreatedAt.desc())
-            .first()
-        )
-    except Exception:
-        existing = None
-
-    if existing:
-        # Only resume if the pending purchase matches the selected plan, price, and currency
-        try:
-            existing_amount_cents = int(
-                (Decimal(str(getattr(existing, "Amount"))) * Decimal(100)).to_integral_value()
-            )
-        except Exception:
-            existing_amount_cents = 0
-        selected_amount_cents = int(getattr(plan, "PriceCents", 0) or 0)
-        existing_currency = str(getattr(existing, "Currency", "gbp") or "gbp").lower()
-        selected_currency = str(getattr(plan, "Currency", "gbp") or "gbp").lower()
-        same_plan = int(getattr(existing, "PlanID") or 0) == int(getattr(plan, "PlanID") or 0)
-        same_price = existing_amount_cents == selected_amount_cents
-        same_currency = existing_currency == selected_currency
-
-        if not (same_plan, same_price, same_currency) == (True, True, True):
-            # Mismatch: cancel the old pending purchase and proceed to create a new one
-            try:
-                setattr(existing, "Status", "canceled")
-                db.commit()
-            except Exception:
-                db.rollback()
-        else:
-            # Create a fresh Stripe session for the existing purchase and return it
-            try:
-                import stripe  # type: ignore
-            except Exception:
-                raise HTTPException(status_code=500, detail="Stripe SDK not available")
-            if not settings.STRIPE_SECRET_KEY:
-                raise HTTPException(status_code=500, detail="Stripe secret key not configured")
-            stripe.api_key = settings.STRIPE_SECRET_KEY
-
-            # Price from purchase (fallback to plan if needed)
-            try:
-                amount_decimal = Decimal(str(getattr(existing, "Amount")))
-            except Exception:
-                amount_decimal = Decimal(0)
-            currency = str(getattr(existing, "Currency", "gbp") or "gbp").lower()
-            amount_cents = int((amount_decimal * Decimal(100)).to_integral_value())
-            if amount_cents <= 0:
-                amount_cents = int(getattr(plan, "PriceCents", 0) or 0)
-                if amount_cents <= 0:
-                    raise HTTPException(status_code=400, detail="Invalid purchase amount")
-
-            # Plan info (best-effort for display)
-            resume_plan = (
-                db.query(EventPlan)
-                .filter(EventPlan.PlanID == getattr(existing, "PlanID", None))
-                .first()
-            )
-            plan_name = str(getattr(resume_plan, "Name", "Plan")) if resume_plan else "Plan"
-            plan_desc = (
-                str(getattr(resume_plan, "Description", "") or "") if resume_plan else ""
-            )
-            plan_code = str(getattr(resume_plan, "Code", "")) if resume_plan else ""
-
-            base = settings.BASE_URL.rstrip("/")
-            pid = int(getattr(existing, "PurchaseID"))
-            success_url = f"{base}/billing/purchase/{pid}?success=1"
-            cancel_url = f"{base}/billing/purchase/{pid}?canceled=1"
-
-            try:
-                session = stripe.checkout.Session.create(  # type: ignore
-                    mode="payment",
-                    success_url=success_url,
-                    cancel_url=cancel_url,
-                    line_items=[
-                        {
-                            "price_data": {
-                                "currency": currency,
-                                "product_data": {
-                                    "name": plan_name,
-                                    "description": plan_desc,
-                                },
-                                "unit_amount": amount_cents,
-                            },
-                            "quantity": 1,
-                        }
-                    ],
-                    metadata={
-                        "user_id": str(getattr(user, "UserID")),
-                        "plan_id": str(getattr(resume_plan, "PlanID", "")) if resume_plan else "",
-                        "plan_code": plan_code,
-                        "purchase_id": str(getattr(existing, "PurchaseID")),
-                    },
-                )
-            except Exception as e:
-                audit.error(
-                    "billing.checkout.resume_error",
-                    extra={
-                        "purchase_id": int(getattr(existing, "PurchaseID")),
-                        "error": str(e),
-                    },
-                )
-                raise HTTPException(status_code=500, detail="Failed to create checkout session")
-
-            setattr(existing, "StripeSessionID", str(session.get("id")))
-            db.commit()
-
-            audit.info(
-                "billing.checkout.session_resumed",
-                extra={
-                    "purchase_id": int(getattr(existing, "PurchaseID")),
-                    "user_id": int(getattr(user, "UserID")),
-                    "session_id": session.get("id"),
-                },
-            )
-            return JSONResponse(
-                {
-                    "id": session.get("id"),
-                    "purchase_id": int(getattr(existing, "PurchaseID")),
-                    "resumed": True,
-                }
-            )
-
-    # Expire any stale pending purchases (>24h)
-    try:
-        stale_cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-        stale_rows = (
-            db.query(Purchase)
-            .filter(
-                Purchase.UserID == int(getattr(user, "UserID")),
-                Purchase.Status == "pending",
-                Purchase.CreatedAt < stale_cutoff,
-            )
-            .all()
-        )
-        for sp in stale_rows:
-            setattr(sp, "Status", "canceled")
-        if stale_rows:
-            db.commit()
-    except Exception:
-        pass
-    # Initialize Stripe
-    try:
-        import stripe  # type: ignore
-    except Exception:
-        raise HTTPException(status_code=500, detail="Stripe SDK not available")
-    if not settings.STRIPE_SECRET_KEY:
-        raise HTTPException(status_code=500, detail="Stripe secret key not configured")
-    stripe.api_key = settings.STRIPE_SECRET_KEY
-
-    # Extract safe primitives from ORM object for Stripe
-    currency = str(getattr(plan, "Currency", "gbp") or "gbp").lower()
-    amount_cents = int(getattr(plan, "PriceCents", 0) or 0)
-    # If the user is upgrading from a lower-priced plan, charge only the difference.
-    try:
-        # Determine user's latest paid plan price
-        from app.models.billing import Purchase as _Purchase
-        from app.models.event_plan import EventPlan as _EP
-
-        latest_paid = (
-            db.query(_Purchase, _EP)
-            .join(_EP, _Purchase.PlanID == _EP.PlanID)
-            .filter(_Purchase.UserID == int(getattr(user, "UserID")), _Purchase.Status == "paid")
-            .order_by(_Purchase.CreatedAt.desc())
-            .first()
-        )
-        if latest_paid and str(getattr(plan, "Code", "")).lower() == "ultimate":
-            _, user_plan = latest_paid
-            user_price_cents = int(getattr(user_plan, "PriceCents", 0) or 0)
-            # Only reduce the amount if the existing plan is cheaper than the target.
-            if user_price_cents < amount_cents:
-                amount_cents = amount_cents - user_price_cents
-    except Exception:
-        # If anything goes wrong computing upgrade price, fall back to full price.
-        pass
-    plan_name = str(getattr(plan, "Name", "Plan"))
-    plan_desc = str(getattr(plan, "Description", "") or "")
-    if amount_cents <= 0:
-        raise HTTPException(status_code=400, detail="Plan price invalid")
-
-    success_url = f"{settings.BASE_URL.rstrip('/')}/billing/summary?success=1"
-    cancel_url = f"{settings.BASE_URL.rstrip('/')}/billing/summary?canceled=1"
-
-    try:
-        session = stripe.checkout.Session.create(  # type: ignore
-            mode="payment",
-            success_url=success_url,
-            cancel_url=cancel_url,
-            line_items=[
-                {
-                    "price_data": {
-                        "currency": currency,
-                        "product_data": {
-                            "name": plan_name,
-                            "description": plan_desc,
-                        },
-                        "unit_amount": amount_cents,
-                    },
-                    "quantity": 1,
-                }
-            ],
-            metadata={
-                "user_id": str(user.UserID),
-                "plan_id": str(getattr(plan, "PlanID", "")),
-                "plan_code": str(getattr(plan, "Code", "")),
-            },
-        )
-    except Exception as e:
-        audit.error("billing.checkout.session_error", extra={"error": str(e)})
-        raise HTTPException(status_code=500, detail="Failed to create checkout session")
-
-    # Record pending purchase
-    amount_decimal = Decimal(amount_cents) / Decimal(100)
-    purchase = Purchase(
-        UserID=int(getattr(user, "UserID")),
-        PlanID=int(getattr(plan, "PlanID")),
-        Amount=amount_decimal,
-        Currency=currency.upper(),
-        StripeSessionID=str(session.get("id")),
-        Status="pending",
-    )
-    db.add(purchase)
-    db.commit()
-
-    audit.info(
-        "billing.checkout.session_created",
-        extra={
-            "user_id": int(getattr(user, "UserID")),
-            "plan": str(getattr(plan, "Code", "")),
-            "session_id": session.get("id"),
-        },
-    )
-    return JSONResponse({"id": session.get("id")})
-
-
-@router.post("/billing/purchase/{purchase_id}/restart-checkout")
-async def restart_checkout_session(
-    request: Request, purchase_id: int, db: Session = Depends(get_db), user=Depends(require_user)
-):
-    """Create a fresh Stripe Checkout session for an existing pending purchase.
-
-    This resolves cases where the original session expired by generating a new session
-    and updating the purchase's StripeSessionID, then returning the new session id.
-    """
-    # Load purchase and verify ownership
-    p = db.query(Purchase).filter(Purchase.PurchaseID == int(purchase_id)).first()
-    if not p or int(getattr(p, "UserID")) != int(getattr(user, "UserID")):
-        raise HTTPException(status_code=404, detail="Purchase not found")
-    status = str(getattr(p, "Status", "")).lower()
-    if status in {"paid", "refunded", "canceled", "cancelled"}:
-        raise HTTPException(status_code=400, detail="Purchase is not payable")
-
-    # Fetch plan info for display/metadata
-    plan = db.query(EventPlan).filter(EventPlan.PlanID == getattr(p, "PlanID", None)).first()
-    plan_name = str(getattr(plan, "Name", "Plan")) if plan else "Plan"
-    plan_desc = str(getattr(plan, "Description", "") or "") if plan else ""
-    plan_code = str(getattr(plan, "Code", "")) if plan else ""
-
-    # Determine price from stored purchase amount/currency
-    try:
-        amount_decimal = Decimal(str(getattr(p, "Amount")))
-    except Exception:
-        amount_decimal = Decimal(0)
-    currency = str(getattr(p, "Currency", "gbp") or "gbp").lower()
-    amount_cents = int((amount_decimal * Decimal(100)).to_integral_value())
-    if amount_cents <= 0:
-        # Fallback to plan price if stored amount is invalid
-        amount_cents = int(getattr(plan, "PriceCents", 0) or 0) if plan else 0
-        if amount_cents <= 0:
-            raise HTTPException(status_code=400, detail="Invalid purchase amount")
-
-    # Initialize Stripe
-    try:
-        import stripe  # type: ignore
-    except Exception:
-        raise HTTPException(status_code=500, detail="Stripe SDK not available")
-    if not settings.STRIPE_SECRET_KEY:
-        raise HTTPException(status_code=500, detail="Stripe secret key not configured")
-    stripe.api_key = settings.STRIPE_SECRET_KEY
-
-    base = settings.BASE_URL.rstrip("/")
-    pid = int(getattr(p, "PurchaseID"))
-    success_url = f"{base}/billing/purchase/{pid}?success=1"
-    cancel_url = f"{base}/billing/purchase/{pid}?canceled=1"
-
-    try:
-        session = stripe.checkout.Session.create(  # type: ignore
-            mode="payment",
-            success_url=success_url,
-            cancel_url=cancel_url,
-            line_items=[
-                {
-                    "price_data": {
-                        "currency": currency,
-                        "product_data": {
-                            "name": plan_name,
-                            "description": plan_desc,
-                        },
-                        "unit_amount": amount_cents,
-                    },
-                    "quantity": 1,
-                }
-            ],
-            metadata={
-                "user_id": str(getattr(user, "UserID")),
-                "plan_id": str(getattr(plan, "PlanID", "")) if plan else "",
-                "plan_code": plan_code,
-                "purchase_id": str(getattr(p, "PurchaseID")),
-            },
-        )
-    except Exception as e:
-        audit.error(
-            "billing.checkout.restart_error",
-            extra={"purchase_id": int(getattr(p, "PurchaseID")), "error": str(e)},
-        )
-        raise HTTPException(status_code=500, detail="Failed to create checkout session")
-
-    # Update purchase with new session id and keep status pending
-    setattr(p, "StripeSessionID", str(session.get("id")))
-    db.commit()
-
-    audit.info(
-        "billing.checkout.session_restarted",
-        extra={
-            "purchase_id": int(getattr(p, "PurchaseID")),
-            "user_id": int(getattr(user, "UserID")),
-            "session_id": session.get("id"),
-        },
-    )
-    return JSONResponse({"id": session.get("id")})
-
-
-@router.get("/billing/purchase/{purchase_id}/pay")
-async def pay_purchase_redirect(
-    request: Request,
-    purchase_id: int,
-    db: Session = Depends(get_db),
-    user=Depends(require_user),
-):
-    """Server-side start of checkout: create a fresh session and 303 redirect to Stripe.
-
-    Useful when a previously shared Stripe link expired; this stable URL will
-    always generate a new session for the pending purchase.
-    """
-    p = db.query(Purchase).filter(Purchase.PurchaseID == int(purchase_id)).first()
-    if not p or int(getattr(p, "UserID")) != int(getattr(user, "UserID")):
-        raise HTTPException(status_code=404, detail="Purchase not found")
-    status = str(getattr(p, "Status", "")).lower()
-    if status in {"paid", "refunded", "canceled", "cancelled"}:
-        raise HTTPException(status_code=400, detail="Purchase is not payable")
-
-    plan = db.query(EventPlan).filter(EventPlan.PlanID == getattr(p, "PlanID", None)).first()
-    plan_name = str(getattr(plan, "Name", "Plan")) if plan else "Plan"
-    plan_desc = str(getattr(plan, "Description", "") or "") if plan else ""
-
-    try:
-        amount_decimal = Decimal(str(getattr(p, "Amount")))
-    except Exception:
-        amount_decimal = Decimal(0)
-    currency = str(getattr(p, "Currency", "gbp") or "gbp").lower()
-    amount_cents = int((amount_decimal * Decimal(100)).to_integral_value())
-    if amount_cents <= 0:
-        amount_cents = int(getattr(plan, "PriceCents", 0) or 0) if plan else 0
-        if amount_cents <= 0:
-            raise HTTPException(status_code=400, detail="Invalid purchase amount")
-
-    try:
-        import stripe  # type: ignore
-    except Exception:
-        raise HTTPException(status_code=500, detail="Stripe SDK not available")
-    if not settings.STRIPE_SECRET_KEY:
-        raise HTTPException(status_code=500, detail="Stripe secret key not configured")
-    stripe.api_key = settings.STRIPE_SECRET_KEY
-
-    base = settings.BASE_URL.rstrip("/")
-    pid = int(getattr(p, "PurchaseID"))
-    success_url = f"{base}/billing/purchase/{pid}?success=1"
-    cancel_url = f"{base}/billing/purchase/{pid}?canceled=1"
-
-    try:
-        session = stripe.checkout.Session.create(  # type: ignore
-            mode="payment",
-            success_url=success_url,
-            cancel_url=cancel_url,
-            line_items=[
-                {
-                    "price_data": {
-                        "currency": currency,
-                        "product_data": {
-                            "name": plan_name,
-                            "description": plan_desc,
-                        },
-                        "unit_amount": amount_cents,
-                    },
-                    "quantity": 1,
-                }
-            ],
-            metadata={
-                "user_id": str(getattr(user, "UserID")),
-                "plan_id": str(getattr(plan, "PlanID", "")) if plan else "",
-                "plan_code": str(getattr(plan, "Code", "")) if plan else "",
-                "purchase_id": str(getattr(p, "PurchaseID")),
-            },
-        )
-    except Exception as e:
-        audit.error(
-            "billing.checkout.redirect_error",
-            extra={"purchase_id": int(getattr(p, "PurchaseID")), "error": str(e)},
-        )
-        raise HTTPException(status_code=500, detail="Failed to create checkout session")
-
-    # Persist new session id for tracking
-    setattr(p, "StripeSessionID", str(session.get("id")))
-    db.commit()
-
-    url = session.get("url")
-    if not url:
-        # Fallback to client flow if url is unavailable (older API)
-        return JSONResponse({"id": session.get("id")})
-
-    audit.info(
-        "billing.checkout.redirect_started",
-        extra={
-            "purchase_id": int(getattr(p, "PurchaseID")),
-            "user_id": int(getattr(user, "UserID")),
-            "session_id": session.get("id"),
-        },
-    )
-    return RedirectResponse(url, status_code=303)
+router.include_router(billing_checkout_router)
 
 
 @router.post("/stripe/webhook")
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
     payload = await request.body()
+    payload_text = payload.decode("utf-8", errors="replace")
     sig_header = request.headers.get("stripe-signature")
     event = None
     # Keep debug message length short by computing parts separately
@@ -965,53 +352,108 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
         stripe.api_key = settings.STRIPE_SECRET_KEY
         webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+        stripe_errors = _stripe_webhook_error_types(stripe)
         if webhook_secret and sig_header:
-            event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+            try:
+                event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+            except stripe_errors as e:
+                audit.warning(
+                    "[stripe_webhook] signature verification failed sig=%s",
+                    bool(sig_header),
+                    exc_info=True,
+                )
+                db.add(
+                    PaymentLog(
+                        UserID=None,
+                        EventType="webhook_error",
+                        Payload=payload_text,
+                        ErrorMessage=str(e),
+                    )
+                )
+                try:
+                    db.commit()
+                except SQLAlchemyError:
+                    db.rollback()
+                return PlainTextResponse("invalid", status_code=400)
+            except (ValueError, TypeError, AttributeError) as e:
+                audit.warning(
+                    "[stripe_webhook] malformed signed payload",
+                    exc_info=True,
+                )
+                db.add(
+                    PaymentLog(
+                        UserID=None,
+                        EventType="webhook_error",
+                        Payload=payload_text,
+                        ErrorMessage=str(e),
+                    )
+                )
+                try:
+                    db.commit()
+                except SQLAlchemyError:
+                    db.rollback()
+                return PlainTextResponse("invalid", status_code=400)
         else:
-            event = json.loads(payload.decode("utf-8"))
-    except Exception as e:
-        # Log and return 400
+            event = json.loads(payload_text)
+    except ImportError as e:
+        audit.exception("[stripe_webhook] Stripe SDK unavailable")
         db.add(
             PaymentLog(
                 UserID=None,
                 EventType="webhook_error",
-                Payload=payload.decode("utf-8"),
+                Payload=payload_text,
                 ErrorMessage=str(e),
             )
         )
-        db.commit()
+        try:
+            db.commit()
+        except SQLAlchemyError:
+            db.rollback()
+        return PlainTextResponse("invalid", status_code=400)
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError) as e:
+        audit.warning("[stripe_webhook] payload parse failed", exc_info=True)
+        db.add(
+            PaymentLog(
+                UserID=None,
+                EventType="webhook_error",
+                Payload=payload_text,
+                ErrorMessage=str(e),
+            )
+        )
+        try:
+            db.commit()
+        except SQLAlchemyError:
+            db.rollback()
         return PlainTextResponse("invalid", status_code=400)
 
     etype = event.get("type") if isinstance(event, dict) else getattr(event, "type", None)
     _ev_id = event.get("id") if isinstance(event, dict) else getattr(event, "id", None)
     audit.debug("[stripe_webhook] parsed event type=%s id=%s", etype, _ev_id)
+
     # Helper: in tests we wire the test session into db._TEST_SESSION; when the
     # webhook runs inside the same Session we should avoid calling full commit()
     # which will expire or detach instances unexpectedly. Instead use flush()
     # so changes are visible but the transaction stays under test control.
     def _safe_commit():
+        from sqlalchemy.exc import SQLAlchemyError
+
         try:
             import db as dbmod
 
             if getattr(dbmod, "_TEST_SESSION", None) is db:
                 try:
                     db.flush()
-                except Exception:
+                except SQLAlchemyError:
                     # fallback to commit if flush fails
                     db.commit()
                 return
-        except Exception:
+        except (ImportError, AttributeError):
             pass
         db.commit()
-    # In test environments the test suite may use a long-lived transaction which can
-    # block a new connection from reading rows. For the webhook handler we prefer a
-    # non-blocking read to avoid hanging tests — attempt to set READ UNCOMMITTED for
-    # this session if supported by the DB.
-    try:
-        db.execute("SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
-    except Exception:
-        # Ignore if the DB doesn't support this or the driver rejects it
-        pass
+
+    # In some environments tests may use long-lived transactions. When supported
+    # by the backend, prefer non-blocking reads for webhook reconciliation.
+    _apply_read_uncommitted_hint(db)
     try:
         if etype == "checkout.session.completed":
             obj = (
@@ -1052,9 +494,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                             .filter(AddonCatalog.AddonID == getattr(eap, "AddonID"))
                             .first()
                         )
-                        if (
-                            addon
-                            and (str(getattr(addon, "Code", "")).lower() == "additional_event")
+                        if addon and (
+                            str(getattr(addon, "Code", "")).lower() == "additional_event"
                         ):
                             # Ensure we have a PlanID to satisfy DB NOT NULL / FK constraints.
                             # Create or reuse a zero-cost EventPlan reserved for entitlements.
@@ -1080,10 +521,15 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                                     # refresh to populate PlanID
                                     try:
                                         db.refresh(entitlement_plan)
-                                    except Exception:
+                                    except SQLAlchemyError:
                                         pass
                                 plan_id_val = getattr(entitlement_plan, "PlanID", None)
-                            except Exception:
+                            except (SQLAlchemyError, ImportError):
+                                audit.exception(
+                                    "[stripe_webhook] failed to resolve entitlement plan"
+                                    " for session=%s",
+                                    session_id,
+                                )
                                 plan_id_val = None
 
                             ent = Purchase(
@@ -1109,7 +555,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                                     user_id,
                                     session_id,
                                 )
-                            except Exception:
+                            except (SQLAlchemyError, AttributeError, TypeError, ValueError):
                                 audit.exception(
                                     "[stripe_webhook] entitlement creation failed for session=%s",
                                     session_id,
@@ -1122,7 +568,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                             try:
                                 raw_eid = getattr(eap, "EventID", None)
                                 ref_eid = int(raw_eid) if raw_eid is not None else None
-                            except Exception:
+                            except (ValueError, TypeError):
                                 ref_eid = None
 
                             if ref_eid:
@@ -1143,7 +589,9 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                                             UserID=getattr(eap, "UserID"),
                                             Key="purchase_extras",
                                             State="done",
-                                            CompletedAt=datetime.now(timezone.utc).replace(tzinfo=None),
+                                            CompletedAt=datetime.now(timezone.utc).replace(
+                                                tzinfo=None
+                                            ),
                                         )
                                         db.add(et)
                                     else:
@@ -1156,7 +604,12 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                                     # save in nested transaction to avoid rolling back outer
                                     with db.begin_nested():
                                         _safe_commit()
-                                except Exception:
+                                except (
+                                    SQLAlchemyError,
+                                    AttributeError,
+                                    TypeError,
+                                    ValueError,
+                                ):
                                     audit.exception(
                                         (
                                             "[stripe_webhook] failed to upsert EventTask for addon "
@@ -1164,15 +617,18 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                                         ),
                                         session_id,
                                     )
-                        except Exception:
-                            pass
-                    except Exception:
+                        except (ImportError, AttributeError):
+                            audit.debug(
+                                "[stripe_webhook] EventTask import/attr error session=%s",
+                                session_id,
+                            )
+                    except (SQLAlchemyError, ImportError):
                         audit.exception(
                             "[stripe_webhook] addon lookup failed for EventAddonPurchase %s",
                             getattr(eap, "PurchaseID", None),
                         )
-            except Exception:
-                pass
+            except (SQLAlchemyError, ImportError):
+                audit.exception("[stripe_webhook] EAP processing failed session=%s", session_id)
             purchase = db.query(Purchase).filter(Purchase.StripeSessionID == session_id).first()
             if purchase:
                 setattr(purchase, "Status", "paid")
@@ -1191,21 +647,24 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                     to_email = getattr(u, "Email", None) if u else None
                     if to_email:
                         try:
-                            asyncio.create_task(
+                            _schedule_webhook_task(
                                 send_billing_email(
                                     to_email,
                                     subject="Payment received – EPU",
                                     body="Thanks for your purchase. Your plan is now active.",
-                                )
+                                ),
+                                label="payment_received_email",
+                                user_id=getattr(purchase, "UserID", None),
+                                reference=str(session_id) if session_id else None,
                             )
                             audit.debug(
                                 "[stripe_webhook] scheduled payment received email for user=%s",
                                 getattr(purchase, "UserID", None),
                             )
-                        except Exception:
+                        except (RuntimeError, AttributeError):
                             audit.exception("[stripe_webhook] failed to schedule payment email")
-                except Exception:
-                    pass
+                except (SQLAlchemyError, ImportError, AttributeError):
+                    audit.debug("[stripe_webhook] user email lookup failed session=%s", session_id)
         elif etype == "payment_intent.succeeded":
             obj = (
                 event.get("data", {}).get("object", {})
@@ -1228,21 +687,24 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                     to_email = getattr(u, "Email", None) if u else None
                     if to_email:
                         try:
-                            asyncio.create_task(
+                            _schedule_webhook_task(
                                 send_billing_email(
                                     to_email,
                                     subject="Payment succeeded – EPU",
                                     body="Thanks for your purchase. Your plan is now active.",
-                                )
+                                ),
+                                label="payment_succeeded_email",
+                                user_id=getattr(purchase, "UserID", None),
+                                reference=str(pi_id) if pi_id else None,
                             )
                             audit.debug(
                                 "[stripe_webhook] scheduled payment succeeded email for user=%s",
                                 getattr(purchase, "UserID", None),
                             )
-                        except Exception:
+                        except (RuntimeError, AttributeError):
                             audit.exception("[stripe_webhook] failed to schedule succeeded email")
-                except Exception:
-                    pass
+                except (SQLAlchemyError, ImportError, AttributeError):
+                    audit.debug("[stripe_webhook] user email lookup failed pi=%s", pi_id)
         # Log event: avoid duplicate logs for the same StripeEventID
         try:
             sid = event.get("id") if isinstance(event, dict) else getattr(event, "id", None)
@@ -1259,7 +721,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                     )
                 )
                 _safe_commit()
-        except Exception:
+        except SQLAlchemyError:
             # If logging check fails, still attempt to add a log to not lose diagnostics
             try:
                 db.add(
@@ -1271,206 +733,34 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                             if isinstance(event, dict)
                             else getattr(event, "id", None)
                         ),
-                        Payload=payload.decode("utf-8"),
+                        Payload=payload_text,
                     )
                 )
                 _safe_commit()
-            except Exception:
-                pass
-    except Exception as e:
+            except (SQLAlchemyError, AttributeError, TypeError, ValueError):
+                audit.exception(
+                    "[stripe_webhook] failed to persist fallback payment log event=%s",
+                    (event.get("id") if isinstance(event, dict) else getattr(event, "id", None)),
+                )
+    except (SQLAlchemyError, AttributeError, TypeError, ValueError, RuntimeError) as e:
+        sid = event.get("id") if isinstance(event, dict) else getattr(event, "id", None)
+        audit.exception("[stripe_webhook] handler error event=%s type=%s", sid, etype)
         db.add(
             PaymentLog(
                 UserID=None,
                 EventType="handler_error",
-                Payload=payload.decode("utf-8"),
+                Payload=payload_text,
                 ErrorMessage=str(e),
             )
         )
-        db.commit()
+        try:
+            db.commit()
+        except SQLAlchemyError:
+            db.rollback()
         return PlainTextResponse("error", status_code=500)
 
     return PlainTextResponse("ok", status_code=200)
 
 
-@router.post("/admin/refund")
-async def admin_refund(
-    request: Request,
-    purchase_id: int,
-    reason: str = "",
-    db: Session = Depends(get_db),
-    user=Depends(require_admin),
-):
-    # Find purchase
-    p = db.query(Purchase).filter(Purchase.PurchaseID == int(purchase_id)).first()
-    if not p:
-        raise HTTPException(status_code=404, detail="Purchase not found")
-    # Load Stripe
-    try:
-        import stripe  # type: ignore
-
-        stripe.api_key = settings.STRIPE_SECRET_KEY
-    except Exception:
-        raise HTTPException(status_code=500, detail="Stripe SDK not available")
-    pi = getattr(p, "StripePaymentIntentID", None)
-    if not pi:
-        raise HTTPException(status_code=400, detail="No payment intent on purchase")
-    try:
-        stripe.Refund.create(
-            payment_intent=pi, reason="requested_by_customer"
-        )  # type: ignore
-        setattr(p, "Status", "refunded")
-        db.commit()
-        # Notify user via email (best-effort)
-        try:
-            from app.models.user import User
-
-            u = db.query(User).filter(User.UserID == getattr(p, "UserID", None)).first()
-            to_email = getattr(u, "Email", None) if u else None
-            if to_email:
-                msg = (
-                    "Your purchase #"
-                    + str(getattr(p, 'PurchaseID'))
-                    + " has been refunded. "
-                    + (("Reason: " + reason) if reason else "")
-                )
-                await send_billing_email(
-                    to_email,
-                    subject="Refund processed – EPU",
-                    body=msg,
-                )
-        except Exception:
-            pass
-        audit.info(
-            "billing.refund.success",
-            extra={
-                "purchase_id": int(getattr(p, "PurchaseID")),
-                "admin_id": int(getattr(user, "UserID")),
-            },
-        )
-        return JSONResponse({"ok": True})
-    except Exception as e:
-        audit.error(
-            "billing.refund.error",
-            extra={"purchase_id": int(getattr(p, "PurchaseID")), "error": str(e)},
-        )
-        raise HTTPException(status_code=500, detail="Refund failed")
-
-
-@router.post("/admin/cancel")
-async def admin_cancel(
-    request: Request,
-    purchase_id: int,
-    reason: str = "",
-    db: Session = Depends(get_db),
-    user=Depends(require_admin),
-):
-    p = db.query(Purchase).filter(Purchase.PurchaseID == int(purchase_id)).first()
-    if not p:
-        raise HTTPException(status_code=404, detail="Purchase not found")
-    try:
-        setattr(p, "Status", "canceled")
-        db.commit()
-        try:
-            from app.models.user import User
-
-            u = db.query(User).filter(User.UserID == getattr(p, "UserID", None)).first()
-            to_email = getattr(u, "Email", None) if u else None
-            if to_email:
-                msg = (
-                    "Your purchase #"
-                    + str(getattr(p, 'PurchaseID'))
-                    + " has been canceled. "
-                    + (("Reason: " + reason) if reason else "")
-                )
-                await send_billing_email(
-                    to_email,
-                    subject="Subscription canceled – EPU",
-                    body=msg,
-                )
-        except Exception:
-            pass
-        audit.info(
-            "billing.cancel.success",
-            extra={
-                "purchase_id": int(getattr(p, "PurchaseID")),
-                "admin_id": int(getattr(user, "UserID")),
-            },
-        )
-        return JSONResponse({"ok": True})
-    except Exception as e:
-        audit.error(
-            "billing.cancel.error",
-            extra={"purchase_id": int(getattr(p, "PurchaseID")), "error": str(e)},
-        )
-        raise HTTPException(status_code=500, detail="Cancel failed")
-
-
-@router.get("/admin/billing", response_class=PlainTextResponse)
-async def admin_billing_list(
-    request: Request, db: Session = Depends(get_db), user=Depends(require_admin)
-):
-    from app.models.billing import Purchase
-    from app.models.event_plan import EventPlan
-
-    rows = (
-        db.query(Purchase, EventPlan)
-        .join(EventPlan, Purchase.PlanID == EventPlan.PlanID)
-        .order_by(Purchase.CreatedAt.desc())
-        .limit(200)
-        .all()
-    )
-    lines = ["Purchases (latest 200):"]
-    for p, plan in rows:
-        lines.append(
-            f"#{getattr(p, 'PurchaseID')} user={getattr(p, 'UserID')} "
-            f"plan={getattr(plan, 'Code')} status={getattr(p, 'Status')} "
-            f"amount={getattr(p, 'Amount')} {getattr(p, 'Currency')}"
-        )
-    return PlainTextResponse("\n".join(lines))
-
-
-@router.get("/admin/payment-logs", response_class=PlainTextResponse)
-async def admin_payment_logs(
-    request: Request, db: Session = Depends(get_db), user=Depends(require_admin)
-):
-    from app.models.billing import PaymentLog
-
-    logs = db.query(PaymentLog).order_by(PaymentLog.CreatedAt.desc()).limit(200).all()
-    lines = ["Payment Logs (latest 200):"]
-    for log in logs:
-        lines.append(
-            f"#{getattr(log, 'LogID')} type={getattr(log, 'EventType')} "
-            f"err={getattr(log, 'ErrorMessage')}"
-        )
-    return PlainTextResponse("\n".join(lines))
-
-
-@router.get("/admin/billing/manage", response_class=HTMLResponse)
-async def admin_billing_manage(
-    request: Request, db: Session = Depends(get_db), user=Depends(require_admin)
-):
-    from app.models.billing import Purchase
-    from app.models.event_plan import EventPlan
-    from app.models.user import User
-
-    rows = (
-        db.query(Purchase, EventPlan, User)
-        .join(EventPlan, Purchase.PlanID == EventPlan.PlanID)
-        .join(User, Purchase.UserID == User.UserID)
-        .order_by(Purchase.CreatedAt.desc())
-        .limit(200)
-        .all()
-    )
-    items = []
-    for p, plan, u in rows:
-        items.append(
-            {
-                "purchase_id": int(getattr(p, "PurchaseID")),
-                "user_email": str(getattr(u, "Email") or ""),
-                "plan": str(getattr(plan, "Code")),
-                "amount": str(getattr(p, "Amount")) + " " + str(getattr(p, "Currency")),
-                "status": str(getattr(p, "Status")),
-                "created": getattr(p, "CreatedAt"),
-            }
-        )
-    return templates.TemplateResponse(request, "admin_billing.html", context={"items": items})
+router.include_router(billing_admin_router)
+router.include_router(billing_receipts_router)

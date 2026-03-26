@@ -1,4 +1,5 @@
 """Dependencies for FastAPI routes."""
+
 from typing import Optional
 
 from fastapi import Request

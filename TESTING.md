@@ -15,6 +15,12 @@ venv\Scripts\python.exe -m pytest -q
 venv\Scripts\python.exe -m pytest tests/test_webhook_idempotency.py::test_webhook_idempotent -q
 ```
 
+- Run focused coverage for the new hardening work:
+
+```powershell
+venv\Scripts\python.exe -m pytest -q tests/test_security_preflight.py tests/test_security_hsts.py tests/test_live_routes.py tests/test_live_shape_items.py
+```
+
 ## Test DB modes
 - `TEST_SQLITE=1` will run tests using an in-memory SQLite DB. This mode strips schema names to avoid `dbo.` prefixes.
 - The default test run uses the configured DB (SQL Server) and transactional fixtures.
@@ -29,3 +35,8 @@ venv\Scripts\python.exe -m pytest tests/test_webhook_idempotency.py::test_webhoo
 
 ## CI notes
 - The CI pipeline should install requirements-dev and run `ruff` and `pytest`.
+- Production deployment candidates should also run the security preflight gate:
+
+```powershell
+venv\Scripts\python.exe scripts\preflight_security.py --mode production
+```

@@ -4,6 +4,7 @@ Revision ID: 20250912_0021_merge_plan_revision
 Revises: add_plan_to_users, 20250911_0021_add_eventtask
 Create Date: 2025-09-12
 """
+
 # alembic.op import removed: this merge-only revision performs no DB ops
 
 # revision identifiers, used by Alembic.

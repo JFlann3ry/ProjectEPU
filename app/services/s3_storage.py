@@ -1,5 +1,7 @@
 """S3 storage service for file uploads (optional; fallback to local filesystem)."""
+
 import logging
+from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -7,6 +9,7 @@ logger = logging.getLogger(__name__)
 try:
     import boto3
     from botocore.exceptions import ClientError
+
     HAS_S3 = True
 except ImportError:
     HAS_S3 = False
@@ -24,7 +27,7 @@ class S3StorageService:
     ):
         """
         Initialize S3 client.
-        
+
         Args:
             region: AWS region
             bucket: S3 bucket name
@@ -34,7 +37,7 @@ class S3StorageService:
         self.bucket = bucket
         self.region = region
         self.enabled = HAS_S3 and bool(bucket)
-        
+
         if self.enabled:
             try:
                 self.client = boto3.client(
@@ -59,12 +62,12 @@ class S3StorageService:
     ) -> str:
         """
         Upload file to S3.
-        
+
         Args:
             file_data: File contents as bytes
             s3_key: S3 object key (e.g., "user_123/event_456/uploads/photo.jpg")
             content_type: MIME type
-            
+
         Returns:
             S3 key or local path on success
         """
@@ -87,6 +90,31 @@ class S3StorageService:
             logger.error(f"S3 upload failed for {s3_key}: {e}")
             raise
 
+    def upload_path(
+        self, file_path: str, s3_key: str, content_type: str = "application/octet-stream"
+    ) -> str:
+        """Upload a file from disk to S3 without loading it entirely into memory."""
+        if not self.enabled:
+            logger.debug(f"S3 disabled; skipping upload of {s3_key}")
+            return None
+
+        try:
+            with Path(file_path).open("rb") as fh:
+                self.client.upload_fileobj(
+                    fh,
+                    self.bucket,
+                    s3_key,
+                    ExtraArgs={
+                        "ContentType": content_type,
+                        "ServerSideEncryption": "AES256",
+                    },
+                )
+            logger.info(f"Uploaded to S3: s3://{self.bucket}/{s3_key}")
+            return s3_key
+        except ClientError as e:
+            logger.error(f"S3 upload failed for {s3_key}: {e}")
+            raise
+
     def delete_file(self, s3_key: str) -> bool:
         """Delete file from S3."""
         if not self.enabled:
@@ -103,11 +131,11 @@ class S3StorageService:
     def generate_presigned_url(self, s3_key: str, expiration: int = 3600) -> str:
         """
         Generate a presigned URL for temporary access (e.g., for downloads).
-        
+
         Args:
             s3_key: S3 object key
             expiration: URL validity in seconds (default 1 hour)
-            
+
         Returns:
             Presigned URL
         """

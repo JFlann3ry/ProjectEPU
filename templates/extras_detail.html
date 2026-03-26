@@ -52,7 +52,7 @@
           {% endif %}
 
           <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-            {% if request.cookies.get('session_id') %}
+            {% if request.state and request.state.user_id %}
             <button class="btn primary js-buy-extra" data-code="{{ addon.code }}" data-allowqty="{{ '1' if addon.allow_qty else '0' }}" style="min-width: 170px;">Purchase</button>
             {% else %}
             <a class="btn primary" href="/signup" role="button" style="display:inline-flex; align-items:center; justify-content:center; min-width: 170px;">Sign up to purchase</a>
@@ -65,45 +65,7 @@
         </div>
       </div>
 
-      {% if addon.code == 'live_gallery' %}
-      <div style="padding:0 16px 16px; display:grid; gap:14px;">
-        <div>
-          <h3 style="margin:0 0 6px;">Overview</h3>
-          <p class="muted" style="margin:0;">Live Gallery displays new photos the moment they’re uploaded—perfect for receptions, conferences, and activations. Share a single link with guests or put it on a big screen using slideshow mode.</p>
-        </div>
-        <div>
-          <h3 style="margin:0 0 6px;">Key benefits</h3>
-          <ul style="margin:0; padding-left: 18px;">
-            <li>Real-time updates (no manual refresh needed)</li>
-            <li>Works with on-site screens via our slideshow mode</li>
-            <li>Organiser controls for content visibility and moderation</li>
-          </ul>
-        </div>
-        <div>
-          <h3 style="margin:0 0 6px;">How it works</h3>
-          <ol style="margin:0; padding-left: 18px;">
-            <li>Enable Live Gallery for your event (purchase above).</li>
-            <li>As uploads arrive, the gallery updates automatically.</li>
-            <li>Connect a projector or display it on a big screen in slideshow mode for continuous display.</li>
-          </ol>
-        </div>
-        <div>
-          <h3 style="margin:0 0 6px;">Specs & notes</h3>
-          <ul style="margin:0; padding-left: 18px;">
-            <li>Supported on modern browsers (mobile and desktop)</li>
-            <li>Respects browser accessibility settings (e.g., reduced motion)</li>
-            <li>Requires an active event with guest uploads enabled</li>
-          </ul>
-        </div>
-        <details>
-          <summary><strong>FAQs</strong></summary>
-          <ul style="margin:8px 0 0; padding-left: 18px;">
-            <li><em>How fast do photos appear?</em> Typically within a few seconds after upload.</li>
-            <li><em>Can I hide a photo?</em> Yes, organisers can remove or hide content at any time.</li>
-          </ul>
-        </details>
-      </div>
-      {% elif addon.code == 'qr_cards' %}
+      {% if addon.code == 'qr_cards' %}
       <div style="padding:0 16px 16px; display:grid; gap:14px;">
         <div>
           <h3 style="margin:0 0 6px;">Overview</h3>

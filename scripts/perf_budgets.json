@@ -1,0 +1,8 @@
+{
+  "max_ttfb_ms": 1500,
+  "max_html_bytes": 220000,
+  "max_css_bytes": 380000,
+  "max_js_bytes": 520000,
+  "max_total_asset_bytes": 1000000,
+  "max_assets": 55
+}

@@ -28,6 +28,7 @@ async def create_event_page(
         event_types = []
     # Enforce plan: require paid plan; Basic (code 'single') allows only 1 event
     from app.models.event import Event
+
     try:
         from app.services.billing_utils import get_active_plan
 
@@ -67,8 +68,8 @@ async def create_event_page(
                 "create_event.html",
                 context={
                     "error": (
-                        'Your plan allows only 1 event. '
-                        'Purchase an additional event to create more.'
+                        "Your plan allows only 1 event. "
+                        "Purchase an additional event to create more."
                     ),
                     "event_types": event_types,
                 },
@@ -242,7 +243,7 @@ async def create_event_submit(
 
     # If we prepared a pending CustomEventType, attach the new EventID and persist
     try:
-        if 'pending_custom_event_type' in locals() and pending_custom_event_type:
+        if "pending_custom_event_type" in locals() and pending_custom_event_type:
             pending_custom_event_type.EventID = new_event.EventID
             db.add(pending_custom_event_type)
             db.commit()

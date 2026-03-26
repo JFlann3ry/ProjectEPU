@@ -36,44 +36,13 @@
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
       <div class="btn-row" aria-label="Share actions">
         <a class="btn primary" href="/guest/upload/{{ event.Code }}">Open guest upload</a>
-        <button class="btn primary" onclick="copyShare()" type="button">Copy link</button>
+        <button class="btn primary js-copy-share-link" type="button">Copy link</button>
       </div>
       <img src="/qr?path=e/{{ event.Code }}" alt="QR" style="width:88px;height:88px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);"/>
     </div>
   </div>
 </div>
 </div>
-<script>
-function copyShare(){
-  const url = window.location.href;
-  navigator.clipboard.writeText(url).then(()=>{
-    alert('Link copied');
-  });
-}
-// Ensure button text contrast against primary color
-(function(){
-  var root = document.querySelector('.theme-root');
-  if(!root) return;
-  function hex(x){ return (x||'').trim(); }
-  function hexToRgb(h){
-    if (!h) return {r:0,g:0,b:0};
-    h = h.replace('#','');
-    if(h.length===3){ h = h.split('').map(function(c){return c+c;}).join(''); }
-    var r = parseInt(h.substring(0,2),16) || 0;
-    var g = parseInt(h.substring(2,4),16) || 0;
-    var b = parseInt(h.substring(4,6),16) || 0;
-    return {r:r,g:g,b:b};
-  }
-  function luminance(rgb){
-    var sr = rgb.r/255, sg = rgb.g/255, sb = rgb.b/255;
-    [sr,sg,sb] = [sr,sg,sb].map(function(v){ return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); });
-    return 0.2126*sr + 0.7152*sg + 0.0722*sb;
-  }
-  var b1 = hex(getComputedStyle(root).getPropertyValue('--btn1'));
-  var lum = luminance(hexToRgb(b1));
-  root.style.setProperty('--btn-text', lum > 0.55 ? '#111111' : '#ffffff');
-})();
-</script>
 {% endblock %}
 
 {% block extra_head %}
@@ -92,5 +61,9 @@ function copyShare(){
     <meta name="twitter:card" content="summary" />
   {% endif %}
   <meta name="twitter:title" content="{{ event.Name }}" />
-  <style></style>
+{% endblock %}
+
+{% block extra_js %}
+  {{ super() }}
+  <script src="{{ url_for('static', path='js/pages/share_event.js') }}?v={{ now() if now else '' }}"></script>
 {% endblock %}

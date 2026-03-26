@@ -65,12 +65,12 @@
 
 /* Primary button driven by variables */
 .btn-primary{ display:inline-flex; align-items:center; justify-content:center; gap:6px; color: var(--btn-text, #fff); padding: 10px 14px; border-radius: 12px; border: 1px solid transparent; text-decoration:none; }
-.is-gradient .btn-primary{ background: linear-gradient(90deg, var(--btn1, #1f2937) 0%, var(--btn2, #374151) 100%); }
+.is-gradient .btn-primary{ background: var(--btn-gradient, linear-gradient(90deg, var(--btn1, #1f2937) 0%, var(--btn2, #374151) 100%)); }
 .is-solid .btn-primary{ background: var(--btn1, #1f2937); }
 
 /* Bridge: style existing .btn.primary to use theme colors when inside a themed root */
 .theme-root .btn.primary { color: var(--btn-text, #fff); border: 1px solid transparent; }
-.theme-root.is-gradient .btn.primary { background: linear-gradient(90deg, var(--btn1, #1f2937) 0%, var(--btn2, #374151) 100%); }
+.theme-root.is-gradient .btn.primary { background: var(--btn-gradient, linear-gradient(90deg, var(--btn1, #1f2937) 0%, var(--btn2, #374151) 100%)); }
 .theme-root.is-solid .btn.primary { background: var(--btn1, #1f2937); }
 .theme-root .btn.primary:hover { filter: brightness(1.05); }
 
@@ -98,7 +98,7 @@
 /* Themed upload progress fill matches primary button style/colors */
 .theme-root .progress-bar { border: 1px solid var(--accent, rgba(255,255,255,0.18)); background: rgba(255,255,255,0.06); }
 .theme-root.is-gradient .progress-bar .progress-fill {
-	background: linear-gradient(90deg, var(--btn1, #1f2937) 0%, var(--btn2, #374151) 100%);
+	background: var(--btn-gradient, linear-gradient(90deg, var(--btn1, #1f2937) 0%, var(--btn2, #374151) 100%));
 	box-shadow: none;
 }
 .theme-root.is-solid .progress-bar .progress-fill {

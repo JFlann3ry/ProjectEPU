@@ -42,6 +42,7 @@ from .event import (
 )
 from .export import UserDataExportJob as UserDataExportJob
 from .logging import AppErrorLog as AppErrorLog
+from .logging import JobRunLog as JobRunLog
 from .rate_limit import RateLimitCounter as RateLimitCounter
 from .user import Base as Base  # explicit re-export
 from .user import User as User

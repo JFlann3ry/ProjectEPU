@@ -24,3 +24,4 @@ httpx
 redis>=5.0
 reportlab
 boto3>=1.28.0
+APScheduler>=3.10.0

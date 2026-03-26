@@ -16,9 +16,7 @@
                 {% endcall %}
     </div>
 </div>
-<script>
-    setTimeout(function() {
-        window.location.href = "/";
-    }, 30000);
-</script>
+{% endblock %}
+{% block extra_js %}
+<script src="/static/js/pages/account_delete_confirmed.js" defer></script>
 {% endblock %}

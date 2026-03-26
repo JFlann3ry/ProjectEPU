@@ -2,6 +2,7 @@
 
 # ruff: noqa: I001
 import io
+import logging
 import re
 from pathlib import Path
 from urllib.parse import quote_plus
@@ -34,9 +35,41 @@ from app.models.event import Event
 from app.services.auth import get_current_user
 
 router = APIRouter()
+audit = logging.getLogger("audit")
 BASE_URL = settings.BASE_URL
 # Last updated date for Terms (ISO format). Update when terms change.
 TERMS_LAST_UPDATED = "2025-08-29"
+
+
+@router.get("/analytics/collect", status_code=204)
+async def analytics_collect(
+    request: Request,
+    event: str = Query(..., alias="e", min_length=1, max_length=64),
+    path: str = Query("", max_length=256),
+    source: str = Query("", max_length=64),
+    meta: str = Query("", max_length=256),
+):
+    """Lightweight consent-gated analytics collector.
+
+    The client sends only non-sensitive funnel events when user has opted in.
+    This endpoint records an audit log entry and returns 204.
+    """
+    try:
+        audit.info(
+            "analytics.collect",
+            extra={
+                "event": event,
+                "path": path,
+                "source": source,
+                "meta": meta,
+                "client": request.client.host if request.client else None,
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
+    except Exception:
+        # Analytics must never block page behavior.
+        pass
+    return Response(status_code=204)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -378,6 +411,7 @@ def generate_qr(
 
     # Colors/theme
     hex_pat = re.compile(r"^#?[0-9a-fA-F]{6}$")
+
     def canon(x: str | None, fallback: str) -> str:
         if not x:
             return fallback
@@ -492,6 +526,7 @@ def health_check():
 
     status = "ok" if db_ok and not missing else ("degraded" if db_ok else "error")
     from datetime import datetime, timezone
+
     payload = {
         "status": status,
         "time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -526,6 +561,12 @@ def robots_txt():
         "User-agent: *",
         "Allow: /",
         "Disallow: /admin",
+        "Disallow: /account",
+        "Disallow: /billing",
+        "Disallow: /events",
+        "Disallow: /gallery",
+        "Disallow: /guest/upload",
+        "Disallow: /live",
         "Disallow: /profile",
         "Disallow: /profile/edit",
         f"Sitemap: {BASE_URL.rstrip('/')}/sitemap.xml",
@@ -540,13 +581,12 @@ def sitemap_xml(db: Session = Depends(get_db)):
     base = BASE_URL.rstrip("/")
     urls = [
         f"{base}/",
-    f"{base}/pricing",
+        f"{base}/pricing",
         f"{base}/terms",
         f"{base}/privacy",
         f"{base}/faq",
         f"{base}/about",
         f"{base}/tutorial",
-        f"{base}/gallery",
     ]
     # Public share pages for published events (simple assumption)
     events = db.query(Event).filter(Event.Published).limit(5000).all()

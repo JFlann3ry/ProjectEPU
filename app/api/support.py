@@ -1,14 +1,19 @@
+import logging
+import traceback
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.settings import settings
 from app.core.templates import templates
+from app.models.logging import AppErrorLog
 from app.services.csrf import set_csrf_cookie
 from app.services.email_utils import send_support_email
 from db import get_db
 
 router = APIRouter()
+audit = logging.getLogger("audit")
 
 
 @router.get("/contact", response_class=HTMLResponse)
@@ -88,7 +93,7 @@ async def contact_submit(
             "contact.html",
             context={
                 "error": "Too many requests. Please wait a minute and try again.",
-            "csrf_token": token,
+                "csrf_token": token,
             },
             status_code=429,
         )
@@ -106,7 +111,7 @@ async def contact_submit(
             "contact.html",
             context={
                 "error": "All fields are required.",
-            "csrf_token": token,
+                "csrf_token": token,
                 "form": {
                     "name": name,
                     "email": email,
@@ -135,7 +140,7 @@ async def contact_submit(
             "contact.html",
             context={
                 "error": "Invalid form token. Please refresh and try again.",
-            "csrf_token": token,
+                "csrf_token": token,
                 "form": {
                     "name": name,
                     "email": email,
@@ -159,7 +164,7 @@ async def contact_submit(
             "contact.html",
             context={
                 "error": "Please complete the CAPTCHA.",
-            "csrf_token": token,
+                "csrf_token": token,
                 "form": {
                     "name": name,
                     "email": email,
@@ -182,7 +187,7 @@ async def contact_submit(
             "contact.html",
             context={
                 "error": "One or more fields exceed the allowed length.",
-            "csrf_token": token,
+                "csrf_token": token,
                 "form": {
                     "name": name,
                     "email": email,
@@ -202,9 +207,50 @@ async def contact_submit(
         if (topic or "").lower() == "billing":
             extra = {"order_number": order_number or "", "event_url": event_url or ""}
         await send_support_email(name=name, from_email=email, message=message, topic=topic, **extra)
-    except Exception:
-        # Swallow errors to avoid leaking config; pretend success
-        pass
+    except Exception as exc:
+        request_id = getattr(request.state, "request_id", None)
+        try:
+            email_domain = ""
+            if "@" in (email or ""):
+                email_domain = (email.split("@", 1)[1] or "").lower()
+            audit.exception(
+                "support.email.send_failed",
+                extra={
+                    "request_id": request_id,
+                    "path": str(request.url.path),
+                    "method": request.method,
+                    "client": request.client.host if request.client else None,
+                    "topic": topic,
+                    "email_domain": email_domain,
+                },
+            )
+        except Exception:
+            pass
+
+        # Best-effort persistence to central error logs for admin/ops visibility.
+        try:
+            db.add(
+                AppErrorLog(
+                    RequestID=str(request_id) if request_id else None,
+                    Path=str(request.url.path),
+                    Method=request.method,
+                    StatusCode=502,
+                    UserID=None,
+                    ClientIP=request.client.host if request.client else None,
+                    UserAgent=request.headers.get("user-agent"),
+                    Referer=request.headers.get("referer"),
+                    Message="support.email.send_failed",
+                    StackTrace="".join(
+                        traceback.format_exception(type(exc), exc, exc.__traceback__)
+                    ),
+                )
+            )
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
     return RedirectResponse("/contact/sent", status_code=303)
 
 

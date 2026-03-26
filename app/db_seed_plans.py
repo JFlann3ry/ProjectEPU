@@ -31,8 +31,7 @@ PLANS = [
         "Code": "single",
         "Name": "Basic",
         "Description": (
-            "1 event, gallery of guest uploads, 2 mo upload, 12 mo download, "
-            "themed upload page"
+            "1 event, gallery of guest uploads, 2 mo upload, 12 mo download, " "themed upload page"
         ),
         "PriceCents": 2500,
         "Currency": "gbp",
@@ -54,8 +53,7 @@ PLANS = [
         "Code": "ultimate",
         "Name": "Ultimate",
         "Description": (
-            "12 mo upload & download from event date, customize upload page to "
-            "match your theme"
+            "12 mo upload & download from event date, customize upload page to " "match your theme"
         ),
         "PriceCents": 4000,
         "Currency": "gbp",

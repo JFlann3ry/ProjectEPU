@@ -1,4 +1,3 @@
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -35,10 +34,10 @@ def test_webhook_idempotent(db_session):
     user = db.query(User).first()
     if not user:
         user = User(
-            FirstName='T',
-            LastName='User',
-            Email='webhook@example.test',
-            HashedPassword='x',
+            FirstName="T",
+            LastName="User",
+            Email="webhook@example.test",
+            HashedPassword="x",
         )
         db.add(user)
         db.commit()
@@ -89,9 +88,5 @@ def test_webhook_idempotent(db_session):
 
     # Ensure no duplicate handling: PaymentLog with the same StripeEventID
     # should remain unchanged (no duplicate created)
-    logs2 = (
-        db.query(PaymentLog)
-        .filter(PaymentLog.StripeEventID == "evt_test_123")
-        .all()
-    )
+    logs2 = db.query(PaymentLog).filter(PaymentLog.StripeEventID == "evt_test_123").all()
     assert len(logs2) == len(logs)

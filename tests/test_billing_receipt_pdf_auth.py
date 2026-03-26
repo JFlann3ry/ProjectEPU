@@ -6,10 +6,15 @@ from main import app
 
 def test_pdf_receipt_authenticated_200(monkeypatch, client):
     # Monkeypatch auth to return a fake user
-    from app.api import billing
+    from app.api import billing_receipts
 
     fake_user = SimpleNamespace(UserID=1, Email="u@example.com")
-    monkeypatch.setattr(billing, "get_current_user", lambda request, db: fake_user, raising=True)
+    monkeypatch.setattr(
+        billing_receipts,
+        "get_current_user",
+        lambda request, db: fake_user,
+        raising=True,
+    )
 
     class FakeP:
         def __init__(self):

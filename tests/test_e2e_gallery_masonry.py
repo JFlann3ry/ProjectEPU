@@ -40,15 +40,15 @@ def test_gallery_masonry_columns_and_ordinals():
             item_w = items.nth(0).bounding_box()
             if not w or not item_w:
                 pytest.skip("Unable to determine dimensions")
-            approx_cols = max(1, int(round(w['width'] / item_w['width'])))
+            approx_cols = max(1, int(round(w["width"] / item_w["width"])))
             assert 1 <= approx_cols <= 6
         else:
-            cols = wrapper.locator('.masonry-column')
+            cols = wrapper.locator(".masonry-column")
             cnt = cols.count()
             assert cnt >= 2 and cnt <= 6, f"unexpected column count: {cnt}"
 
         # Check that ordinals if present increase left-to-right/top-to-bottom in DOM order
-        ordinals = page.locator('#gallery .tile-ordinal')
+        ordinals = page.locator("#gallery .tile-ordinal")
         vals = []
         for i in range(ordinals.count()):
             t = ordinals.nth(i).inner_text().strip()

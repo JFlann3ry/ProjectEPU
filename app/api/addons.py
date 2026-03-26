@@ -16,6 +16,7 @@ from db import get_db
 router = APIRouter()
 log = logging.getLogger(__name__)
 
+
 @router.get("/extras", response_class=HTMLResponse)
 async def extras_marketplace(request: Request, db: Session = Depends(get_db)):
     addons = []
@@ -86,7 +87,7 @@ async def extras_marketplace(request: Request, db: Session = Depends(get_db)):
 async def extras_detail(code: str, request: Request, db: Session = Depends(get_db)):
     # Only certain addons have dedicated detail pages for now
     code = (code or "").strip().lower()
-    allowed_detail = {"qr_cards", "live_gallery"}
+    allowed_detail = {"qr_cards"}
     if code not in allowed_detail:
         raise HTTPException(status_code=404, detail="Addon detail not available")
 

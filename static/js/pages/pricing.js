@@ -25,6 +25,13 @@ async function startCheckout(plan){
   // Parse JSON
   const data = await res.json();
   if (!data || !data.id) throw new Error('Invalid response');
+  try {
+    document.dispatchEvent(
+      new CustomEvent('epu:checkout-start', { detail: { source: 'pricing', plan } })
+    );
+  } catch (_error) {
+    // Best effort analytics hook.
+  }
   // eslint-disable-next-line no-undef
   const stripe = Stripe((parseConfig().stripe_pk) || '');
   await stripe.redirectToCheckout({ sessionId: data.id });

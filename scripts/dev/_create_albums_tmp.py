@@ -3,7 +3,7 @@ import sys
 from sqlalchemy import text
 
 # Ensure project root on path for local imports
-sys.path.insert(0, r'e:\ProjectEPU')
+sys.path.insert(0, r"e:\ProjectEPU")
 from db import engine
 
 create_album_sql = (
@@ -38,4 +38,4 @@ with engine.connect() as conn:
     conn.execute(text(create_albumphoto_sql))
     conn.commit()
 
-print('Created/ensured Album and AlbumPhoto tables (if using MSSQL).')
+print("Created/ensured Album and AlbumPhoto tables (if using MSSQL).")

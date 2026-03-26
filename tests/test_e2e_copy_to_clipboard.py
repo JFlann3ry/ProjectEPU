@@ -7,9 +7,7 @@ import pytest
 
 # Skip this file by default unless E2E=1 env var is set
 e2e_enabled = os.getenv("E2E", "0") == "1"
-pytestmark = pytest.mark.skipif(
-    not e2e_enabled, reason="E2E tests disabled; set E2E=1 to enable"
-)
+pytestmark = pytest.mark.skipif(not e2e_enabled, reason="E2E tests disabled; set E2E=1 to enable")
 
 
 def test_copy_buttons_show_feedback():

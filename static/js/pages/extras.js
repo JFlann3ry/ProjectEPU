@@ -35,12 +35,30 @@ async function startCheckout(stripe, code, quantity, event_code) {
     throw new Error(msg);
   }
   if (!stripe) throw new Error('Stripe not initialized');
+  try {
+    document.dispatchEvent(
+      new CustomEvent('epu:checkout-start', { detail: { source: 'extras', code } })
+    );
+  } catch (_error) {
+    // Best effort analytics hook.
+  }
   await stripe.redirectToCheckout({ sessionId: data.id });
 }
 
 function boot() {
   const cfg = parseConfig();
   const stripe = window.Stripe ? window.Stripe(cfg.stripe_pk || '') : null;
+
+  const notice = document.getElementById('checkout-return-notice');
+  if (notice) {
+    setTimeout(() => {
+      notice.classList.add('is-hiding');
+      setTimeout(() => {
+        if (notice.parentNode) notice.parentNode.removeChild(notice);
+      }, 260);
+    }, 10000);
+  }
+
   document.querySelectorAll('.js-buy-extra').forEach((btn) => {
     btn.addEventListener('click', async () => {
       try {

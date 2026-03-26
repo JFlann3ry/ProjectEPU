@@ -4,6 +4,7 @@ Revision ID: 20250913_0031_add_event_gallery_order
 Revises: 20250912_0024_final_merge
 Create Date: 2025-09-13
 """
+
 from alembic import op
 import sqlalchemy as sa
 

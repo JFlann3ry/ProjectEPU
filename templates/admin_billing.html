@@ -43,7 +43,7 @@
             {% set is_pending = (it.status or '')|lower == 'pending' %}
             {% if is_pending %}
             <a class="btn" style="margin-left:6px;" href="/billing/purchase/{{ it.purchase_id }}/pay" target="_blank" rel="noopener">Pay (as user)</a>
-            <button class="btn" style="margin-left:6px;" type="button" onclick="navigator.clipboard.writeText(window.location.origin + '/billing/purchase/{{ it.purchase_id }}/pay'); this.textContent='Link copied'; setTimeout(()=>this.textContent='Copy pay link', 1500);">Copy pay link</button>
+            <button class="btn js-copy-pay-link" style="margin-left:6px;" type="button" data-pay-path="/billing/purchase/{{ it.purchase_id }}/pay">Copy pay link</button>
             {% endif %}
           </td>
         </tr>
@@ -52,4 +52,9 @@
     </table>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+  {{ super() }}
+  <script src="{{ url_for('static', path='js/pages/admin_billing.js') }}?v={{ now() if now else '' }}"></script>
 {% endblock %}

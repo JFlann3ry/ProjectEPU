@@ -39,21 +39,24 @@ PLAN_FEATURES = {
     },
 }
 
+
 def has_feature(user, feature: str) -> bool:
     plan = getattr(user, "plan", "free")
     features = PLAN_FEATURES.get(plan, PLAN_FEATURES["free"])
     return bool(features.get(feature, False))
+
 
 def upload_window_active(user, event_created_at: datetime) -> bool:
     plan = getattr(user, "plan", "free")
     months = PLAN_FEATURES[plan]["upload_window_months"]
     if not months:
         return False
-    return datetime.now(timezone.utc) <= event_created_at + timedelta(days=30*months)
+    return datetime.now(timezone.utc) <= event_created_at + timedelta(days=30 * months)
+
 
 def download_window_active(user, event_created_at: datetime) -> bool:
     plan = getattr(user, "plan", "free")
     months = PLAN_FEATURES[plan]["download_window_months"]
     if not months:
         return False
-    return datetime.now(timezone.utc) <= event_created_at + timedelta(days=30*months)
+    return datetime.now(timezone.utc) <= event_created_at + timedelta(days=30 * months)

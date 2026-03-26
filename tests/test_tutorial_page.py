@@ -17,3 +17,10 @@ def test_footer_has_tutorial_link():
     r = client.get("/login")
     assert r.status_code == 200
     assert ">Tutorial<" in r.text
+
+
+def test_tutorial_page_uses_extracted_script():
+    r = client.get("/tutorial")
+    assert r.status_code == 200
+    assert "js/pages/tutorial.js" in r.text
+    assert "Show best-available media" not in r.text

@@ -27,27 +27,17 @@ def upgrade() -> None:
             sa.Column("Code", sa.String(length=50), nullable=False, unique=True),
             sa.Column("Name", sa.String(length=120), nullable=False),
             sa.Column("Description", sa.Text(), nullable=True),
-            sa.Column(
-                "PriceCents", sa.Integer(), nullable=False, server_default=sa.text("0")
-            ),
+            sa.Column("PriceCents", sa.Integer(), nullable=False, server_default=sa.text("0")),
             sa.Column(
                 "Currency",
                 sa.String(length=8),
                 nullable=False,
                 server_default=sa.text("'gbp'"),
             ),
-            sa.Column(
-                "AllowQuantity", sa.Boolean(), nullable=False, server_default=sa.text("0")
-            ),
-            sa.Column(
-                "MinQuantity", sa.Integer(), nullable=False, server_default=sa.text("1")
-            ),
-            sa.Column(
-                "MaxQuantity", sa.Integer(), nullable=False, server_default=sa.text("1")
-            ),
-            sa.Column(
-                "IsActive", sa.Boolean(), nullable=False, server_default=sa.text("1")
-            ),
+            sa.Column("AllowQuantity", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+            sa.Column("MinQuantity", sa.Integer(), nullable=False, server_default=sa.text("1")),
+            sa.Column("MaxQuantity", sa.Integer(), nullable=False, server_default=sa.text("1")),
+            sa.Column("IsActive", sa.Boolean(), nullable=False, server_default=sa.text("1")),
             sa.Column("CreatedAt", sa.DateTime(), server_default=sa.func.now()),
             sa.Column("UpdatedAt", sa.DateTime(), server_default=sa.func.now()),
             schema="dbo",
